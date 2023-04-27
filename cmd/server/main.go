@@ -69,11 +69,6 @@ func middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if r.Header.Get("Content-Type") != "text/plain" {
-			http.Error(w, "Want Content-Type: text/plain in headers", http.StatusUnsupportedMediaType)
-			return
-		}
-
 		next.ServeHTTP(w, r)
 	})
 }
