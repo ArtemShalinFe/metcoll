@@ -59,18 +59,36 @@ func gaugeHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func middleware(next http.Handler) http.Handler {
+func handler(w http.ResponseWriter, r *http.Request) {
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Add("Allow", "POST")
+		http.Error(w, fmt.Sprintf("The method %s is not allowed. The POST method is allowed.", r.Method), http.StatusMethodNotAllowed)
+		return
+	}
 
-		if r.Method != http.MethodPost {
-			w.Header().Add("Allow", "POST")
-			http.Error(w, fmt.Sprintf("The method %s is not allowed. The POST method is allowed.", r.Method), http.StatusMethodNotAllowed)
-			return
-		}
+	isGauge, err := regexp.MatchString(`/update/gauge/`, r.URL.RequestURI())
+	if isGauge {
+		gaugeHandler(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-		next.ServeHTTP(w, r)
-	})
+	isCounter, err := regexp.MatchString(`/update/counter/`, r.URL.RequestURI())
+	if isCounter {
+		counterHandler(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	http.Error(w, "Not implemented", http.StatusNotImplemented)
+
 }
 
 func getKeyValueMetric(uri *url.URL) (string, string) {
@@ -94,8 +112,7 @@ func getKeyValueMetric(uri *url.URL) (string, string) {
 func main() {
 
 	mux := http.NewServeMux()
-	mux.Handle(`/update/counter/`, middleware(http.HandlerFunc(counterHandler)))
-	mux.Handle(`/update/gauge/`, middleware(http.HandlerFunc(gaugeHandler)))
+	mux.Handle(`/update/`, http.HandlerFunc(handler))
 
 	err := http.ListenAndServe(":8080", mux)
 	if err != nil {
