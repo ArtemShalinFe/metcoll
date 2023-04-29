@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 )
@@ -40,7 +40,7 @@ func (m *Metric) Push(s *Server) {
 		return
 	}
 	defer resp.Body.Close()
-	userResult, err := ioutil.ReadAll(resp.Body)
+	userResult, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Print(err.Error())
 	}
