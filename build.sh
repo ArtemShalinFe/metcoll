@@ -1,3 +1,3 @@
 #!/bin/bash
-go build -C ./cmd/agent -o agent
-go build -C ./cmd/server -o server
+go build -buildvcs=false -C ./cmd/agent -o agent
+go build -buildvcs=false -C ./cmd/server -o server

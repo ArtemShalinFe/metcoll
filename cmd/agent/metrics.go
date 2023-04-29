@@ -37,6 +37,7 @@ func (m *Metric) Push(s *Server) {
 	resp, err := http.Post(m.URIPathForPush(s), "text/plain", nil)
 	if err != nil {
 		log.Print(err.Error())
+		return
 	}
 	defer resp.Body.Close()
 	userResult, err := ioutil.ReadAll(resp.Body)
