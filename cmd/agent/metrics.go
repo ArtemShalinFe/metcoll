@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 )
 
@@ -34,9 +36,12 @@ func (m *Metric) Push(s *Server) {
 
 	resp, err := http.Post(m.URIPathForPush(s), "text/plain", nil)
 	if err != nil {
-		panic(err)
+		log.Print(err.Error())
 	}
-
 	defer resp.Body.Close()
-
+	userResult, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Print(err.Error())
+	}
+	log.Printf("Resp: [%d] [%s]", resp.StatusCode, string(userResult))
 }
