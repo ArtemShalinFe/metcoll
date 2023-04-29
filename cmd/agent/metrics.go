@@ -32,6 +32,11 @@ func (m *Metric) URIPathForPush(s *Server) string {
 
 func (m *Metric) Push(s *Server) {
 
-	http.Post(m.URIPathForPush(s), "text/plain", nil)
+	resp, err := http.Post(m.URIPathForPush(s), "text/plain", nil)
+	if err != nil {
+		panic(err)
+	}
+
+	defer resp.Body.Close()
 
 }
