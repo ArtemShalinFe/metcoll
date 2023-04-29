@@ -26,12 +26,12 @@ func NewMetric(Name string, Value string, mType string) *Metric {
 	}
 }
 
-func (m *Metric) UriPathForPush(s *Server) string {
+func (m *Metric) URIPathForPush(s *Server) string {
 	return fmt.Sprintf("http://%s:%s/update/%s/%s/%s", s.host, s.port, m.mType, m.name, m.value)
 }
 
 func (m *Metric) Push(s *Server) {
 
-	http.Post(m.UriPathForPush(s), "text/plain", nil)
+	http.Post(m.URIPathForPush(s), "text/plain", nil)
 
 }

@@ -32,7 +32,7 @@ func TestMetric_UriPathForPush(t *testing.T) {
 				value: tt.fields.value,
 				mType: tt.fields.mType,
 			}
-			if got := m.UriPathForPush(s); got != tt.want {
+			if got := m.URIPathForPush(s); got != tt.want {
 				t.Errorf("Metric.UriPathForPush() = %v, want %v", got, tt.want)
 			}
 		})

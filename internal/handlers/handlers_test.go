@@ -69,6 +69,8 @@ func TestUpdate(t *testing.T) {
 			w := httptest.NewRecorder()
 			Update(w, tt.request)
 			res := w.Result()
+			defer res.Body.Close()
+
 			assert.Equal(t, res.StatusCode, tt.want.code)
 		})
 	}
