@@ -57,11 +57,11 @@
 				
 				<option value="file0">github.com/ArtemShalinFe/metcoll/cmd/agent/main.go (11.4%)</option>
 				
-				<option value="file1">github.com/ArtemShalinFe/metcoll/cmd/agent/metrics.go (66.7%)</option>
+				<option value="file1">github.com/ArtemShalinFe/metcoll/cmd/agent/metrics.go (18.2%)</option>
 				
 				<option value="file2">github.com/ArtemShalinFe/metcoll/cmd/server/main.go (0.0%)</option>
 				
-				<option value="file3">github.com/ArtemShalinFe/metcoll/internal/handlers/handlers.go (92.5%)</option>
+				<option value="file3">github.com/ArtemShalinFe/metcoll/internal/handlers/handlers.go (92.8%)</option>
 				
 				<option value="file4">github.com/ArtemShalinFe/metcoll/internal/storage/storage.go (100.0%)</option>
 				
@@ -181,6 +181,8 @@ func pushvalues() <span class="cov0" title="0">{
 
 import (
         "fmt"
+        "io"
+        "log"
         "net/http"
 )
 
@@ -205,15 +207,24 @@ func NewMetric(Name string, Value string, mType string) *Metric <span class="cov
         }
 }</span>
 
-func (m *Metric) UriPathForPush(s *Server) string <span class="cov8" title="1">{
+func (m *Metric) URIPathForPush(s *Server) string <span class="cov8" title="1">{
         return fmt.Sprintf("http://%s:%s/update/%s/%s/%s", s.host, s.port, m.mType, m.name, m.value)
 }</span>
 
 func (m *Metric) Push(s *Server) <span class="cov0" title="0">{
 
-        http.Post(m.UriPathForPush(s), "text/plain", nil)
-
-}</span>
+        resp, err := http.Post(m.URIPathForPush(s), "text/plain", nil)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Print(err.Error())
+                return
+        }</span>
+        <span class="cov0" title="0">defer resp.Body.Close()
+        userResult, err := io.ReadAll(resp.Body)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Print(err.Error())
+        }</span>
+        <span class="cov0" title="0">log.Printf("Resp: [%d] [%s]", resp.StatusCode, string(userResult))</span>
+}
 </pre>
 		
 		<pre class="file" id="file2" style="display: none">package main
@@ -226,10 +237,8 @@ import (
 
 func main() <span class="cov0" title="0">{
 
-        mux := http.NewServeMux()
-        mux.Handle(`/update/`, http.HandlerFunc(h.Update))
-
-        err := http.ListenAndServe(":8080", mux)
+        r := h.ChiRouter()
+        err := http.ListenAndServe(":8080", r)
         if err != nil </span><span class="cov0" title="0">{
                 panic(err)</span>
         }
@@ -241,45 +250,148 @@ func main() <span class="cov0" title="0">{
 
 import (
         "fmt"
+        "io"
         "net/http"
-        "net/url"
-        "regexp"
         "strconv"
         "strings"
 
         MemStorage "github.com/ArtemShalinFe/metcoll/internal/storage"
+        "github.com/go-chi/chi"
+        "github.com/go-chi/chi/middleware"
 )
 
-func counterHandler(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+const gaugeMetric = "gauge"
+const counterMetric = "counter"
 
-        k, v := getKeyValueMetric(r.URL)
-        if k == "" </span><span class="cov8" title="1">{
-                http.Error(w, "name metric is empty", http.StatusNotFound)
+func ChiRouter() *chi.Mux <span class="cov8" title="1">{
+
+        r := chi.NewRouter()
+        r.Use(middleware.Logger)
+        r.Use(middleware.Recoverer)
+
+        r.Post("/update/{metricType}/{metricName}/{metricValue}", http.HandlerFunc(UpdateMetric))
+        r.Get("/value/{metricType}/{metricName}", http.HandlerFunc(GetMetric))
+        r.Get("/", http.HandlerFunc(GetMetricList))
+
+        return r
+}</span>
+
+func UpdateMetric(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+
+        if isGaugeMetric(r) </span><span class="cov8" title="1">{
+                gaugeHandler(w, r)
                 return
         }</span>
 
-        <span class="cov8" title="1">value, err := strconv.ParseInt(v, 10, 64)
+        <span class="cov8" title="1">if isCounterMetric(r) </span><span class="cov8" title="1">{
+                counterHandler(w, r)
+                return
+        }</span>
+
+        <span class="cov8" title="1">http.Error(w, "Not implemented", http.StatusNotImplemented)</span>
+}
+
+func GetMetric(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+
+        metricName := metricName(r)
+
+        if isGaugeMetric(r) </span><span class="cov8" title="1">{
+
+                have := MemStorage.Values.StorageHaveMetric(metricName)
+                if !have </span><span class="cov8" title="1">{
+                        http.Error(w, "Metric not found", http.StatusNotFound)
+                        return
+                }</span>
+
+                <span class="cov8" title="1">value, err := MemStorage.Values.GetFloat64Value(metricName)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusInternalServerError)
+                        return
+                }</span>
+                <span class="cov8" title="1">io.WriteString(w, fmt.Sprintf("%v", value))</span>
+        } else<span class="cov8" title="1"> if isCounterMetric(r) </span><span class="cov8" title="1">{
+
+                have := MemStorage.Values.StorageHaveMetric(metricName)
+                if !have </span><span class="cov8" title="1">{
+                        http.Error(w, "Metric not found", http.StatusNotFound)
+                        return
+                }</span>
+
+                <span class="cov8" title="1">value, err := MemStorage.Values.GetInt64Value(metricName)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusInternalServerError)
+                        return
+                }</span>
+                <span class="cov8" title="1">io.WriteString(w, fmt.Sprintf("%v", value))</span>
+        } else<span class="cov8" title="1"> {
+                http.Error(w, "Not implemented", http.StatusNotImplemented)
+                return
+        }</span>
+
+        <span class="cov8" title="1">w.WriteHeader(http.StatusOK)</span>
+}
+
+func GetMetricList(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+
+        ml := MemStorage.Values.GetMetricList()
+
+        body := `
+        &lt;html&gt;
+        &lt;head&gt;
+                &lt;title&gt;Metric list&lt;/title&gt;
+        &lt;/head&gt;
+        &lt;body&gt;
+                &lt;h1&gt;Metric list&lt;/h1&gt;
+                %s
+        &lt;/body&gt;
+        &lt;/html&gt;`
+        list := ""
+        for k, v := range ml </span><span class="cov8" title="1">{
+                list += fmt.Sprintf(`&lt;p&gt;%s %v&lt;/p&gt;`, k, v)
+        }</span>
+        <span class="cov8" title="1">io.WriteString(w, fmt.Sprintf(body, list))
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        w.WriteHeader(http.StatusOK)</span>
+}
+
+func counterHandler(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+
+        k := metricName(r)
+        v := metricValue(r)
+
+        if strings.TrimSpace(k) == "" </span><span class="cov8" title="1">{
+                http.Error(w, "name metric is empty", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">parseValue, err := strconv.ParseInt(v, 10, 64)
         if err != nil </span><span class="cov8" title="1">{
                 http.Error(w, err.Error(), http.StatusBadRequest)
                 return
         }</span>
 
-        <span class="cov8" title="1">newValue := value + int64(MemStorage.Values.Get(k))
+        <span class="cov8" title="1">storageValue, err := MemStorage.Values.GetInt64Value(k)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }</span>
 
-        MemStorage.Values.Set(k, float64(newValue))
+        <span class="cov8" title="1">newValue := parseValue + storageValue
+        MemStorage.Values.SetInt64Value(k, newValue)
 
         w.Header().Set("Content-Type", "text/plain; charset=utf-8")
         w.WriteHeader(http.StatusOK)
 
-        fmt.Printf("%s:%v", k, newValue)</span>
-
+        io.WriteString(w, fmt.Sprintf("%s %v", k, newValue))</span>
 }
 
 func gaugeHandler(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
 
-        k, v := getKeyValueMetric(r.URL)
-        if k == "" </span><span class="cov8" title="1">{
-                http.Error(w, "name metric is empty", http.StatusNotFound)
+        k := metricName(r)
+        v := chi.URLParam(r, "metricValue")
+
+        if strings.TrimSpace(k) == "" </span><span class="cov8" title="1">{
+                http.Error(w, "name metric is empty", http.StatusBadRequest)
                 return
         }</span>
 
@@ -289,91 +401,104 @@ func gaugeHandler(w http.ResponseWriter, r *http.Request) <span class="cov8" tit
                 return
         }</span>
 
-        <span class="cov8" title="1">MemStorage.Values.Set(k, newValue)
+        <span class="cov8" title="1">MemStorage.Values.SetFloat64Value(k, newValue)
 
         w.Header().Set("Content-Type", "text/plain; charset=utf-8")
         w.WriteHeader(http.StatusOK)
 
-        fmt.Printf("%s:%v", k, newValue)</span>
+        io.WriteString(w, fmt.Sprintf("%s %f", k, newValue))</span>
 
 }
 
-func Update(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+func isGaugeMetric(r *http.Request) bool <span class="cov8" title="1">{
+        return strings.ToLower(metricType(r)) == gaugeMetric
+}</span>
 
-        if r.Method != http.MethodPost </span><span class="cov8" title="1">{
-                w.Header().Add("Allow", "POST")
-                http.Error(w, fmt.Sprintf("The method %s is not allowed. The POST method is allowed.", r.Method), http.StatusMethodNotAllowed)
-                return
-        }</span>
+func isCounterMetric(r *http.Request) bool <span class="cov8" title="1">{
+        return strings.ToLower(metricType(r)) == counterMetric
+}</span>
 
-        <span class="cov8" title="1">isGauge, err := regexp.MatchString(`/update/gauge/`, r.URL.RequestURI())
-        if isGauge </span><span class="cov8" title="1">{
-                gaugeHandler(w, r)
-                return
-        }</span>
-        <span class="cov8" title="1">if err != nil </span><span class="cov0" title="0">{
-                http.Error(w, err.Error(), http.StatusInternalServerError)
-                return
-        }</span>
+func metricType(r *http.Request) string <span class="cov8" title="1">{
+        mt := chi.URLParam(r, "metricType")
+        return mt
+}</span>
 
-        <span class="cov8" title="1">isCounter, err := regexp.MatchString(`/update/counter/`, r.URL.RequestURI())
-        if isCounter </span><span class="cov8" title="1">{
-                counterHandler(w, r)
-                return
-        }</span>
-        <span class="cov8" title="1">if err != nil </span><span class="cov0" title="0">{
-                http.Error(w, err.Error(), http.StatusInternalServerError)
-                return
-        }</span>
+func metricName(r *http.Request) string <span class="cov8" title="1">{
+        return chi.URLParam(r, "metricName")
+}</span>
 
-        <span class="cov8" title="1">http.Error(w, "Not implemented", http.StatusNotImplemented)</span>
-
-}
-
-func getKeyValueMetric(uri *url.URL) (string, string) <span class="cov8" title="1">{
-
-        key := ""
-        value := ""
-
-        re := regexp.MustCompile(`/update/(counter|gauge)/`)
-        metric := re.ReplaceAllString(uri.RequestURI(), "")
-        metrics := strings.Split(metric, "/")
-
-        if len(metrics) == 2 </span><span class="cov8" title="1">{
-                key = metrics[0]
-                value = metrics[1]
-        }</span>
-
-        <span class="cov8" title="1">return key, value</span>
-
-}
+func metricValue(r *http.Request) string <span class="cov8" title="1">{
+        return chi.URLParam(r, "metricValue")
+}</span>
 </pre>
 		
 		<pre class="file" id="file4" style="display: none">package storage
 
+import "errors"
+
+var ErrWrongType = errors.New("wrong value type")
+
 var Values *MemStorage
+
+type MemStorage struct {
+        Data map[string]interface{}
+}
 
 func NewMemStorage() *MemStorage <span class="cov8" title="1">{
         return &amp;MemStorage{
-                storage: make(map[string]float64),
+                Data: make(map[string]interface{}),
         }
 }</span>
 
-type Storage interface {
-        Get(Key string) interface{}
-        Set(Key string, Value interface{})
-}
+func (ms *MemStorage) StorageHaveMetric(key string) bool <span class="cov8" title="1">{
 
-type MemStorage struct {
-        storage map[string]float64
-}
-
-func (ms *MemStorage) Get(Key string) float64 <span class="cov8" title="1">{
-        return Values.storage[Key]
+        _, have := ms.Data[key]
+        return have
 }</span>
 
-func (ms *MemStorage) Set(Key string, Value float64) <span class="cov8" title="1">{
-        Values.storage[Key] = Value
+func (ms *MemStorage) GetInt64Value(key string) (int64, error) <span class="cov8" title="1">{
+
+        v := ms.Data[key]
+        switch v.(type) </span>{
+        case int64:<span class="cov8" title="1">
+                return ms.Data[key].(int64), nil</span>
+        case nil:<span class="cov8" title="1">
+                return 0, nil</span>
+        default:<span class="cov8" title="1">
+                var def int64
+                return def, ErrWrongType</span>
+        }
+}
+
+func (ms *MemStorage) GetFloat64Value(key string) (float64, error) <span class="cov8" title="1">{
+
+        switch ms.Data[key].(type) </span>{
+        case float64:<span class="cov8" title="1">
+                return ms.Data[key].(float64), nil</span>
+        case nil:<span class="cov8" title="1">
+                return 0, nil</span>
+        default:<span class="cov8" title="1">
+                var def float64
+                return def, ErrWrongType</span>
+        }
+}
+
+func (ms *MemStorage) SetInt64Value(key string, value int64) error <span class="cov8" title="1">{
+
+        ms.Data[key] = value
+
+        return nil
+}</span>
+
+func (ms *MemStorage) SetFloat64Value(key string, value float64) error <span class="cov8" title="1">{
+
+        ms.Data[key] = value
+
+        return nil
+}</span>
+
+func (ms *MemStorage) GetMetricList() map[string]interface{} <span class="cov8" title="1">{
+        return Values.Data
 }</span>
 
 func init() <span class="cov8" title="1">{

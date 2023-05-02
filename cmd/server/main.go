@@ -8,10 +8,8 @@ import (
 
 func main() {
 
-	mux := http.NewServeMux()
-	mux.Handle(`/update/`, http.HandlerFunc(h.Update))
-
-	err := http.ListenAndServe(":8080", mux)
+	r := h.ChiRouter()
+	err := http.ListenAndServe(":8080", r)
 	if err != nil {
 		panic(err)
 	}

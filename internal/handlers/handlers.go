@@ -2,45 +2,148 @@ package handlers
 
 import (
 	"fmt"
+	"io"
 	"net/http"
-	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 
 	MemStorage "github.com/ArtemShalinFe/metcoll/internal/storage"
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 )
 
-func counterHandler(w http.ResponseWriter, r *http.Request) {
+const gaugeMetric = "gauge"
+const counterMetric = "counter"
 
-	k, v := getKeyValueMetric(r.URL)
-	if k == "" {
-		http.Error(w, "name metric is empty", http.StatusNotFound)
+func ChiRouter() *chi.Mux {
+
+	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+
+	r.Post("/update/{metricType}/{metricName}/{metricValue}", http.HandlerFunc(UpdateMetric))
+	r.Get("/value/{metricType}/{metricName}", http.HandlerFunc(GetMetric))
+	r.Get("/", http.HandlerFunc(GetMetricList))
+
+	return r
+}
+
+func UpdateMetric(w http.ResponseWriter, r *http.Request) {
+
+	if isGaugeMetric(r) {
+		gaugeHandler(w, r)
 		return
 	}
 
-	value, err := strconv.ParseInt(v, 10, 64)
+	if isCounterMetric(r) {
+		counterHandler(w, r)
+		return
+	}
+
+	http.Error(w, "Not implemented", http.StatusNotImplemented)
+}
+
+func GetMetric(w http.ResponseWriter, r *http.Request) {
+
+	metricName := metricName(r)
+
+	if isGaugeMetric(r) {
+
+		have := MemStorage.Values.StorageHaveMetric(metricName)
+		if !have {
+			http.Error(w, "Metric not found", http.StatusNotFound)
+			return
+		}
+
+		value, err := MemStorage.Values.GetFloat64Value(metricName)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		io.WriteString(w, fmt.Sprintf("%v", value))
+	} else if isCounterMetric(r) {
+
+		have := MemStorage.Values.StorageHaveMetric(metricName)
+		if !have {
+			http.Error(w, "Metric not found", http.StatusNotFound)
+			return
+		}
+
+		value, err := MemStorage.Values.GetInt64Value(metricName)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		io.WriteString(w, fmt.Sprintf("%v", value))
+	} else {
+		http.Error(w, "Not implemented", http.StatusNotImplemented)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func GetMetricList(w http.ResponseWriter, r *http.Request) {
+
+	ml := MemStorage.Values.GetMetricList()
+
+	body := `
+	<html>
+	<head>
+		<title>Metric list</title>
+	</head>
+	<body>
+		<h1>Metric list</h1>
+		%s
+	</body>
+	</html>`
+	list := ""
+	for k, v := range ml {
+		list += fmt.Sprintf(`<p>%s %v</p>`, k, v)
+	}
+	io.WriteString(w, fmt.Sprintf(body, list))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+}
+
+func counterHandler(w http.ResponseWriter, r *http.Request) {
+
+	k := metricName(r)
+	v := metricValue(r)
+
+	if strings.TrimSpace(k) == "" {
+		http.Error(w, "name metric is empty", http.StatusBadRequest)
+		return
+	}
+
+	parseValue, err := strconv.ParseInt(v, 10, 64)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	newValue := value + int64(MemStorage.Values.Get(k))
+	storageValue, err := MemStorage.Values.GetInt64Value(k)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	MemStorage.Values.Set(k, float64(newValue))
+	newValue := parseValue + storageValue
+	MemStorage.Values.SetInt64Value(k, newValue)
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
-	fmt.Printf("%s:%v", k, newValue)
-
+	io.WriteString(w, fmt.Sprintf("%s %v", k, newValue))
 }
 
 func gaugeHandler(w http.ResponseWriter, r *http.Request) {
 
-	k, v := getKeyValueMetric(r.URL)
-	if k == "" {
-		http.Error(w, "name metric is empty", http.StatusNotFound)
+	k := metricName(r)
+	v := chi.URLParam(r, "metricValue")
+
+	if strings.TrimSpace(k) == "" {
+		http.Error(w, "name metric is empty", http.StatusBadRequest)
 		return
 	}
 
@@ -50,61 +153,32 @@ func gaugeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	MemStorage.Values.Set(k, newValue)
+	MemStorage.Values.SetFloat64Value(k, newValue)
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
-	fmt.Printf("%s:%v", k, newValue)
+	io.WriteString(w, fmt.Sprintf("%s %f", k, newValue))
 
 }
 
-func Update(w http.ResponseWriter, r *http.Request) {
-
-	if r.Method != http.MethodPost {
-		w.Header().Add("Allow", "POST")
-		http.Error(w, fmt.Sprintf("The method %s is not allowed. The POST method is allowed.", r.Method), http.StatusMethodNotAllowed)
-		return
-	}
-
-	isGauge, err := regexp.MatchString(`/update/gauge/`, r.URL.RequestURI())
-	if isGauge {
-		gaugeHandler(w, r)
-		return
-	}
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	isCounter, err := regexp.MatchString(`/update/counter/`, r.URL.RequestURI())
-	if isCounter {
-		counterHandler(w, r)
-		return
-	}
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
-
+func isGaugeMetric(r *http.Request) bool {
+	return strings.ToLower(metricType(r)) == gaugeMetric
 }
 
-func getKeyValueMetric(uri *url.URL) (string, string) {
+func isCounterMetric(r *http.Request) bool {
+	return strings.ToLower(metricType(r)) == counterMetric
+}
 
-	key := ""
-	value := ""
+func metricType(r *http.Request) string {
+	mt := chi.URLParam(r, "metricType")
+	return mt
+}
 
-	re := regexp.MustCompile(`/update/(counter|gauge)/`)
-	metric := re.ReplaceAllString(uri.RequestURI(), "")
-	metrics := strings.Split(metric, "/")
+func metricName(r *http.Request) string {
+	return chi.URLParam(r, "metricName")
+}
 
-	if len(metrics) == 2 {
-		key = metrics[0]
-		value = metrics[1]
-	}
-
-	return key, value
-
+func metricValue(r *http.Request) string {
+	return chi.URLParam(r, "metricValue")
 }
