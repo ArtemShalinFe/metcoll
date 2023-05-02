@@ -36,6 +36,7 @@ func TestUpdateMetric(t *testing.T) {
 	}
 	for _, v := range tests {
 		resp, get := testRequest(t, ts, v.method, v.url)
+		defer resp.Body.Close()
 		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf("URL: %s", v.url))
 		if v.want != "" {
 			assert.Equal(t, v.want, get, fmt.Sprintf("URL: %s", v.url))
@@ -70,6 +71,7 @@ func TestGetMetric(t *testing.T) {
 	}
 	for _, v := range tests {
 		resp, get := testRequest(t, ts, v.method, v.url)
+		defer resp.Body.Close()
 		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf("URL: %s", v.url))
 		if v.want != "" {
 			assert.Equal(t, v.want, get, fmt.Sprintf("URL: %s", v.url))
@@ -95,6 +97,7 @@ func TestGetMetricList(t *testing.T) {
 	}
 	for _, v := range tests {
 		resp, get := testRequest(t, ts, v.method, v.url)
+		defer resp.Body.Close()
 		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf("URL: %s", v.url))
 		assert.Contains(t, get, "metricg", "request home page")
 		assert.Contains(t, get, "metricc", "request home page")
