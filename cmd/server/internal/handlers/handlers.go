@@ -85,7 +85,7 @@ func GetMetric(w http.ResponseWriter, r *http.Request) {
 
 func GetMetricList(w http.ResponseWriter, r *http.Request) {
 
-	ml := MemStorage.Values.GetMetricList()
+	ml := MemStorage.Values.GetDataList()
 
 	body := `
 	<html>

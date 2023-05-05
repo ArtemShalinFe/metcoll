@@ -63,7 +63,7 @@ func (ms *MemStorage) SetFloat64Value(key string, value float64) error {
 	return nil
 }
 
-func (ms *MemStorage) GetMetricList() map[string]interface{} {
+func (ms *MemStorage) GetDataList() map[string]interface{} {
 	return Values.Data
 }
 

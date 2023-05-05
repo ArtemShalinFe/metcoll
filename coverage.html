@@ -3,7 +3,7 @@
 <html>
 	<head>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-		<title>agent: Go Coverage Report</title>
+		<title>client: Go Coverage Report</title>
 		<style>
 			body {
 				background: black;
@@ -55,13 +55,13 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/ArtemShalinFe/metcoll/cmd/agent/main.go (11.4%)</option>
+				<option value="file0">github.com/ArtemShalinFe/metcoll/cmd/agent/internal/client/client.go (0.0%)</option>
 				
-				<option value="file1">github.com/ArtemShalinFe/metcoll/cmd/agent/metrics.go (18.2%)</option>
+				<option value="file1">github.com/ArtemShalinFe/metcoll/cmd/agent/internal/stats/stats.go (100.0%)</option>
 				
-				<option value="file2">github.com/ArtemShalinFe/metcoll/cmd/server/main.go (0.0%)</option>
+				<option value="file2">github.com/ArtemShalinFe/metcoll/cmd/agent/main.go (41.4%)</option>
 				
-				<option value="file3">github.com/ArtemShalinFe/metcoll/internal/handlers/handlers.go (92.8%)</option>
+				<option value="file3">github.com/ArtemShalinFe/metcoll/cmd/server/internal/handlers/handlers.go (92.8%)</option>
 				
 				<option value="file4">github.com/ArtemShalinFe/metcoll/internal/storage/storage.go (100.0%)</option>
 				
@@ -77,107 +77,7 @@
 		</div>
 		<div id="content">
 		
-		<pre class="file" id="file0" style="display: none">package main
-
-import (
-        "fmt"
-        "runtime"
-        "time"
-)
-
-const pollInterval = 2
-const reportInterval = 10
-
-var lastReportPush time.Time
-var ms *lastMemStat
-var conn *Server
-
-type lastMemStat struct {
-        lms         *runtime.MemStats
-        PollCount   int64
-        RandomValue int64 // timestamp
-}
-
-func main() <span class="cov0" title="0">{
-
-        for </span><span class="cov0" title="0">{
-
-                runtime.ReadMemStats(ms.lms)
-                ms.PollCount += 1
-
-                now := time.Now()
-                if isTimeToPushReport(now) </span><span class="cov0" title="0">{
-                        lastReportPush = now
-                        pushvalues()
-                }</span>
-
-                <span class="cov0" title="0">time.Sleep(pollInterval * time.Second)</span>
-        }
-
-}
-
-func init() <span class="cov8" title="1">{
-
-        conn = &amp;Server{
-                host: "localhost",
-                port: "8080",
-        }
-
-        m := runtime.MemStats{}
-        runtime.ReadMemStats(&amp;m)
-        ms = &amp;lastMemStat{
-                lms:         &amp;m,
-                PollCount:   0,
-                RandomValue: time.Now().Unix(),
-        }
-
-}</span>
-
-func isTimeToPushReport(now time.Time) bool <span class="cov8" title="1">{
-        return now.After(lastReportPush.Add(time.Second * reportInterval))
-}</span>
-
-// Извиняюсь. Это жесть какая-то, но я не придумал как сделать проще :(
-func pushvalues() <span class="cov0" title="0">{
-
-        var metrics []*Metric
-        metrics = append(metrics, NewMetric("Alloc", fmt.Sprintf("%v", ms.lms.Alloc), gauge))
-        metrics = append(metrics, NewMetric("BuckHashSys", fmt.Sprintf("%v", ms.lms.BuckHashSys), gauge))
-        metrics = append(metrics, NewMetric("GCCPUFraction", fmt.Sprintf("%v", ms.lms.GCCPUFraction), gauge))
-        metrics = append(metrics, NewMetric("GCSys", fmt.Sprintf("%v", ms.lms.GCSys), gauge))
-        metrics = append(metrics, NewMetric("HeapAlloc", fmt.Sprintf("%v", ms.lms.HeapAlloc), gauge))
-        metrics = append(metrics, NewMetric("HeapIdle", fmt.Sprintf("%v", ms.lms.HeapIdle), gauge))
-        metrics = append(metrics, NewMetric("HeapInuse", fmt.Sprintf("%v", ms.lms.HeapInuse), gauge))
-        metrics = append(metrics, NewMetric("HeapObjects", fmt.Sprintf("%v", ms.lms.HeapObjects), gauge))
-        metrics = append(metrics, NewMetric("HeapReleased", fmt.Sprintf("%v", ms.lms.HeapReleased), gauge))
-        metrics = append(metrics, NewMetric("HeapSys", fmt.Sprintf("%v", ms.lms.HeapSys), gauge))
-        metrics = append(metrics, NewMetric("LastGC", fmt.Sprintf("%v", ms.lms.LastGC), gauge))
-        metrics = append(metrics, NewMetric("Lookups", fmt.Sprintf("%v", ms.lms.Lookups), gauge))
-        metrics = append(metrics, NewMetric("MCacheInuse", fmt.Sprintf("%v", ms.lms.MCacheInuse), gauge))
-        metrics = append(metrics, NewMetric("MCacheSys", fmt.Sprintf("%v", ms.lms.MCacheSys), gauge))
-        metrics = append(metrics, NewMetric("MSpanInuse", fmt.Sprintf("%v", ms.lms.MSpanInuse), gauge))
-        metrics = append(metrics, NewMetric("MSpanSys", fmt.Sprintf("%v", ms.lms.MSpanSys), gauge))
-        metrics = append(metrics, NewMetric("Mallocs", fmt.Sprintf("%v", ms.lms.Mallocs), gauge))
-        metrics = append(metrics, NewMetric("NextGC", fmt.Sprintf("%v", ms.lms.NextGC), gauge))
-        metrics = append(metrics, NewMetric("NumForcedGC", fmt.Sprintf("%v", ms.lms.NumForcedGC), gauge))
-        metrics = append(metrics, NewMetric("NumGC", fmt.Sprintf("%v", ms.lms.NumGC), gauge))
-        metrics = append(metrics, NewMetric("OtherSys", fmt.Sprintf("%v", ms.lms.OtherSys), gauge))
-        metrics = append(metrics, NewMetric("PauseTotalNs", fmt.Sprintf("%v", ms.lms.PauseTotalNs), gauge))
-        metrics = append(metrics, NewMetric("StackInuse", fmt.Sprintf("%v", ms.lms.StackInuse), gauge))
-        metrics = append(metrics, NewMetric("StackSys", fmt.Sprintf("%v", ms.lms.StackSys), gauge))
-        metrics = append(metrics, NewMetric("Sys", fmt.Sprintf("%v", ms.lms.Sys), gauge))
-        metrics = append(metrics, NewMetric("TotalAlloc", fmt.Sprintf("%v", ms.lms.TotalAlloc), gauge))
-        metrics = append(metrics, NewMetric("PollCount", fmt.Sprintf("%v", ms.PollCount), counter))
-        metrics = append(metrics, NewMetric("RandomValue", fmt.Sprintf("%v", time.Now().Unix()), gauge))
-
-        for _, metric := range metrics </span><span class="cov0" title="0">{
-                metric.Push(conn)
-        }</span>
-
-}
-</pre>
-		
-		<pre class="file" id="file1" style="display: none">package main
+		<pre class="file" id="file0" style="display: none">package client
 
 import (
         "fmt"
@@ -186,34 +86,19 @@ import (
         "net/http"
 )
 
-const gauge = "gauge"
-const counter = "counter"
-
-type Server struct {
+type Client struct {
         host string
-        port string
-}
-type Metric struct {
-        name  string
-        value string
-        mType string
 }
 
-func NewMetric(Name string, Value string, mType string) *Metric <span class="cov8" title="1">{
-        return &amp;Metric{
-                name:  Name,
-                value: Value,
-                mType: mType,
+func NewClient(Host string) *Client <span class="cov0" title="0">{
+        return &amp;Client{
+                host: Host,
         }
 }</span>
 
-func (m *Metric) URIPathForPush(s *Server) string <span class="cov8" title="1">{
-        return fmt.Sprintf("http://%s:%s/update/%s/%s/%s", s.host, s.port, m.mType, m.name, m.value)
-}</span>
+func (c *Client) Push(mType string, Name string, Value string) <span class="cov0" title="0">{
 
-func (m *Metric) Push(s *Server) <span class="cov0" title="0">{
-
-        resp, err := http.Post(m.URIPathForPush(s), "text/plain", nil)
+        resp, err := http.Post(fmt.Sprintf("http://%s/update/%s/%s/%s", c.host, mType, Name, Value), "text/plain", nil)
         if err != nil </span><span class="cov0" title="0">{
                 log.Print(err.Error())
                 return
@@ -223,27 +108,167 @@ func (m *Metric) Push(s *Server) <span class="cov0" title="0">{
         if err != nil </span><span class="cov0" title="0">{
                 log.Print(err.Error())
         }</span>
-        <span class="cov0" title="0">log.Printf("Resp: [%d] [%s]", resp.StatusCode, string(userResult))</span>
+        <span class="cov0" title="0">log.Printf("Resp: [%d] [%s]\n", resp.StatusCode, string(userResult))</span>
 }
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package stats
+
+import (
+        "fmt"
+        "runtime"
+        "time"
+)
+
+const gauge = "gauge"
+const counter = "counter"
+
+type Stats struct {
+        memStats    *runtime.MemStats
+        PollCount   int64
+        RandomValue int64 // timestamp
+}
+
+func (s *Stats) Update() <span class="cov8" title="1">{
+
+        m := runtime.MemStats{}
+        runtime.ReadMemStats(&amp;m)
+
+        s.memStats = &amp;m
+        s.PollCount = s.PollCount + 1
+        s.RandomValue = time.Now().Unix()
+
+}</span>
+
+func (s *Stats) GetReportData() map[string]map[string]string <span class="cov8" title="1">{
+
+        gaugeMetrics := make(map[string]string)
+        counterMetrics := make(map[string]string)
+
+        reportData := make(map[string]map[string]string)
+
+        gaugeMetrics["Alloc"] = fmt.Sprintf("%v", s.memStats.Alloc)
+        gaugeMetrics["BuckHashSys"] = fmt.Sprintf("%v", s.memStats.BuckHashSys)
+        gaugeMetrics["GCCPUFraction"] = fmt.Sprintf("%v", s.memStats.GCCPUFraction)
+        gaugeMetrics["HeapAlloc"] = fmt.Sprintf("%v", s.memStats.HeapAlloc)
+        gaugeMetrics["GCSys"] = fmt.Sprintf("%v", s.memStats.GCSys)
+        gaugeMetrics["HeapIdle"] = fmt.Sprintf("%v", s.memStats.HeapIdle)
+        gaugeMetrics["HeapInuse"] = fmt.Sprintf("%v", s.memStats.HeapInuse)
+        gaugeMetrics["HeapObjects"] = fmt.Sprintf("%v", s.memStats.HeapObjects)
+        gaugeMetrics["HeapReleased"] = fmt.Sprintf("%v", s.memStats.HeapReleased)
+        gaugeMetrics["HeapSys"] = fmt.Sprintf("%v", s.memStats.HeapSys)
+        gaugeMetrics["LastGC"] = fmt.Sprintf("%v", s.memStats.LastGC)
+        gaugeMetrics["Lookups"] = fmt.Sprintf("%v", s.memStats.Lookups)
+        gaugeMetrics["MCacheInuse"] = fmt.Sprintf("%v", s.memStats.MCacheInuse)
+        gaugeMetrics["MCacheSys"] = fmt.Sprintf("%v", s.memStats.MCacheSys)
+        gaugeMetrics["MSpanInuse"] = fmt.Sprintf("%v", s.memStats.MSpanInuse)
+        gaugeMetrics["MSpanSys"] = fmt.Sprintf("%v", s.memStats.MSpanSys)
+        gaugeMetrics["Mallocs"] = fmt.Sprintf("%v", s.memStats.Mallocs)
+        gaugeMetrics["NextGC"] = fmt.Sprintf("%v", s.memStats.NextGC)
+        gaugeMetrics["NumForcedGC"] = fmt.Sprintf("%v", s.memStats.NumForcedGC)
+        gaugeMetrics["NumGC"] = fmt.Sprintf("%v", s.memStats.NumGC)
+        gaugeMetrics["OtherSys"] = fmt.Sprintf("%v", s.memStats.OtherSys)
+        gaugeMetrics["PauseTotalNs"] = fmt.Sprintf("%v", s.memStats.PauseTotalNs)
+        gaugeMetrics["StackInuse"] = fmt.Sprintf("%v", s.memStats.StackInuse)
+        gaugeMetrics["StackSys"] = fmt.Sprintf("%v", s.memStats.StackSys)
+        gaugeMetrics["TotalAlloc"] = fmt.Sprintf("%v", s.memStats.TotalAlloc)
+        gaugeMetrics["RandomValue"] = fmt.Sprintf("%v", s.RandomValue)
+
+        counterMetrics["PollCount"] = fmt.Sprintf("%v", s.PollCount)
+
+        reportData[gauge] = gaugeMetrics
+        reportData[counter] = counterMetrics
+
+        return reportData
+
+}</span>
 </pre>
 		
 		<pre class="file" id="file2" style="display: none">package main
 
 import (
-        "net/http"
+        "flag"
+        "log"
+        "time"
 
-        h "github.com/ArtemShalinFe/metcoll/internal/handlers"
+        metcoll "github.com/ArtemShalinFe/metcoll/cmd/agent/internal/client"
+        metrics "github.com/ArtemShalinFe/metcoll/cmd/agent/internal/stats"
+        "github.com/caarlos0/env/v8"
 )
+
+var lastReportPush time.Time
+var conn *metcoll.Client
+
+type Config struct {
+        PollInterval   int    `env:"POLL_INTERVAL" envDefault:"2"`
+        ReportInterval int    `env:"REPORT_INTERVAL" envDefault:"10"`
+        Server         string `env:"ADDRESS" envDefault:"localhost:8080"`
+}
 
 func main() <span class="cov0" title="0">{
 
-        r := h.ChiRouter()
-        err := http.ListenAndServe(":8080", r)
-        if err != nil </span><span class="cov0" title="0">{
-                panic(err)</span>
+        cfg := parseConfig()
+        conn = metcoll.NewClient(cfg.Server)
+        var s metrics.Stats
+
+        for </span><span class="cov0" title="0">{
+                s.Update()
+                pushReport(s, cfg)
+                time.Sleep(time.Duration(cfg.PollInterval) * time.Second)
+        }</span>
+
+}
+
+func pushReport(s metrics.Stats, cfg *Config) <span class="cov0" title="0">{
+
+        now := time.Now()
+        if isTimeToPushReport(now, cfg.ReportInterval) </span><span class="cov0" title="0">{
+
+                lastReportPush = now
+
+                for mType, data := range s.GetReportData() </span><span class="cov0" title="0">{
+
+                        for name, value := range data </span><span class="cov0" title="0">{
+                                conn.Push(mType, name, value)
+                        }</span>
+
+                }
+
         }
 
 }
+
+func parseConfig() *Config <span class="cov8" title="1">{
+
+        var c Config
+
+        flagServer := flag.String("a", "", "server end point")
+        flagReportInterval := flag.Int("r", 0, "report push interval")
+        flagPollInterval := flag.Int("p", 0, "poll interval")
+        flag.Parse()
+
+        err := env.Parse(&amp;c)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatal(err)
+        }</span>
+
+        <span class="cov8" title="1">if *flagServer != "" </span><span class="cov0" title="0">{
+                c.Server = *flagServer
+        }</span>
+        <span class="cov8" title="1">if *flagReportInterval != 0 </span><span class="cov0" title="0">{
+                c.ReportInterval = *flagReportInterval
+        }</span>
+        <span class="cov8" title="1">if *flagPollInterval != 0 </span><span class="cov0" title="0">{
+                c.PollInterval = *flagPollInterval
+        }</span>
+
+        <span class="cov8" title="1">return &amp;c</span>
+
+}
+
+func isTimeToPushReport(now time.Time, reportInterval int) bool <span class="cov8" title="1">{
+        return now.After(lastReportPush.Add(time.Second * time.Duration(reportInterval)))
+}</span>
 </pre>
 		
 		<pre class="file" id="file3" style="display: none">package handlers
@@ -333,7 +358,7 @@ func GetMetric(w http.ResponseWriter, r *http.Request) <span class="cov8" title=
 
 func GetMetricList(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
 
-        ml := MemStorage.Values.GetMetricList()
+        ml := MemStorage.Values.GetDataList()
 
         body := `
         &lt;html&gt;
@@ -497,7 +522,7 @@ func (ms *MemStorage) SetFloat64Value(key string, value float64) error <span cla
         return nil
 }</span>
 
-func (ms *MemStorage) GetMetricList() map[string]interface{} <span class="cov8" title="1">{
+func (ms *MemStorage) GetDataList() map[string]interface{} <span class="cov8" title="1">{
         return Values.Data
 }</span>
 

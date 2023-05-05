@@ -29,5 +29,5 @@ func (c *Client) Push(mType string, Name string, Value string) {
 	if err != nil {
 		log.Print(err.Error())
 	}
-	log.Printf("Resp: [%d] [%s]", resp.StatusCode, string(userResult))
+	log.Printf("Resp: [%d] [%s]\n", resp.StatusCode, string(userResult))
 }
