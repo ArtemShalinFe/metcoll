@@ -7,9 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	MemStorage "github.com/ArtemShalinFe/metcoll/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
 func TestUpdateMetric(t *testing.T) {
@@ -23,15 +24,14 @@ func TestUpdateMetric(t *testing.T) {
 		status int
 		method string
 	}{
-		{"/update/gauge/ /1.0", "name metric is empty\n", http.StatusBadRequest, http.MethodPost},
-		{"/update/counter/ /1.0", "name metric is empty\n", http.StatusBadRequest, http.MethodPost},
-		{"/update/gauge/metricg/1.0", "metricg 1.000000", http.StatusOK, http.MethodPost},
+		{"/update/gauge/metricg/1.2", "metricg 1.2", http.StatusOK, http.MethodPost},
 		{"/update/counter/metricc/1", "metricc 1", http.StatusOK, http.MethodPost},
+		{"/update/counter/ /1", "name metric is empty\n", http.StatusBadRequest, http.MethodPost},
 		{"/update/gauge/", "404 page not found\n", http.StatusNotFound, http.MethodPost},
 		{"/update/counter/", "404 page not found\n", http.StatusNotFound, http.MethodPost},
-		{"/update/gauge/metric/novalue", "strconv.ParseFloat: parsing \"novalue\": invalid syntax\n", http.StatusBadRequest, http.MethodPost},
-		{"/update/counter/metric/novalue", "strconv.ParseInt: parsing \"novalue\": invalid syntax\n", http.StatusBadRequest, http.MethodPost},
-		{"/update/summary/metric/1", "Not implemented\n", http.StatusNotImplemented, http.MethodPost},
+		{"/update/gauge/metric/novalue", "Bad request\n", http.StatusBadRequest, http.MethodPost},
+		{"/update/counter/metric/novalue", "Bad request\n", http.StatusBadRequest, http.MethodPost},
+		{"/update/summary/metric/1", "unknow type metric\n", http.StatusBadRequest, http.MethodPost},
 		{"/update/gauge/metricg/1.0", "", http.StatusMethodNotAllowed, http.MethodGet},
 	}
 	for _, v := range tests {
@@ -46,9 +46,11 @@ func TestUpdateMetric(t *testing.T) {
 
 func TestGetMetric(t *testing.T) {
 
-	MemStorage.Values.SetFloat64Value("metricg", 1.2)
-	MemStorage.Values.SetFloat64Value("metrico", 2)
-	MemStorage.Values.SetInt64Value("metricc", 1)
+	values = storage.NewMemStorage()
+
+	values.SetFloat64Value("metricg", 1.2)
+	values.SetFloat64Value("metrico", 2)
+	values.AddInt64Value("metricc", 1)
 
 	ts := httptest.NewServer(ChiRouter())
 	defer ts.Close()
@@ -64,7 +66,7 @@ func TestGetMetric(t *testing.T) {
 		{"/value/counter/metricc", "1", http.StatusOK, http.MethodGet},
 		{"/value/gauge/", "404 page not found\n", http.StatusNotFound, http.MethodGet},
 		{"/value/counter/", "404 page not found\n", http.StatusNotFound, http.MethodGet},
-		{"/value/summary/metric", "Not implemented\n", http.StatusNotImplemented, http.MethodGet},
+		{"/value/summary/metric", "unknow type metric\n", http.StatusBadRequest, http.MethodGet},
 		{"/value/gauge/metricq", "", http.StatusMethodNotAllowed, http.MethodPost},
 		{"/value/gauge/metricq", "Metric not found\n", http.StatusNotFound, http.MethodGet},
 		{"/value/counter/metricq", "Metric not found\n", http.StatusNotFound, http.MethodGet},
@@ -81,8 +83,10 @@ func TestGetMetric(t *testing.T) {
 
 func TestGetMetricList(t *testing.T) {
 
-	MemStorage.Values.SetFloat64Value("metricg", 1.000000)
-	MemStorage.Values.SetInt64Value("metricc", 1)
+	values = storage.NewMemStorage()
+
+	values.SetFloat64Value("metricg", 1.000000)
+	values.AddInt64Value("metricc", 1)
 
 	ts := httptest.NewServer(ChiRouter())
 	defer ts.Close()

@@ -2,47 +2,50 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 
-	h "github.com/ArtemShalinFe/metcoll/cmd/server/internal/handlers"
 	"github.com/caarlos0/env"
+
+	"github.com/ArtemShalinFe/metcoll/internal/handlers"
 )
 
 type Config struct {
-	Address string `env:"ADDRESS" envDefault:"localhost:8080"`
+	Address string `env:"ADDRESS"`
 }
 
 func main() {
 
-	cfg := parseConfig()
-
-	r := h.ChiRouter()
-
-	fmt.Printf("Try running on %v\n", cfg.Address)
-	err := http.ListenAndServe(cfg.Address, r)
+	cfg, err := parseConfig()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+	}
+
+	r := handlers.ChiRouter()
+
+	log.Printf("Try running on %v\n", cfg.Address)
+	if err := http.ListenAndServe(cfg.Address, r); err != nil {
+		log.Fatal(err)
 	}
 
 }
 
-func parseConfig() *Config {
+func parseConfig() (*Config, error) {
 
 	var c Config
 
-	flagAddress := flag.String("a", "", "server end point")
+	flagAddress := flag.String("a", "localhost:8080", "server end point")
 	flag.Parse()
-	if *flagAddress != "" {
-		c.Address = *flagAddress
-		return &c
-	}
 
 	err := env.Parse(&c)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	return &c
+
+	if c.Address == "" {
+		c.Address = *flagAddress
+	}
+
+	return &c, nil
 
 }

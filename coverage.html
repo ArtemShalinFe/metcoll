@@ -3,7 +3,7 @@
 <html>
 	<head>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-		<title>client: Go Coverage Report</title>
+		<title>agent: Go Coverage Report</title>
 		<style>
 			body {
 				background: black;
@@ -55,15 +55,21 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/ArtemShalinFe/metcoll/cmd/agent/internal/client/client.go (0.0%)</option>
+				<option value="file0">github.com/ArtemShalinFe/metcoll/cmd/agent/main.go (54.1%)</option>
 				
-				<option value="file1">github.com/ArtemShalinFe/metcoll/cmd/agent/internal/stats/stats.go (100.0%)</option>
+				<option value="file1">github.com/ArtemShalinFe/metcoll/internal/handlers/handlers.go (93.9%)</option>
 				
-				<option value="file2">github.com/ArtemShalinFe/metcoll/cmd/agent/main.go (41.4%)</option>
+				<option value="file2">github.com/ArtemShalinFe/metcoll/internal/metcoll/metcoll.go (0.0%)</option>
 				
-				<option value="file3">github.com/ArtemShalinFe/metcoll/cmd/server/internal/handlers/handlers.go (92.8%)</option>
+				<option value="file3">github.com/ArtemShalinFe/metcoll/internal/metrics/counter.go (100.0%)</option>
 				
-				<option value="file4">github.com/ArtemShalinFe/metcoll/internal/storage/storage.go (100.0%)</option>
+				<option value="file4">github.com/ArtemShalinFe/metcoll/internal/metrics/gauge.go (100.0%)</option>
+				
+				<option value="file5">github.com/ArtemShalinFe/metcoll/internal/metrics/metrics.go (100.0%)</option>
+				
+				<option value="file6">github.com/ArtemShalinFe/metcoll/internal/stats/stats.go (100.0%)</option>
+				
+				<option value="file7">github.com/ArtemShalinFe/metcoll/internal/storage/storage.go (100.0%)</option>
 				
 				</select>
 			</div>
@@ -77,216 +83,125 @@
 		</div>
 		<div id="content">
 		
-		<pre class="file" id="file0" style="display: none">package client
+		<pre class="file" id="file0" style="display: none">package main
 
 import (
-        "fmt"
-        "io"
-        "log"
-        "net/http"
-)
-
-type Client struct {
-        host string
-}
-
-func NewClient(Host string) *Client <span class="cov0" title="0">{
-        return &amp;Client{
-                host: Host,
-        }
-}</span>
-
-func (c *Client) Push(mType string, Name string, Value string) <span class="cov0" title="0">{
-
-        resp, err := http.Post(fmt.Sprintf("http://%s/update/%s/%s/%s", c.host, mType, Name, Value), "text/plain", nil)
-        if err != nil </span><span class="cov0" title="0">{
-                log.Print(err.Error())
-                return
-        }</span>
-        <span class="cov0" title="0">defer resp.Body.Close()
-        userResult, err := io.ReadAll(resp.Body)
-        if err != nil </span><span class="cov0" title="0">{
-                log.Print(err.Error())
-        }</span>
-        <span class="cov0" title="0">log.Printf("Resp: [%d] [%s]\n", resp.StatusCode, string(userResult))</span>
-}
-</pre>
-		
-		<pre class="file" id="file1" style="display: none">package stats
-
-import (
-        "fmt"
-        "runtime"
-        "time"
-)
-
-const gauge = "gauge"
-const counter = "counter"
-
-type Stats struct {
-        memStats    *runtime.MemStats
-        PollCount   int64
-        RandomValue int64 // timestamp
-}
-
-func (s *Stats) Update() <span class="cov8" title="1">{
-
-        m := runtime.MemStats{}
-        runtime.ReadMemStats(&amp;m)
-
-        s.memStats = &amp;m
-        s.PollCount = s.PollCount + 1
-        s.RandomValue = time.Now().Unix()
-
-}</span>
-
-func (s *Stats) GetReportData() map[string]map[string]string <span class="cov8" title="1">{
-
-        gaugeMetrics := make(map[string]string)
-        counterMetrics := make(map[string]string)
-
-        reportData := make(map[string]map[string]string)
-
-        gaugeMetrics["Alloc"] = fmt.Sprintf("%v", s.memStats.Alloc)
-        gaugeMetrics["BuckHashSys"] = fmt.Sprintf("%v", s.memStats.BuckHashSys)
-        gaugeMetrics["GCCPUFraction"] = fmt.Sprintf("%v", s.memStats.GCCPUFraction)
-        gaugeMetrics["HeapAlloc"] = fmt.Sprintf("%v", s.memStats.HeapAlloc)
-        gaugeMetrics["GCSys"] = fmt.Sprintf("%v", s.memStats.GCSys)
-        gaugeMetrics["HeapIdle"] = fmt.Sprintf("%v", s.memStats.HeapIdle)
-        gaugeMetrics["HeapInuse"] = fmt.Sprintf("%v", s.memStats.HeapInuse)
-        gaugeMetrics["HeapObjects"] = fmt.Sprintf("%v", s.memStats.HeapObjects)
-        gaugeMetrics["HeapReleased"] = fmt.Sprintf("%v", s.memStats.HeapReleased)
-        gaugeMetrics["HeapSys"] = fmt.Sprintf("%v", s.memStats.HeapSys)
-        gaugeMetrics["LastGC"] = fmt.Sprintf("%v", s.memStats.LastGC)
-        gaugeMetrics["Lookups"] = fmt.Sprintf("%v", s.memStats.Lookups)
-        gaugeMetrics["MCacheInuse"] = fmt.Sprintf("%v", s.memStats.MCacheInuse)
-        gaugeMetrics["MCacheSys"] = fmt.Sprintf("%v", s.memStats.MCacheSys)
-        gaugeMetrics["MSpanInuse"] = fmt.Sprintf("%v", s.memStats.MSpanInuse)
-        gaugeMetrics["MSpanSys"] = fmt.Sprintf("%v", s.memStats.MSpanSys)
-        gaugeMetrics["Mallocs"] = fmt.Sprintf("%v", s.memStats.Mallocs)
-        gaugeMetrics["NextGC"] = fmt.Sprintf("%v", s.memStats.NextGC)
-        gaugeMetrics["NumForcedGC"] = fmt.Sprintf("%v", s.memStats.NumForcedGC)
-        gaugeMetrics["NumGC"] = fmt.Sprintf("%v", s.memStats.NumGC)
-        gaugeMetrics["OtherSys"] = fmt.Sprintf("%v", s.memStats.OtherSys)
-        gaugeMetrics["PauseTotalNs"] = fmt.Sprintf("%v", s.memStats.PauseTotalNs)
-        gaugeMetrics["StackInuse"] = fmt.Sprintf("%v", s.memStats.StackInuse)
-        gaugeMetrics["StackSys"] = fmt.Sprintf("%v", s.memStats.StackSys)
-        gaugeMetrics["TotalAlloc"] = fmt.Sprintf("%v", s.memStats.TotalAlloc)
-        gaugeMetrics["RandomValue"] = fmt.Sprintf("%v", s.RandomValue)
-
-        counterMetrics["PollCount"] = fmt.Sprintf("%v", s.PollCount)
-
-        reportData[gauge] = gaugeMetrics
-        reportData[counter] = counterMetrics
-
-        return reportData
-
-}</span>
-</pre>
-		
-		<pre class="file" id="file2" style="display: none">package main
-
-import (
+        "errors"
         "flag"
+        "fmt"
         "log"
         "time"
 
-        metcoll "github.com/ArtemShalinFe/metcoll/cmd/agent/internal/client"
-        metrics "github.com/ArtemShalinFe/metcoll/cmd/agent/internal/stats"
         "github.com/caarlos0/env/v8"
-)
 
-var lastReportPush time.Time
-var conn *metcoll.Client
+        "github.com/ArtemShalinFe/metcoll/internal/metcoll"
+        "github.com/ArtemShalinFe/metcoll/internal/stats"
+)
 
 type Config struct {
-        PollInterval   int    `env:"POLL_INTERVAL" envDefault:"2"`
-        ReportInterval int    `env:"REPORT_INTERVAL" envDefault:"10"`
-        Server         string `env:"ADDRESS" envDefault:"localhost:8080"`
+        PollInterval   int    `env:"POLL_INTERVAL"`
+        ReportInterval int    `env:"REPORT_INTERVAL"`
+        Server         string `env:"ADDRESS"`
+}
+
+type client interface {
+        Push(mType string, Name string, Value string) error
 }
 
 func main() <span class="cov0" title="0">{
 
-        cfg := parseConfig()
-        conn = metcoll.NewClient(cfg.Server)
-        var s metrics.Stats
+        var lastReportPush time.Time
+
+        cfg, err := parseConfig()
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatal(err)
+        }</span>
+        <span class="cov0" title="0">s := stats.NewStats()
 
         for </span><span class="cov0" title="0">{
                 s.Update()
-                pushReport(s, cfg)
-                time.Sleep(time.Duration(cfg.PollInterval) * time.Second)
-        }</span>
-
-}
-
-func pushReport(s metrics.Stats, cfg *Config) <span class="cov0" title="0">{
-
-        now := time.Now()
-        if isTimeToPushReport(now, cfg.ReportInterval) </span><span class="cov0" title="0">{
-
-                lastReportPush = now
-
-                for mType, data := range s.GetReportData() </span><span class="cov0" title="0">{
-
-                        for name, value := range data </span><span class="cov0" title="0">{
-                                conn.Push(mType, name, value)
+                now := time.Now()
+                if isTimeToPushReport(lastReportPush, now, cfg.ReportInterval) </span><span class="cov0" title="0">{
+                        conn := metcoll.NewClient(cfg.Server)
+                        err := pushReport(conn, s, cfg)
+                        if err != nil </span><span class="cov0" title="0">{
+                                log.Print(err)
                         }</span>
-
                 }
-
+                <span class="cov0" title="0">time.Sleep(time.Duration(cfg.PollInterval) * time.Second)</span>
         }
 
 }
 
-func parseConfig() *Config <span class="cov8" title="1">{
+func pushReport(conn client, s *stats.Stats, cfg *Config) error <span class="cov8" title="1">{
+
+        for mType, data := range s.GetReportData() </span><span class="cov8" title="1">{
+
+                for name, value := range data </span><span class="cov8" title="1">{
+                        err := conn.Push(mType, name, value)
+                        if err != nil </span><span class="cov0" title="0">{
+                                t := fmt.Sprintf("cannot push %s %s with value %s on server: %v", mType, name, value, err)
+                                return errors.New(t)
+                        }</span>
+                }
+
+        }
+
+        <span class="cov8" title="1">return nil</span>
+
+}
+
+func parseConfig() (*Config, error) <span class="cov8" title="1">{
 
         var c Config
 
-        flagServer := flag.String("a", "", "server end point")
-        flagReportInterval := flag.Int("r", 0, "report push interval")
-        flagPollInterval := flag.Int("p", 0, "poll interval")
+        flagServer := flag.String("a", "localhost:8080", "server end point")
+        flagReportInterval := flag.Int("r", 10, "report push interval")
+        flagPollInterval := flag.Int("p", 2, "poll interval")
         flag.Parse()
 
         err := env.Parse(&amp;c)
         if err != nil </span><span class="cov0" title="0">{
-                log.Fatal(err)
+                return nil, err
         }</span>
 
-        <span class="cov8" title="1">if *flagServer != "" </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if c.Server == "" </span><span class="cov8" title="1">{
                 c.Server = *flagServer
         }</span>
-        <span class="cov8" title="1">if *flagReportInterval != 0 </span><span class="cov0" title="0">{
+
+        <span class="cov8" title="1">if c.ReportInterval == 0 </span><span class="cov8" title="1">{
                 c.ReportInterval = *flagReportInterval
         }</span>
-        <span class="cov8" title="1">if *flagPollInterval != 0 </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if c.PollInterval == 0 </span><span class="cov8" title="1">{
                 c.PollInterval = *flagPollInterval
         }</span>
 
-        <span class="cov8" title="1">return &amp;c</span>
+        <span class="cov8" title="1">return &amp;c, nil</span>
 
 }
 
-func isTimeToPushReport(now time.Time, reportInterval int) bool <span class="cov8" title="1">{
+func isTimeToPushReport(lastReportPush time.Time, now time.Time, reportInterval int) bool <span class="cov8" title="1">{
         return now.After(lastReportPush.Add(time.Second * time.Duration(reportInterval)))
 }</span>
 </pre>
 		
-		<pre class="file" id="file3" style="display: none">package handlers
+		<pre class="file" id="file1" style="display: none">package handlers
 
 import (
         "fmt"
         "io"
+        "log"
         "net/http"
-        "strconv"
         "strings"
 
-        MemStorage "github.com/ArtemShalinFe/metcoll/internal/storage"
         "github.com/go-chi/chi"
         "github.com/go-chi/chi/middleware"
+
+        "github.com/ArtemShalinFe/metcoll/internal/metrics"
+        "github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
-const gaugeMetric = "gauge"
-const counterMetric = "counter"
+var values *storage.MemStorage
 
 func ChiRouter() *chi.Mux <span class="cov8" title="1">{
 
@@ -303,62 +218,64 @@ func ChiRouter() *chi.Mux <span class="cov8" title="1">{
 
 func UpdateMetric(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
 
-        if isGaugeMetric(r) </span><span class="cov8" title="1">{
-                gaugeHandler(w, r)
+        k := chi.URLParam(r, "metricName")
+        v := chi.URLParam(r, "metricValue")
+
+        if strings.TrimSpace(k) == "" </span><span class="cov8" title="1">{
+                http.Error(w, "name metric is empty", http.StatusBadRequest)
                 return
         }</span>
 
-        <span class="cov8" title="1">if isCounterMetric(r) </span><span class="cov8" title="1">{
-                counterHandler(w, r)
+        <span class="cov8" title="1">m, err := metrics.GetMetric(chi.URLParam(r, "metricType"))
+        if err != nil </span><span class="cov8" title="1">{
+                http.Error(w, "unknow type metric", http.StatusBadRequest)
                 return
         }</span>
 
-        <span class="cov8" title="1">http.Error(w, "Not implemented", http.StatusNotImplemented)</span>
+        <span class="cov8" title="1">newValue, err := m.Update(values, k, v)
+        if err != nil </span><span class="cov8" title="1">{
+                http.Error(w, "Bad request", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte(fmt.Sprintf("%s %v", k, newValue)))</span>
+
 }
 
 func GetMetric(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
 
-        metricName := metricName(r)
+        k := chi.URLParam(r, "metricName")
 
-        if isGaugeMetric(r) </span><span class="cov8" title="1">{
-
-                have := MemStorage.Values.StorageHaveMetric(metricName)
-                if !have </span><span class="cov8" title="1">{
-                        http.Error(w, "Metric not found", http.StatusNotFound)
-                        return
-                }</span>
-
-                <span class="cov8" title="1">value, err := MemStorage.Values.GetFloat64Value(metricName)
-                if err != nil </span><span class="cov0" title="0">{
-                        http.Error(w, err.Error(), http.StatusInternalServerError)
-                        return
-                }</span>
-                <span class="cov8" title="1">io.WriteString(w, fmt.Sprintf("%v", value))</span>
-        } else<span class="cov8" title="1"> if isCounterMetric(r) </span><span class="cov8" title="1">{
-
-                have := MemStorage.Values.StorageHaveMetric(metricName)
-                if !have </span><span class="cov8" title="1">{
-                        http.Error(w, "Metric not found", http.StatusNotFound)
-                        return
-                }</span>
-
-                <span class="cov8" title="1">value, err := MemStorage.Values.GetInt64Value(metricName)
-                if err != nil </span><span class="cov0" title="0">{
-                        http.Error(w, err.Error(), http.StatusInternalServerError)
-                        return
-                }</span>
-                <span class="cov8" title="1">io.WriteString(w, fmt.Sprintf("%v", value))</span>
-        } else<span class="cov8" title="1"> {
-                http.Error(w, "Not implemented", http.StatusNotImplemented)
+        m, err := metrics.GetMetric(chi.URLParam(r, "metricType"))
+        if err != nil </span><span class="cov8" title="1">{
+                http.Error(w, "unknow type metric", http.StatusBadRequest)
+                log.Println(err)
                 return
         }</span>
 
-        <span class="cov8" title="1">w.WriteHeader(http.StatusOK)</span>
+        <span class="cov8" title="1">value, have := m.Get(values, k)
+        if !have </span><span class="cov8" title="1">{
+                http.Error(w, "Metric not found", http.StatusNotFound)
+                return
+        }</span>
+
+        <span class="cov8" title="1">_, err = w.Write([]byte(value))
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "Internal server error", http.StatusInternalServerError)
+                log.Println(err)
+                return
+        }</span>
+
+        <span class="cov8" title="1">w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+        w.WriteHeader(http.StatusOK)</span>
+
 }
 
 func GetMetricList(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
 
-        ml := MemStorage.Values.GetDataList()
+        ml := values.GetDataList()
 
         body := `
         &lt;html&gt;
@@ -377,157 +294,295 @@ func GetMetricList(w http.ResponseWriter, r *http.Request) <span class="cov8" ti
         <span class="cov8" title="1">io.WriteString(w, fmt.Sprintf(body, list))
         w.Header().Set("Content-Type", "text/html; charset=utf-8")
         w.WriteHeader(http.StatusOK)</span>
-}
-
-func counterHandler(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
-
-        k := metricName(r)
-        v := metricValue(r)
-
-        if strings.TrimSpace(k) == "" </span><span class="cov8" title="1">{
-                http.Error(w, "name metric is empty", http.StatusBadRequest)
-                return
-        }</span>
-
-        <span class="cov8" title="1">parseValue, err := strconv.ParseInt(v, 10, 64)
-        if err != nil </span><span class="cov8" title="1">{
-                http.Error(w, err.Error(), http.StatusBadRequest)
-                return
-        }</span>
-
-        <span class="cov8" title="1">storageValue, err := MemStorage.Values.GetInt64Value(k)
-        if err != nil </span><span class="cov0" title="0">{
-                http.Error(w, err.Error(), http.StatusInternalServerError)
-                return
-        }</span>
-
-        <span class="cov8" title="1">newValue := parseValue + storageValue
-        MemStorage.Values.SetInt64Value(k, newValue)
-
-        w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-        w.WriteHeader(http.StatusOK)
-
-        io.WriteString(w, fmt.Sprintf("%s %v", k, newValue))</span>
-}
-
-func gaugeHandler(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
-
-        k := metricName(r)
-        v := chi.URLParam(r, "metricValue")
-
-        if strings.TrimSpace(k) == "" </span><span class="cov8" title="1">{
-                http.Error(w, "name metric is empty", http.StatusBadRequest)
-                return
-        }</span>
-
-        <span class="cov8" title="1">newValue, err := strconv.ParseFloat(v, 64)
-        if err != nil </span><span class="cov8" title="1">{
-                http.Error(w, err.Error(), http.StatusBadRequest)
-                return
-        }</span>
-
-        <span class="cov8" title="1">MemStorage.Values.SetFloat64Value(k, newValue)
-
-        w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-        w.WriteHeader(http.StatusOK)
-
-        io.WriteString(w, fmt.Sprintf("%s %f", k, newValue))</span>
 
 }
 
-func isGaugeMetric(r *http.Request) bool <span class="cov8" title="1">{
-        return strings.ToLower(metricType(r)) == gaugeMetric
-}</span>
-
-func isCounterMetric(r *http.Request) bool <span class="cov8" title="1">{
-        return strings.ToLower(metricType(r)) == counterMetric
-}</span>
-
-func metricType(r *http.Request) string <span class="cov8" title="1">{
-        mt := chi.URLParam(r, "metricType")
-        return mt
-}</span>
-
-func metricName(r *http.Request) string <span class="cov8" title="1">{
-        return chi.URLParam(r, "metricName")
-}</span>
-
-func metricValue(r *http.Request) string <span class="cov8" title="1">{
-        return chi.URLParam(r, "metricValue")
+func init() <span class="cov8" title="1">{
+        values = storage.NewMemStorage()
 }</span>
 </pre>
 		
-		<pre class="file" id="file4" style="display: none">package storage
+		<pre class="file" id="file2" style="display: none">package metcoll
 
-import "errors"
+import (
+        "fmt"
+        "io"
+        "log"
+        "net/http"
+)
 
-var ErrWrongType = errors.New("wrong value type")
+type Client struct {
+        host string
+}
 
-var Values *MemStorage
+func NewClient(Host string) *Client <span class="cov0" title="0">{
+        return &amp;Client{
+                host: Host,
+        }
+}</span>
+
+func (c *Client) Push(mType string, Name string, Value string) error <span class="cov0" title="0">{
+
+        resp, err := http.Post(fmt.Sprintf("http://%s/update/%s/%s/%s", c.host, mType, Name, Value), "text/plain", nil)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">defer resp.Body.Close()
+
+        res, err := io.ReadAll(resp.Body)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">log.Printf("Resp: [%d] [%s]\n", resp.StatusCode, string(res))
+
+        return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package metrics
+
+import (
+        "fmt"
+        "strconv"
+)
+
+type Counter struct{}
+
+func (c *Counter) Update(values Storage, k string, v string) (string, error) <span class="cov8" title="1">{
+
+        var newValue int64
+
+        parsedValue, err := strconv.ParseInt(v, 10, 64)
+        if err != nil </span><span class="cov8" title="1">{
+                return fmt.Sprintf("%v", newValue), err
+        }</span>
+
+        <span class="cov8" title="1">newValue = values.AddInt64Value(k, parsedValue)
+        return strconv.FormatInt(newValue, 10), nil</span>
+
+}
+
+func (c *Counter) Get(values Storage, k string) (string, bool) <span class="cov8" title="1">{
+
+        value, have := values.GetInt64Value(k)
+        return strconv.FormatInt(value, 10), have
+
+}</span>
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package metrics
+
+import (
+        "fmt"
+        "strconv"
+)
+
+type Gauge struct{}
+
+func (g *Gauge) Update(values Storage, k string, v string) (string, error) <span class="cov8" title="1">{
+
+        var newValue float64
+
+        parsedValue, err := strconv.ParseFloat(v, 64)
+        if err != nil </span><span class="cov8" title="1">{
+                return fmt.Sprintf("%v", newValue), err
+        }</span>
+
+        <span class="cov8" title="1">newValue = values.SetFloat64Value(k, parsedValue)
+        return fmt.Sprintf("%v", newValue), nil</span>
+
+}
+
+func (g *Gauge) Get(values Storage, k string) (string, bool) <span class="cov8" title="1">{
+
+        value, have := values.GetFloat64Value(k)
+        return fmt.Sprintf("%v", value), have
+
+}</span>
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package metrics
+
+import (
+        "errors"
+        "strings"
+)
+
+const gaugeMetric = "gauge"
+const counterMetric = "counter"
+
+type Storage interface {
+        GetInt64Value(key string) (int64, bool)
+        GetFloat64Value(key string) (float64, bool)
+        AddInt64Value(key string, value int64) int64
+        SetFloat64Value(key string, value float64) float64
+        GetDataList() map[string]interface{}
+}
+
+type Metric interface {
+        Update(values Storage, k string, v string) (string, error)
+        Get(values Storage, k string) (string, bool)
+}
+
+func GetMetric(mType string) (Metric, error) <span class="cov8" title="1">{
+
+        var m Metric
+
+        if strings.ToLower(mType) == gaugeMetric </span><span class="cov8" title="1">{
+                m = &amp;Gauge{}
+        }</span> else<span class="cov8" title="1"> if strings.ToLower(mType) == counterMetric </span><span class="cov8" title="1">{
+                m = &amp;Counter{}
+        }</span> else<span class="cov8" title="1"> {
+                return m, errors.New("unknow type metric")
+        }</span>
+
+        <span class="cov8" title="1">return m, nil</span>
+
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package stats
+
+import (
+        "fmt"
+        "runtime"
+        "strconv"
+        "time"
+)
+
+const gaugeMetric = "gauge"
+const counterMetric = "counter"
+
+type Stats struct {
+        memStats    *runtime.MemStats
+        pollCount   int64
+        randomValue int64 // timestamp
+}
+
+func NewStats() *Stats <span class="cov8" title="1">{
+
+        return &amp;Stats{
+                memStats:    &amp;runtime.MemStats{},
+                pollCount:   0,
+                randomValue: time.Now().Unix(),
+        }
+}</span>
+
+func (s *Stats) Update() <span class="cov8" title="1">{
+
+        runtime.ReadMemStats(s.memStats)
+        s.pollCount = s.pollCount + 1
+        s.randomValue = time.Now().Unix()
+
+}</span>
+
+func (s *Stats) GetReportData() map[string]map[string]string <span class="cov8" title="1">{
+
+        gaugeMetrics := make(map[string]string)
+        gaugeMetrics["Alloc"] = strconv.FormatInt(int64(s.memStats.Alloc), 10)
+        gaugeMetrics["BuckHashSys"] = strconv.FormatInt(int64(s.memStats.BuckHashSys), 10)
+        gaugeMetrics["GCCPUFraction"] = strconv.FormatInt(int64(s.memStats.GCCPUFraction), 10)
+        gaugeMetrics["HeapAlloc"] = strconv.FormatInt(int64(s.memStats.HeapAlloc), 10)
+        gaugeMetrics["GCSys"] = strconv.FormatInt(int64(s.memStats.GCSys), 10)
+        gaugeMetrics["HeapIdle"] = strconv.FormatInt(int64(s.memStats.HeapIdle), 10)
+        gaugeMetrics["HeapInuse"] = strconv.FormatInt(int64(s.memStats.HeapInuse), 10)
+        gaugeMetrics["HeapObjects"] = strconv.FormatInt(int64(s.memStats.HeapObjects), 10)
+        gaugeMetrics["HeapReleased"] = strconv.FormatInt(int64(s.memStats.HeapReleased), 10)
+        gaugeMetrics["HeapSys"] = strconv.FormatInt(int64(s.memStats.HeapSys), 10)
+        gaugeMetrics["LastGC"] = strconv.FormatInt(int64(s.memStats.LastGC), 10)
+        gaugeMetrics["Lookups"] = strconv.FormatInt(int64(s.memStats.Lookups), 10)
+        gaugeMetrics["MCacheInuse"] = strconv.FormatInt(int64(s.memStats.MCacheInuse), 10)
+        gaugeMetrics["MCacheSys"] = strconv.FormatInt(int64(s.memStats.MCacheSys), 10)
+        gaugeMetrics["MSpanInuse"] = strconv.FormatInt(int64(s.memStats.MSpanInuse), 10)
+        gaugeMetrics["MSpanSys"] = strconv.FormatInt(int64(s.memStats.MSpanSys), 10)
+        gaugeMetrics["Mallocs"] = strconv.FormatInt(int64(s.memStats.Mallocs), 10)
+        gaugeMetrics["NextGC"] = strconv.FormatInt(int64(s.memStats.NextGC), 10)
+        gaugeMetrics["NumForcedGC"] = strconv.FormatInt(int64(s.memStats.NumForcedGC), 10)
+        gaugeMetrics["NumGC"] = strconv.FormatInt(int64(s.memStats.NumGC), 10)
+        gaugeMetrics["OtherSys"] = strconv.FormatInt(int64(s.memStats.OtherSys), 10)
+        gaugeMetrics["PauseTotalNs"] = strconv.FormatInt(int64(s.memStats.PauseTotalNs), 10)
+        gaugeMetrics["StackInuse"] = strconv.FormatInt(int64(s.memStats.StackInuse), 10)
+        gaugeMetrics["StackSys"] = strconv.FormatInt(int64(s.memStats.StackSys), 10)
+        gaugeMetrics["TotalAlloc"] = strconv.FormatInt(int64(s.memStats.TotalAlloc), 10)
+        gaugeMetrics["RandomValue"] = strconv.FormatInt(s.randomValue, 10)
+
+        counterMetrics := make(map[string]string)
+        counterMetrics["PollCount"] = fmt.Sprintf("%v", s.pollCount)
+
+        reportData := make(map[string]map[string]string)
+        reportData[gaugeMetric] = gaugeMetrics
+        reportData[counterMetric] = counterMetrics
+
+        return reportData
+
+}</span>
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package storage
+
+import (
+        "sync"
+)
 
 type MemStorage struct {
-        Data map[string]interface{}
+        sync.Mutex
+        data map[string]interface{}
 }
 
 func NewMemStorage() *MemStorage <span class="cov8" title="1">{
+
         return &amp;MemStorage{
-                Data: make(map[string]interface{}),
+                data: make(map[string]interface{}),
         }
+
 }</span>
 
-func (ms *MemStorage) StorageHaveMetric(key string) bool <span class="cov8" title="1">{
+func (ms *MemStorage) GetInt64Value(key string) (int64, bool) <span class="cov8" title="1">{
 
-        _, have := ms.Data[key]
-        return have
+        v, ok := ms.data[key].(int64)
+        return v, ok
+
 }</span>
 
-func (ms *MemStorage) GetInt64Value(key string) (int64, error) <span class="cov8" title="1">{
+func (ms *MemStorage) GetFloat64Value(key string) (float64, bool) <span class="cov8" title="1">{
 
-        v := ms.Data[key]
-        switch v.(type) </span>{
-        case int64:<span class="cov8" title="1">
-                return ms.Data[key].(int64), nil</span>
-        case nil:<span class="cov8" title="1">
-                return 0, nil</span>
-        default:<span class="cov8" title="1">
-                var def int64
-                return def, ErrWrongType</span>
-        }
+        v, ok := ms.data[key].(float64)
+        return v, ok
+
+}</span>
+
+func (ms *MemStorage) AddInt64Value(key string, value int64) int64 <span class="cov8" title="1">{
+
+        ms.Lock()
+
+        v, ok := ms.data[key].(int64)
+        if !ok </span><span class="cov8" title="1">{
+                v = 0
+        }</span>
+        <span class="cov8" title="1">newValue := v + value
+        ms.data[key] = newValue
+
+        ms.Unlock()
+
+        return newValue</span>
+
 }
 
-func (ms *MemStorage) GetFloat64Value(key string) (float64, error) <span class="cov8" title="1">{
+func (ms *MemStorage) SetFloat64Value(key string, value float64) float64 <span class="cov8" title="1">{
 
-        switch ms.Data[key].(type) </span>{
-        case float64:<span class="cov8" title="1">
-                return ms.Data[key].(float64), nil</span>
-        case nil:<span class="cov8" title="1">
-                return 0, nil</span>
-        default:<span class="cov8" title="1">
-                var def float64
-                return def, ErrWrongType</span>
-        }
-}
+        ms.Lock()
+        ms.data[key] = value
+        ms.Unlock()
 
-func (ms *MemStorage) SetInt64Value(key string, value int64) error <span class="cov8" title="1">{
+        return value
 
-        ms.Data[key] = value
-
-        return nil
-}</span>
-
-func (ms *MemStorage) SetFloat64Value(key string, value float64) error <span class="cov8" title="1">{
-
-        ms.Data[key] = value
-
-        return nil
 }</span>
 
 func (ms *MemStorage) GetDataList() map[string]interface{} <span class="cov8" title="1">{
-        return Values.Data
-}</span>
 
-func init() <span class="cov8" title="1">{
-        Values = NewMemStorage()
+        return ms.data
+
 }</span>
 </pre>
 		

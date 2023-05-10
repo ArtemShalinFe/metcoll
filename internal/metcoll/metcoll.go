@@ -1,4 +1,4 @@
-package client
+package metcoll
 
 import (
 	"fmt"
@@ -17,17 +17,20 @@ func NewClient(Host string) *Client {
 	}
 }
 
-func (c *Client) Push(mType string, Name string, Value string) {
+func (c *Client) Push(mType string, Name string, Value string) error {
 
 	resp, err := http.Post(fmt.Sprintf("http://%s/update/%s/%s/%s", c.host, mType, Name, Value), "text/plain", nil)
 	if err != nil {
-		log.Print(err.Error())
-		return
+		return err
 	}
 	defer resp.Body.Close()
-	userResult, err := io.ReadAll(resp.Body)
+
+	res, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Print(err.Error())
+		return err
 	}
-	log.Printf("Resp: [%d] [%s]\n", resp.StatusCode, string(userResult))
+
+	log.Printf("Resp: [%d] [%s]\n", resp.StatusCode, string(res))
+
+	return nil
 }

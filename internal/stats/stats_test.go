@@ -11,11 +11,15 @@ import (
 )
 
 func TestStats_Update(t *testing.T) {
+
 	type fields struct {
 		memStats    *runtime.MemStats
 		PollCount   int64
 		RandomValue int64
 	}
+
+	now := time.Now()
+
 	tests := []struct {
 		name          string
 		fields        fields
@@ -26,29 +30,20 @@ func TestStats_Update(t *testing.T) {
 			fields: fields{
 				memStats:    &runtime.MemStats{},
 				PollCount:   0,
-				RandomValue: time.Now().Unix(),
+				RandomValue: now.Unix(),
 			},
 			wantPollCount: 1,
 		},
-		{
-			name: "negative case",
-			fields: fields{
-				memStats:    &runtime.MemStats{},
-				PollCount:   987654141,
-				RandomValue: time.Now().Unix(),
-			},
-			wantPollCount: 987654142,
-		},
 	}
+
+	time.Sleep(1 * time.Second)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &Stats{
-				memStats:    tt.fields.memStats,
-				PollCount:   tt.fields.PollCount,
-				RandomValue: tt.fields.RandomValue,
-			}
+			s := NewStats()
 			s.Update()
-			assert.Equal(t, tt.wantPollCount, s.PollCount)
+			assert.Equal(t, tt.wantPollCount, s.pollCount)
+			assert.NotEqual(t, tt.fields.RandomValue, s.randomValue)
 		})
 	}
 }
@@ -80,13 +75,13 @@ func TestStats_GetReportData(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Stats{
 				memStats:    tt.fields.memStats,
-				PollCount:   tt.fields.PollCount,
-				RandomValue: tt.fields.RandomValue,
+				pollCount:   tt.fields.PollCount,
+				randomValue: tt.fields.RandomValue,
 			}
 			s.Update()
 
-			gaugeData := s.GetReportData()[gauge]
-			counterData := s.GetReportData()[counter]
+			gaugeData := s.GetReportData()[gaugeMetric]
+			counterData := s.GetReportData()[counterMetric]
 
 			for name := range gaugeData {
 				require.Contains(t, rGm, name, fmt.Sprintf("Tests GetReportData gaugeData not contain required gauge metrics %s", name))
@@ -102,45 +97,47 @@ func TestStats_GetReportData(t *testing.T) {
 	}
 }
 
-func requiredGaugeMetrics() [28]string {
+func requiredGaugeMetrics() []string {
 
-	return [28]string{
+	var rGm []string
+	rGm = append(rGm, "Alloc")
+	rGm = append(rGm, "BuckHashSys")
+	rGm = append(rGm, "Frees")
+	rGm = append(rGm, "GCCPUFraction")
+	rGm = append(rGm, "GCSys")
+	rGm = append(rGm, "HeapAlloc")
+	rGm = append(rGm, "HeapIdle")
+	rGm = append(rGm, "HeapInuse")
+	rGm = append(rGm, "HeapObjects")
+	rGm = append(rGm, "HeapReleased")
+	rGm = append(rGm, "HeapSys")
+	rGm = append(rGm, "LastGC")
+	rGm = append(rGm, "Lookups")
+	rGm = append(rGm, "MCacheInuse")
+	rGm = append(rGm, "MCacheSys")
+	rGm = append(rGm, "MSpanInuse")
+	rGm = append(rGm, "MSpanSys")
+	rGm = append(rGm, "Mallocs")
+	rGm = append(rGm, "NextGC")
+	rGm = append(rGm, "NumForcedGC")
+	rGm = append(rGm, "NumGC")
+	rGm = append(rGm, "OtherSys")
+	rGm = append(rGm, "PauseTotalNs")
+	rGm = append(rGm, "StackInuse")
+	rGm = append(rGm, "StackSys")
+	rGm = append(rGm, "Sys")
+	rGm = append(rGm, "TotalAlloc")
+	rGm = append(rGm, "RandomValue")
 
-		"Alloc",
-		"BuckHashSys",
-		"Frees",
-		"GCCPUFraction",
-		"GCSys",
-		"HeapAlloc",
-		"HeapIdle",
-		"HeapInuse",
-		"HeapObjects",
-		"HeapReleased",
-		"HeapSys",
-		"LastGC",
-		"Lookups",
-		"MCacheInuse",
-		"MCacheSys",
-		"MSpanInuse",
-		"MSpanSys",
-		"Mallocs",
-		"NextGC",
-		"NumForcedGC",
-		"NumGC",
-		"OtherSys",
-		"PauseTotalNs",
-		"StackInuse",
-		"StackSys",
-		"Sys",
-		"TotalAlloc",
-		"RandomValue"}
+	return rGm
 
 }
 
-func requiredCounterMetrics() [1]string {
+func requiredCounterMetrics() []string {
 
-	return [1]string{
-		"PollCount",
-	}
+	var rCm []string
+	rCm = append(rCm, "PollCount")
+
+	return rCm
 
 }

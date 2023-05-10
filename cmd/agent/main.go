@@ -1,85 +1,101 @@
 package main
 
 import (
+	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"time"
 
-	metcoll "github.com/ArtemShalinFe/metcoll/cmd/agent/internal/client"
-	metrics "github.com/ArtemShalinFe/metcoll/cmd/agent/internal/stats"
 	"github.com/caarlos0/env/v8"
+
+	"github.com/ArtemShalinFe/metcoll/internal/metcoll"
+	"github.com/ArtemShalinFe/metcoll/internal/stats"
 )
 
-var lastReportPush time.Time
-var conn *metcoll.Client
-
 type Config struct {
-	PollInterval   int    `env:"POLL_INTERVAL" envDefault:"2"`
-	ReportInterval int    `env:"REPORT_INTERVAL" envDefault:"10"`
-	Server         string `env:"ADDRESS" envDefault:"localhost:8080"`
+	PollInterval   int    `env:"POLL_INTERVAL"`
+	ReportInterval int    `env:"REPORT_INTERVAL"`
+	Server         string `env:"ADDRESS"`
+}
+
+type client interface {
+	Push(mType string, Name string, Value string) error
 }
 
 func main() {
 
-	cfg := parseConfig()
-	conn = metcoll.NewClient(cfg.Server)
-	var s metrics.Stats
+	var lastReportPush time.Time
+
+	cfg, err := parseConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+	s := stats.NewStats()
 
 	for {
 		s.Update()
-		pushReport(s, cfg)
+		now := time.Now()
+		if isTimeToPushReport(lastReportPush, now, cfg.ReportInterval) {
+			conn := metcoll.NewClient(cfg.Server)
+			err := pushReport(conn, s, cfg)
+			if err != nil {
+				log.Print(err)
+			}
+			s.IncPollCount()
+		}
 		time.Sleep(time.Duration(cfg.PollInterval) * time.Second)
 	}
 
 }
 
-func pushReport(s metrics.Stats, cfg *Config) {
+func pushReport(conn client, s *stats.Stats, cfg *Config) error {
 
-	now := time.Now()
-	if isTimeToPushReport(now, cfg.ReportInterval) {
+	for mType, data := range s.GetReportData() {
 
-		lastReportPush = now
-
-		for mType, data := range s.GetReportData() {
-
-			for name, value := range data {
-				conn.Push(mType, name, value)
+		for name, value := range data {
+			err := conn.Push(mType, name, value)
+			if err != nil {
+				t := fmt.Sprintf("cannot push %s %s with value %s on server: %v", mType, name, value, err)
+				return errors.New(t)
 			}
-
 		}
 
 	}
 
+	return nil
+
 }
 
-func parseConfig() *Config {
+func parseConfig() (*Config, error) {
 
 	var c Config
 
-	flagServer := flag.String("a", "", "server end point")
-	flagReportInterval := flag.Int("r", 0, "report push interval")
-	flagPollInterval := flag.Int("p", 0, "poll interval")
+	flagServer := flag.String("a", "localhost:8080", "server end point")
+	flagReportInterval := flag.Int("r", 10, "report push interval")
+	flagPollInterval := flag.Int("p", 2, "poll interval")
 	flag.Parse()
 
 	err := env.Parse(&c)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	if *flagServer != "" {
+	if c.Server == "" {
 		c.Server = *flagServer
 	}
-	if *flagReportInterval != 0 {
+
+	if c.ReportInterval == 0 {
 		c.ReportInterval = *flagReportInterval
 	}
-	if *flagPollInterval != 0 {
+	if c.PollInterval == 0 {
 		c.PollInterval = *flagPollInterval
 	}
 
-	return &c
+	return &c, nil
 
 }
 
-func isTimeToPushReport(now time.Time, reportInterval int) bool {
+func isTimeToPushReport(lastReportPush time.Time, now time.Time, reportInterval int) bool {
 	return now.After(lastReportPush.Add(time.Second * time.Duration(reportInterval)))
 }

@@ -1,72 +1,65 @@
 package storage
 
-import "errors"
-
-var ErrWrongType = errors.New("wrong value type")
-
-var Values *MemStorage
+import (
+	"sync"
+)
 
 type MemStorage struct {
-	Data map[string]interface{}
+	sync.Mutex
+	data map[string]interface{}
 }
 
 func NewMemStorage() *MemStorage {
+
 	return &MemStorage{
-		Data: make(map[string]interface{}),
+		data: make(map[string]interface{}),
 	}
+
 }
 
-func (ms *MemStorage) StorageHaveMetric(key string) bool {
+func (ms *MemStorage) GetInt64Value(key string) (int64, bool) {
 
-	_, have := ms.Data[key]
-	return have
+	v, ok := ms.data[key].(int64)
+	return v, ok
+
 }
 
-func (ms *MemStorage) GetInt64Value(key string) (int64, error) {
+func (ms *MemStorage) GetFloat64Value(key string) (float64, bool) {
 
-	v := ms.Data[key]
-	switch v.(type) {
-	case int64:
-		return ms.Data[key].(int64), nil
-	case nil:
-		return 0, nil
-	default:
-		var def int64
-		return def, ErrWrongType
+	v, ok := ms.data[key].(float64)
+	return v, ok
+
+}
+
+func (ms *MemStorage) AddInt64Value(key string, value int64) int64 {
+
+	ms.Lock()
+
+	v, ok := ms.data[key].(int64)
+	if !ok {
+		v = 0
 	}
+	newValue := v + value
+	ms.data[key] = newValue
+
+	ms.Unlock()
+
+	return newValue
+
 }
 
-func (ms *MemStorage) GetFloat64Value(key string) (float64, error) {
+func (ms *MemStorage) SetFloat64Value(key string, value float64) float64 {
 
-	switch ms.Data[key].(type) {
-	case float64:
-		return ms.Data[key].(float64), nil
-	case nil:
-		return 0, nil
-	default:
-		var def float64
-		return def, ErrWrongType
-	}
-}
+	ms.Lock()
+	ms.data[key] = value
+	ms.Unlock()
 
-func (ms *MemStorage) SetInt64Value(key string, value int64) error {
+	return value
 
-	ms.Data[key] = value
-
-	return nil
-}
-
-func (ms *MemStorage) SetFloat64Value(key string, value float64) error {
-
-	ms.Data[key] = value
-
-	return nil
 }
 
 func (ms *MemStorage) GetDataList() map[string]interface{} {
-	return Values.Data
-}
 
-func init() {
-	Values = NewMemStorage()
+	return ms.data
+
 }
