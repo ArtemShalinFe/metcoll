@@ -42,6 +42,7 @@ func TestStats_Update(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewStats()
 			s.Update()
+			s.IncPollCount()
 			assert.Equal(t, tt.wantPollCount, s.pollCount)
 			assert.NotEqual(t, tt.fields.RandomValue, s.randomValue)
 		})

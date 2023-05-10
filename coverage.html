@@ -55,9 +55,9 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/ArtemShalinFe/metcoll/cmd/agent/main.go (54.1%)</option>
+				<option value="file0">github.com/ArtemShalinFe/metcoll/cmd/agent/main.go (52.6%)</option>
 				
-				<option value="file1">github.com/ArtemShalinFe/metcoll/internal/handlers/handlers.go (93.9%)</option>
+				<option value="file1">github.com/ArtemShalinFe/metcoll/internal/handlers/handlers.go (94.1%)</option>
 				
 				<option value="file2">github.com/ArtemShalinFe/metcoll/internal/metcoll/metcoll.go (0.0%)</option>
 				
@@ -127,6 +127,7 @@ func main() <span class="cov0" title="0">{
                         if err != nil </span><span class="cov0" title="0">{
                                 log.Print(err)
                         }</span>
+                        <span class="cov0" title="0">s.IncPollCount()</span>
                 }
                 <span class="cov0" title="0">time.Sleep(time.Duration(cfg.PollInterval) * time.Second)</span>
         }
@@ -229,12 +230,14 @@ func UpdateMetric(w http.ResponseWriter, r *http.Request) <span class="cov8" tit
         <span class="cov8" title="1">m, err := metrics.GetMetric(chi.URLParam(r, "metricType"))
         if err != nil </span><span class="cov8" title="1">{
                 http.Error(w, "unknow type metric", http.StatusBadRequest)
+                log.Printf("UpdateMetric error: %v", err)
                 return
         }</span>
 
         <span class="cov8" title="1">newValue, err := m.Update(values, k, v)
         if err != nil </span><span class="cov8" title="1">{
                 http.Error(w, "Bad request", http.StatusBadRequest)
+                log.Printf("UpdateMetric error: %v", err)
                 return
         }</span>
 
@@ -251,7 +254,7 @@ func GetMetric(w http.ResponseWriter, r *http.Request) <span class="cov8" title=
         m, err := metrics.GetMetric(chi.URLParam(r, "metricType"))
         if err != nil </span><span class="cov8" title="1">{
                 http.Error(w, "unknow type metric", http.StatusBadRequest)
-                log.Println(err)
+                log.Printf("UpdateMetric error: %v", err)
                 return
         }</span>
 
@@ -264,7 +267,7 @@ func GetMetric(w http.ResponseWriter, r *http.Request) <span class="cov8" title=
         <span class="cov8" title="1">_, err = w.Write([]byte(value))
         if err != nil </span><span class="cov0" title="0">{
                 http.Error(w, "Internal server error", http.StatusInternalServerError)
-                log.Println(err)
+                log.Printf("UpdateMetric error: %v", err)
                 return
         }</span>
 
@@ -472,9 +475,12 @@ func NewStats() *Stats <span class="cov8" title="1">{
 func (s *Stats) Update() <span class="cov8" title="1">{
 
         runtime.ReadMemStats(s.memStats)
-        s.pollCount = s.pollCount + 1
         s.randomValue = time.Now().Unix()
 
+}</span>
+
+func (s *Stats) IncPollCount() <span class="cov8" title="1">{
+        s.pollCount = s.pollCount + 1
 }</span>
 
 func (s *Stats) GetReportData() map[string]map[string]string <span class="cov8" title="1">{
