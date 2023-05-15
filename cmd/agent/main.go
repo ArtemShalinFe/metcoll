@@ -69,9 +69,9 @@ func parseConfig() (*Config, error) {
 
 	var c Config
 
-	c.Server = *flag.String("a", "localhost:8080", "server end point")
-	c.ReportInterval = *flag.Int("r", 10, "report push interval")
-	c.PollInterval = *flag.Int("p", 2, "poll interval")
+	flag.StringVar(&c.Server, "a", "localhost:8080", "server end point")
+	flag.IntVar(&c.ReportInterval, "r", 10, "report push interval")
+	flag.IntVar(&c.PollInterval, "p", 2, "poll interval")
 	flag.Parse()
 
 	if err := env.Parse(&c); err != nil {

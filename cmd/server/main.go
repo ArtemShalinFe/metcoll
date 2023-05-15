@@ -34,15 +34,11 @@ func parseConfig() (*Config, error) {
 
 	var c Config
 
-	flagAddress := flag.String("a", "localhost:8080", "server end point")
+	flag.StringVar(&c.Address, "a", "localhost:8080", "server end point")
 	flag.Parse()
 
 	if err := env.Parse(&c); err != nil {
 		return nil, err
-	}
-
-	if c.Address == "" {
-		c.Address = *flagAddress
 	}
 
 	return &c, nil
