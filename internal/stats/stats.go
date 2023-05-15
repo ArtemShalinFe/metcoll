@@ -1,7 +1,6 @@
 package stats
 
 import (
-	"fmt"
 	"runtime"
 	"strconv"
 	"time"
@@ -29,11 +28,12 @@ func (s *Stats) Update() {
 
 	runtime.ReadMemStats(s.memStats)
 	s.randomValue = time.Now().Unix()
+	s.pollCount = s.pollCount + 1
 
 }
 
-func (s *Stats) IncPollCount() {
-	s.pollCount = s.pollCount + 1
+func (s *Stats) ClearPollCount() {
+	s.pollCount = 0
 }
 
 func (s *Stats) GetReportData() map[string]map[string]string {
@@ -67,7 +67,7 @@ func (s *Stats) GetReportData() map[string]map[string]string {
 	gaugeMetrics["RandomValue"] = strconv.FormatInt(s.randomValue, 10)
 
 	counterMetrics := make(map[string]string)
-	counterMetrics["PollCount"] = fmt.Sprintf("%v", s.pollCount)
+	counterMetrics["PollCount"] = strconv.FormatInt(s.pollCount, 10)
 
 	reportData := make(map[string]map[string]string)
 	reportData[gaugeMetric] = gaugeMetrics

@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"fmt"
 	"strconv"
 )
 
@@ -13,7 +12,7 @@ func (c *Counter) Update(values Storage, k string, v string) (string, error) {
 
 	parsedValue, err := strconv.ParseInt(v, 10, 64)
 	if err != nil {
-		return fmt.Sprintf("%v", newValue), err
+		return strconv.FormatInt(newValue, 10), err
 	}
 
 	newValue = values.AddInt64Value(k, parsedValue)

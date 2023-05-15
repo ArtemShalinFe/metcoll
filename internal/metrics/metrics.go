@@ -13,7 +13,8 @@ type Storage interface {
 	GetFloat64Value(key string) (float64, bool)
 	AddInt64Value(key string, value int64) int64
 	SetFloat64Value(key string, value float64) float64
-	GetDataList() map[string]interface{}
+	GetCounterList() []string
+	GetGaugeList() []string
 }
 
 type Metric interface {

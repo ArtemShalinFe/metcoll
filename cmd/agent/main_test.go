@@ -60,6 +60,7 @@ func Test_isTimeToPushReport(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if got := isTimeToPushReport(tt.args.lastReportPush, tt.args.now, tt.args.reportInterval); got != tt.want {
 				t.Errorf("isTimeToPushReport() = %v, want %v", got, tt.want)
@@ -91,6 +92,7 @@ func Test_pushReport(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if err := pushReport(tt.args.conn, tt.args.s, tt.args.cfg); (err != nil) != tt.wantErr {
 				t.Errorf("pushReport() error = %v, wantErr %v", err, tt.wantErr)

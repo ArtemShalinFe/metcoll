@@ -39,12 +39,17 @@ func TestStats_Update(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewStats()
 			s.Update()
-			s.IncPollCount()
+
 			assert.Equal(t, tt.wantPollCount, s.pollCount)
 			assert.NotEqual(t, tt.fields.RandomValue, s.randomValue)
+
+			s.ClearPollCount()
+			assert.Equal(t, int64(0), s.pollCount)
+
 		})
 	}
 }
@@ -69,7 +74,7 @@ func TestStats_GetReportData(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-
+		tt := tt
 		rGm := requiredGaugeMetrics()
 		rCm := requiredCounterMetrics()
 

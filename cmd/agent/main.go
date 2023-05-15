@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -33,18 +32,19 @@ func main() {
 	}
 	s := stats.NewStats()
 
+	pause := time.Duration(cfg.PollInterval) * time.Second
+
 	for {
 		s.Update()
 		now := time.Now()
 		if isTimeToPushReport(lastReportPush, now, cfg.ReportInterval) {
 			conn := metcoll.NewClient(cfg.Server)
-			err := pushReport(conn, s, cfg)
-			if err != nil {
+			if err := pushReport(conn, s, cfg); err != nil {
 				log.Print(err)
 			}
-			s.IncPollCount()
+			s.ClearPollCount()
 		}
-		time.Sleep(time.Duration(cfg.PollInterval) * time.Second)
+		time.Sleep(pause)
 	}
 
 }
@@ -54,10 +54,8 @@ func pushReport(conn client, s *stats.Stats, cfg *Config) error {
 	for mType, data := range s.GetReportData() {
 
 		for name, value := range data {
-			err := conn.Push(mType, name, value)
-			if err != nil {
-				t := fmt.Sprintf("cannot push %s %s with value %s on server: %v", mType, name, value, err)
-				return errors.New(t)
+			if err := conn.Push(mType, name, value); err != nil {
+				return fmt.Errorf("cannot push %s %s with value %s on server: %v", mType, name, value, err)
 			}
 		}
 
@@ -71,25 +69,13 @@ func parseConfig() (*Config, error) {
 
 	var c Config
 
-	flagServer := flag.String("a", "localhost:8080", "server end point")
-	flagReportInterval := flag.Int("r", 10, "report push interval")
-	flagPollInterval := flag.Int("p", 2, "poll interval")
+	c.Server = *flag.String("a", "localhost:8080", "server end point")
+	c.ReportInterval = *flag.Int("r", 10, "report push interval")
+	c.PollInterval = *flag.Int("p", 2, "poll interval")
 	flag.Parse()
 
-	err := env.Parse(&c)
-	if err != nil {
+	if err := env.Parse(&c); err != nil {
 		return nil, err
-	}
-
-	if c.Server == "" {
-		c.Server = *flagServer
-	}
-
-	if c.ReportInterval == 0 {
-		c.ReportInterval = *flagReportInterval
-	}
-	if c.PollInterval == 0 {
-		c.PollInterval = *flagPollInterval
 	}
 
 	return &c, nil

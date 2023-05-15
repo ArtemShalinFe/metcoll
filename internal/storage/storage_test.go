@@ -2,6 +2,7 @@ package storage
 
 import (
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,7 +10,9 @@ import (
 
 func TestNewMemStorage(t *testing.T) {
 	want := &MemStorage{
-		data: make(map[string]interface{}),
+		mutex:       &sync.Mutex{},
+		dataInt64:   make(map[string]int64),
+		dataFloat64: make(map[string]float64),
 	}
 
 	t.Run("Test mem storage constructor", func(t *testing.T) {
@@ -56,6 +59,7 @@ func TestMemStorage_GetFloat64Value(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			value, have := ts.GetFloat64Value(tt.args.Key)
 			if value != tt.want {
@@ -105,12 +109,45 @@ func TestMemStorage_GetInt64Value(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			value, have := ts.GetInt64Value(tt.args.Key)
 			if value != tt.want {
 				t.Errorf("MemStorage.GetInt64Value() = %v, want %v", value, tt.want)
 			}
 			assert.Equal(t, tt.wantHave, have)
+		})
+	}
+}
+
+func TestMemStorage_GetDataList(t *testing.T) {
+
+	ts := NewMemStorage()
+	ts.SetFloat64Value("test1", 1.2)
+	ts.AddInt64Value("test4", 5)
+
+	var want []string
+	want = append(want, "test1 1.2")
+	want = append(want, "test4 5")
+
+	tests := []struct {
+		name string
+		ms   *MemStorage
+		want []string
+	}{
+		{
+			name: "get data list",
+			ms:   ts,
+			want: want,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+
+			if got := tt.ms.GetDataList(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("MemStorage.GetDataList() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }

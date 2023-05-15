@@ -37,8 +37,7 @@ func parseConfig() (*Config, error) {
 	flagAddress := flag.String("a", "localhost:8080", "server end point")
 	flag.Parse()
 
-	err := env.Parse(&c)
-	if err != nil {
+	if err := env.Parse(&c); err != nil {
 		return nil, err
 	}
 
