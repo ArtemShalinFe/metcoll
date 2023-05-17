@@ -8,6 +8,7 @@ import (
 
 const gaugeMetric = "gauge"
 const counterMetric = "counter"
+const pollCount = "PollCount"
 
 type Stats struct {
 	memStats    *runtime.MemStats
@@ -34,6 +35,12 @@ func (s *Stats) Update() {
 
 func (s *Stats) ClearPollCount() {
 	s.pollCount = 0
+}
+
+func IsPollCountMetric(metType string, name string) bool {
+
+	return metType == counterMetric && name == pollCount
+
 }
 
 func (s *Stats) GetReportData() map[string]map[string]string {
@@ -67,7 +74,7 @@ func (s *Stats) GetReportData() map[string]map[string]string {
 	gaugeMetrics["RandomValue"] = strconv.FormatInt(s.randomValue, 10)
 
 	counterMetrics := make(map[string]string)
-	counterMetrics["PollCount"] = strconv.FormatInt(s.pollCount, 10)
+	counterMetrics[pollCount] = strconv.FormatInt(s.pollCount, 10)
 
 	reportData := make(map[string]map[string]string)
 	reportData[gaugeMetric] = gaugeMetrics

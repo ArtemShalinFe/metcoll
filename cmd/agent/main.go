@@ -58,13 +58,18 @@ func pushReport(conn client, s *stats.Stats, cfg *Config) error {
 	for mType, data := range s.GetReportData() {
 
 		for name, value := range data {
+
 			if err := conn.Push(mType, name, value); err != nil {
 				return fmt.Errorf("cannot push %s %s with value %s on server: %v", mType, name, value, err)
 			}
+
+			if stats.IsPollCountMetric(mType, name) {
+				s.ClearPollCount()
+			}
+
 		}
 
 	}
-	s.ClearPollCount()
 
 	return nil
 

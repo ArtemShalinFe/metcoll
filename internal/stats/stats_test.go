@@ -147,3 +147,57 @@ func requiredCounterMetrics() []string {
 	return rCm
 
 }
+
+func TestIsPollCountMetric(t *testing.T) {
+
+	type args struct {
+		metType string
+		name    string
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "positive case #1",
+			args: args{
+				metType: counterMetric,
+				name:    pollCount,
+			},
+			want: true,
+		},
+		{
+			name: "negative case #1",
+			args: args{
+				metType: gaugeMetric,
+				name:    pollCount,
+			},
+			want: false,
+		},
+		{
+			name: "negative case #2",
+			args: args{
+				metType: gaugeMetric,
+				name:    "TotalAlloc",
+			},
+			want: false,
+		},
+		{
+			name: "negative case #3",
+			args: args{
+				metType: counterMetric,
+				name:    "TotalAlloc",
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsPollCountMetric(tt.args.metType, tt.args.name); got != tt.want {
+				t.Errorf("IsPollCountMetric() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
