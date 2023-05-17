@@ -33,16 +33,20 @@ func main() {
 	s := stats.NewStats()
 
 	pause := time.Duration(cfg.PollInterval) * time.Second
+	durReportInterval := time.Duration(cfg.ReportInterval) * time.Second
 
 	for {
 		s.Update()
 		now := time.Now()
-		if isTimeToPushReport(lastReportPush, now, cfg.ReportInterval) {
+
+		if isTimeToPushReport(lastReportPush, now, durReportInterval) {
 			conn := metcoll.NewClient(cfg.Server)
 			if err := pushReport(conn, s, cfg); err != nil {
 				log.Print(err)
+			} else {
+				lastReportPush = now
 			}
-			s.ClearPollCount()
+
 		}
 		time.Sleep(pause)
 	}
@@ -60,6 +64,7 @@ func pushReport(conn client, s *stats.Stats, cfg *Config) error {
 		}
 
 	}
+	s.ClearPollCount()
 
 	return nil
 
@@ -82,6 +87,6 @@ func parseConfig() (*Config, error) {
 
 }
 
-func isTimeToPushReport(lastReportPush time.Time, now time.Time, reportInterval int) bool {
-	return now.After(lastReportPush.Add(time.Second * time.Duration(reportInterval)))
+func isTimeToPushReport(lastReportPush time.Time, now time.Time, d time.Duration) bool {
+	return now.After(lastReportPush.Add(d))
 }

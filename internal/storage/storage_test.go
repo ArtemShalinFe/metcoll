@@ -32,40 +32,40 @@ func TestMemStorage_GetFloat64Value(t *testing.T) {
 		Key string
 	}
 	tests := []struct {
-		name     string
-		args     args
-		want     float64
-		wantHave bool
+		name   string
+		args   args
+		want   float64
+		wantOk bool
 	}{
 		{name: "test get storage value 1 - positive case",
-			args:     args{Key: "test1"},
-			want:     1.0,
-			wantHave: true,
+			args:   args{Key: "test1"},
+			want:   1.0,
+			wantOk: true,
 		},
 		{name: "test get storage value 2 - positive case",
-			args:     args{Key: "test2"},
-			want:     2.0,
-			wantHave: true,
+			args:   args{Key: "test2"},
+			want:   2.0,
+			wantOk: true,
 		},
 		{name: "test get storage value 4 - positive case",
-			args:     args{Key: "test3"},
-			want:     4.0,
-			wantHave: true,
+			args:   args{Key: "test3"},
+			want:   4.0,
+			wantOk: true,
 		},
 		{name: "test get storage value none - negative case",
-			args:     args{Key: "test4"},
-			want:     0.0,
-			wantHave: false,
+			args:   args{Key: "test4"},
+			want:   0.0,
+			wantOk: false,
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			value, have := ts.GetFloat64Value(tt.args.Key)
+			value, ok := ts.GetFloat64Value(tt.args.Key)
 			if value != tt.want {
 				t.Errorf("MemStorage.GetFloat64Value() = %v, want %v", value, tt.want)
 			}
-			assert.Equal(t, tt.wantHave, have)
+			assert.Equal(t, tt.wantOk, ok)
 		})
 	}
 }
@@ -82,40 +82,40 @@ func TestMemStorage_GetInt64Value(t *testing.T) {
 		Key string
 	}
 	tests := []struct {
-		name     string
-		args     args
-		want     int64
-		wantHave bool
+		name   string
+		args   args
+		want   int64
+		wantOk bool
 	}{
 		{name: "test get storage value 1 - positive case",
-			args:     args{Key: "test1"},
-			want:     1,
-			wantHave: true,
+			args:   args{Key: "test1"},
+			want:   1,
+			wantOk: true,
 		},
 		{name: "test get storage value 2 - positive case",
-			args:     args{Key: "test2"},
-			want:     2,
-			wantHave: true,
+			args:   args{Key: "test2"},
+			want:   2,
+			wantOk: true,
 		},
 		{name: "test get storage value 4 - negative case",
-			args:     args{Key: "test3"},
-			want:     6,
-			wantHave: true,
+			args:   args{Key: "test3"},
+			want:   6,
+			wantOk: true,
 		},
 		{name: "test get storage value 0 - negative case",
-			args:     args{Key: "test9"},
-			want:     0,
-			wantHave: false,
+			args:   args{Key: "test9"},
+			want:   0,
+			wantOk: false,
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			value, have := ts.GetInt64Value(tt.args.Key)
+			value, ok := ts.GetInt64Value(tt.args.Key)
 			if value != tt.want {
 				t.Errorf("MemStorage.GetInt64Value() = %v, want %v", value, tt.want)
 			}
-			assert.Equal(t, tt.wantHave, have)
+			assert.Equal(t, tt.wantOk, ok)
 		})
 	}
 }

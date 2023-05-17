@@ -22,7 +22,7 @@ func (g *Gauge) Update(values Storage, k string, v string) (string, error) {
 
 func (g *Gauge) Get(values Storage, k string) (string, bool) {
 
-	value, have := values.GetFloat64Value(k)
-	return strconv.FormatFloat(value, 'G', 10, 64), have
+	value, ok := values.GetFloat64Value(k)
+	return strconv.FormatFloat(value, 'G', 10, 64), ok
 
 }

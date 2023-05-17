@@ -71,6 +71,9 @@ func (ms *MemStorage) SetFloat64Value(key string, value float64) float64 {
 
 func (ms *MemStorage) GetCounterList() []string {
 
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+
 	var list []string
 
 	for k, v := range ms.dataInt64 {
@@ -83,6 +86,9 @@ func (ms *MemStorage) GetCounterList() []string {
 }
 
 func (ms *MemStorage) GetGaugeList() []string {
+
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
 
 	var list []string
 

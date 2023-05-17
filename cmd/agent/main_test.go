@@ -62,7 +62,8 @@ func Test_isTimeToPushReport(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isTimeToPushReport(tt.args.lastReportPush, tt.args.now, tt.args.reportInterval); got != tt.want {
+			d := time.Duration(tt.args.reportInterval) * time.Second
+			if got := isTimeToPushReport(tt.args.lastReportPush, tt.args.now, d); got != tt.want {
 				t.Errorf("isTimeToPushReport() = %v, want %v", got, tt.want)
 			}
 		})

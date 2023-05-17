@@ -22,7 +22,7 @@ func (c *Counter) Update(values Storage, k string, v string) (string, error) {
 
 func (c *Counter) Get(values Storage, k string) (string, bool) {
 
-	value, have := values.GetInt64Value(k)
-	return strconv.FormatInt(value, 10), have
+	value, ok := values.GetInt64Value(k)
+	return strconv.FormatInt(value, 10), ok
 
 }

@@ -3,7 +3,6 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -63,14 +62,19 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errUnknowMetricType.Error(), http.StatusBadRequest)
 		} else {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			log.Printf("UpdateMetric error: %v", err)
 		}
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("%s %v", k, newValue)))
 
+	if _, err = w.Write([]byte(fmt.Sprintf("%s %v", k, newValue))); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		log.Printf("UpdateMetric error: %v", err)
+		return
+	}
 }
 
 func (h *Handler) GetMetric(w http.ResponseWriter, r *http.Request) {
@@ -87,11 +91,12 @@ func (h *Handler) GetMetric(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errUnknowMetricType.Error(), http.StatusBadRequest)
 		} else {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			log.Printf("GetMetric error: %v", err)
 		}
 		return
 	}
-	_, err = w.Write([]byte(value))
-	if err != nil {
+
+	if _, err = w.Write([]byte(value)); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		log.Printf("GetMetric error: %v", err)
 		return
@@ -120,7 +125,11 @@ func (h *Handler) GetMetricList(w http.ResponseWriter, r *http.Request) {
 		list += fmt.Sprintf(`<p>%s</p>`, v)
 	}
 
-	io.WriteString(w, fmt.Sprintf(body, list))
+	if _, err := w.Write([]byte(fmt.Sprintf(body, list))); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		log.Printf("GetMetricList error: %v", err)
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -135,8 +144,8 @@ func getValue(h *Handler, metricName string, metricType string) (string, error) 
 		return "", errUnknowMetricType
 	}
 
-	value, have := m.Get(h.values, metricName)
-	if !have {
+	value, ok := m.Get(h.values, metricName)
+	if !ok {
 		return "", errMetricNotFound
 	}
 
@@ -147,7 +156,7 @@ func updateValue(h *Handler, metricName string, metricValue string, metricType s
 
 	m, err := metrics.GetMetric(metricType)
 	if err != nil {
-		log.Printf("getMetric error: %v", err)
+		log.Printf("updateValue error: %v", err)
 		return "", errUnknowMetricType
 	}
 

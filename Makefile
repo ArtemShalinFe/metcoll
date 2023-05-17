@@ -1,10 +1,12 @@
 # Makefile
-ya-tests: build tests
+ya-tests: build-agent build-server tests
 
-build:
+build-agent:
 	go build -buildvcs=false -C ./cmd/agent -o agent
+
+build-server:
 	go build -buildvcs=false -C ./cmd/server -o server
-	
+
 tests:
 	go vet ./...
 	go test ./... -v -coverpkg=./... -coverprofile=coverage.out 
