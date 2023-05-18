@@ -8,6 +8,7 @@ import (
 	"github.com/caarlos0/env"
 
 	"github.com/ArtemShalinFe/metcoll/internal/handlers"
+	"github.com/ArtemShalinFe/metcoll/internal/logger"
 )
 
 type Config struct {
@@ -21,7 +22,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	r := handlers.ChiRouter()
+	l, err := logger.NewLogger()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	h := handlers.NewHandler()
+	r := handlers.NewRouter(h, l)
 
 	log.Printf("Try running on %v\n", cfg.Address)
 	if err := http.ListenAndServe(cfg.Address, r); err != nil {

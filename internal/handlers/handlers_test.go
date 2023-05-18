@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,9 +12,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testLogger struct{}
+
+func (tl *testLogger) Info(args ...any) {
+	log.Println(args...)
+}
+
+func (tl *testLogger) Error(args ...any) {
+	log.Println(args...)
+}
+
+func NewTestlogger() *testLogger {
+	return &testLogger{}
+}
+
+func (tl *testLogger) RequestLogger(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		h.ServeHTTP(w, r)
+
+	})
+}
+
 func TestUpdateMetric(t *testing.T) {
 
-	ts := httptest.NewServer(ChiRouter())
+	l := NewTestlogger()
+	h := NewHandler()
+	r := NewRouter(h, l)
+
+	ts := httptest.NewServer(r)
 	defer ts.Close()
 
 	var tests = []struct {
@@ -52,7 +79,11 @@ func TestUpdateMetric(t *testing.T) {
 
 func TestGetMetricList(t *testing.T) {
 
-	ts := httptest.NewServer(ChiRouter())
+	l := NewTestlogger()
+	h := NewHandler()
+	r := NewRouter(h, l)
+
+	ts := httptest.NewServer(r)
 	defer ts.Close()
 
 	var tests = []struct {
