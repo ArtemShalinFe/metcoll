@@ -102,7 +102,7 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
 	b, err := io.ReadAll(body)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("UpdateMetric error: ", err.Error())
+		h.logger.Error("UpdateMetric read body error: ", err.Error())
 		return
 	}
 

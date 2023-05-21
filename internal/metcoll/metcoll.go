@@ -2,6 +2,7 @@ package metcoll
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,27 +11,60 @@ import (
 )
 
 type Client struct {
-	host string
+	host       string
+	httpClient *http.Client
 }
 
 func NewClient(Host string) *Client {
+
 	return &Client{
-		host: Host,
+		host:       Host,
+		httpClient: &http.Client{},
 	}
+
 }
 
-func (c *Client) Update(j json.Marshaler) error {
+func (c *Client) prepareRequest(metric json.Marshaler) (*http.Request, error) {
 
-	b, err := json.Marshal(j)
+	body, err := json.Marshal(metric)
+	if err != nil {
+		return nil, err
+	}
+
+	var zBuf bytes.Buffer
+	zw := gzip.NewWriter(&zBuf)
+
+	if _, err := zw.Write(body); err != nil {
+		return nil, err
+	}
+
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/update/", c.host), &zBuf)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+
+	return req, nil
+}
+
+func (c *Client) Update(metric json.Marshaler) error {
+
+	req, err := c.prepareRequest(metric)
 	if err != nil {
 		return err
 	}
 
-	body := bytes.NewBuffer(b)
-	resp, err := http.Post(fmt.Sprintf("http://%s/update/", c.host), "application/json", body)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
+
 	defer resp.Body.Close()
 
 	res, err := io.ReadAll(resp.Body)

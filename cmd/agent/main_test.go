@@ -75,7 +75,7 @@ func Test_isTimeToPushReport(t *testing.T) {
 func Test_pushReport(t *testing.T) {
 
 	type args struct {
-		conn MetcollClient
+		conn metcollClient
 		s    *stats.Stats
 		cfg  *Config
 	}

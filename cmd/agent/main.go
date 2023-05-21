@@ -13,7 +13,7 @@ import (
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
 )
 
-type MetcollClient interface {
+type metcollClient interface {
 	Update(j json.Marshaler) error
 }
 
@@ -54,7 +54,7 @@ func main() {
 
 }
 
-func pushReport(conn MetcollClient, s *stats.Stats, cfg *Config) error {
+func pushReport(conn metcollClient, s *stats.Stats, cfg *Config) error {
 
 	for mType, data := range s.GetReportData() {
 

@@ -8,10 +8,10 @@ import (
 	"github.com/go-chi/chi/middleware"
 )
 
-func NewRouter(hs *Handler, logger func(http.Handler) http.Handler) *chi.Mux {
+func NewRouter(hs *Handler, middlewares ...func(http.Handler) http.Handler) *chi.Mux {
 
 	router := chi.NewRouter()
-	router.Use(logger)
+	router.Use(middlewares...)
 	router.Use(middleware.Recoverer)
 
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", func(w http.ResponseWriter, r *http.Request) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/caarlos0/env"
 
+	"github.com/ArtemShalinFe/metcoll/internal/compress"
 	"github.com/ArtemShalinFe/metcoll/internal/handlers"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
 )
@@ -28,7 +29,7 @@ func main() {
 	}
 
 	h := handlers.NewHandler(l)
-	r := handlers.NewRouter(h, l.RequestLogger)
+	r := handlers.NewRouter(h, l.RequestLogger, compress.CompressMiddleware)
 
 	log.Printf("Try running on %v\n", cfg.Address)
 	if err := http.ListenAndServe(cfg.Address, r); err != nil {
