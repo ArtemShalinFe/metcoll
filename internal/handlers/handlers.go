@@ -68,7 +68,7 @@ func (h *Handler) CollectMetricList(w http.ResponseWriter) {
 
 }
 
-func (h *Handler) UpdateMetricFromUrl(w http.ResponseWriter, id string, mType string, value string) {
+func (h *Handler) UpdateMetricFromURL(w http.ResponseWriter, id string, mType string, value string) {
 
 	m, err := metrics.NewMetric(id, mType, value)
 	if err != nil {
@@ -140,7 +140,7 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
 
 }
 
-func (h *Handler) ReadMetricFromUrl(w http.ResponseWriter, id string, mType string) {
+func (h *Handler) ReadMetricFromURL(w http.ResponseWriter, id string, mType string) {
 
 	m, err := metrics.GetMetric(id, mType)
 	if err != nil {

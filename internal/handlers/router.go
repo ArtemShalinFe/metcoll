@@ -25,7 +25,7 @@ func NewRouter(hs *Handler, logger func(http.Handler) http.Handler) *chi.Mux {
 			return
 		}
 
-		hs.UpdateMetricFromUrl(w, metricName, metricType, metricValue)
+		hs.UpdateMetricFromURL(w, metricName, metricType, metricValue)
 
 	})
 
@@ -40,7 +40,7 @@ func NewRouter(hs *Handler, logger func(http.Handler) http.Handler) *chi.Mux {
 		metricName := chi.URLParam(r, "metricName")
 		metricType := chi.URLParam(r, "metricType")
 
-		hs.ReadMetricFromUrl(w, metricName, metricType)
+		hs.ReadMetricFromURL(w, metricName, metricType)
 
 	})
 
