@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -12,14 +13,14 @@ import (
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
 )
 
+type MetcollClient interface {
+	Update(j json.Marshaler) error
+}
+
 type Config struct {
 	PollInterval   int    `env:"POLL_INTERVAL"`
 	ReportInterval int    `env:"REPORT_INTERVAL"`
 	Server         string `env:"ADDRESS"`
-}
-
-type client interface {
-	Push(mType string, Name string, Value string) error
 }
 
 func main() {
@@ -53,17 +54,17 @@ func main() {
 
 }
 
-func pushReport(conn client, s *stats.Stats, cfg *Config) error {
+func pushReport(conn MetcollClient, s *stats.Stats, cfg *Config) error {
 
 	for mType, data := range s.GetReportData() {
 
-		for name, value := range data {
+		for name, metric := range data {
 
-			if err := conn.Push(mType, name, value); err != nil {
-				return fmt.Errorf("cannot push %s %s with value %s on server: %v", mType, name, value, err)
+			if err := conn.Update(metric); err != nil {
+				return fmt.Errorf("cannot push %s %s with value %v on server: %v", mType, name, metric, err)
 			}
 
-			if stats.IsPollCountMetric(mType, name) {
+			if metric.IsPollCount() {
 				s.ClearPollCount()
 			}
 

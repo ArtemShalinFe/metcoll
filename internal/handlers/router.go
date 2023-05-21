@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -10,22 +8,10 @@ import (
 	"github.com/go-chi/chi/middleware"
 )
 
-type Handlers interface {
-	UpdateMetric(metricName string, metricValue string, metricType string) (string, error)
-	GetMetric(metricName string, metricType string) (string, error)
-	GetMetricList() []string
-}
-
-type Logger interface {
-	Info(args ...interface{})
-	Error(args ...interface{})
-	RequestLogger(h http.Handler) http.Handler
-}
-
-func NewRouter(h Handlers, log Logger) *chi.Mux {
+func NewRouter(hs *Handler, logger func(http.Handler) http.Handler) *chi.Mux {
 
 	router := chi.NewRouter()
-	router.Use(log.RequestLogger)
+	router.Use(logger)
 	router.Use(middleware.Recoverer)
 
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", func(w http.ResponseWriter, r *http.Request) {
@@ -39,27 +25,13 @@ func NewRouter(h Handlers, log Logger) *chi.Mux {
 			return
 		}
 
-		newValue, err := h.UpdateMetric(metricName, metricValue, metricType)
-		if err != nil {
-			if errors.Is(err, errUpdateMetricError) {
-				http.Error(w, "Bad request", http.StatusBadRequest)
-			} else if errors.Is(err, errUnknowMetricType) {
-				http.Error(w, errUnknowMetricType.Error(), http.StatusBadRequest)
-			} else {
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-				log.Error("UpdateMetric error: ", err.Error())
-			}
-			return
-		}
+		hs.UpdateMetricFromUrl(w, metricName, metricType, metricValue)
 
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
+	})
 
-		if _, err = w.Write([]byte(fmt.Sprintf("%s %v", metricName, newValue))); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			log.Error("UpdateMetric error: ", err)
-			return
-		}
+	router.Post("/update/", func(w http.ResponseWriter, r *http.Request) {
+
+		hs.UpdateMetric(w, r.Body)
 
 	})
 
@@ -68,60 +40,22 @@ func NewRouter(h Handlers, log Logger) *chi.Mux {
 		metricName := chi.URLParam(r, "metricName")
 		metricType := chi.URLParam(r, "metricType")
 
-		value, err := h.GetMetric(metricName, metricType)
+		hs.ReadMetricFromUrl(w, metricName, metricType)
 
-		if err != nil {
+	})
 
-			if errors.Is(err, errMetricNotFound) {
-				http.Error(w, errMetricNotFound.Error(), http.StatusNotFound)
-			} else if errors.Is(err, errUnknowMetricType) {
-				http.Error(w, errUnknowMetricType.Error(), http.StatusBadRequest)
-			} else {
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-				log.Error("GetMetric error: ", err)
-			}
-			return
-		}
+	router.Post("/value/", func(w http.ResponseWriter, r *http.Request) {
 
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-
-		if _, err = w.Write([]byte(value)); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			log.Error("GetMetric error: ", err)
-			return
-		}
+		hs.ReadMetric(w, r.Body)
 
 	})
 
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 
-		body := `
-		<html>
-		<head>
-			<title>Metric list</title>
-		</head>
-		<body>
-			<h1>Metric list</h1>
-			%s
-		</body>
-		</html>`
-
-		list := ""
-		for _, v := range h.GetMetricList() {
-			list += fmt.Sprintf(`<p>%s</p>`, v)
-		}
-
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-
-		if _, err := w.Write([]byte(fmt.Sprintf(body, list))); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			log.Error("GetMetricList error: ", err)
-			return
-		}
+		hs.CollectMetricList(w)
 
 	})
 
 	return router
+
 }

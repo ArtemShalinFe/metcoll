@@ -1,6 +1,8 @@
 package metcoll
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -17,9 +19,15 @@ func NewClient(Host string) *Client {
 	}
 }
 
-func (c *Client) Push(mType string, Name string, Value string) error {
+func (c *Client) Update(j json.Marshaler) error {
 
-	resp, err := http.Post(fmt.Sprintf("http://%s/update/%s/%s/%s", c.host, mType, Name, Value), "text/plain", nil)
+	b, err := json.Marshal(j)
+	if err != nil {
+		return err
+	}
+
+	body := bytes.NewBuffer(b)
+	resp, err := http.Post(fmt.Sprintf("http://%s/update/", c.host), "application/json", body)
 	if err != nil {
 		return err
 	}

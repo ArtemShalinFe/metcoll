@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"testing"
@@ -13,7 +14,7 @@ var cfg *Config
 
 type mockClient struct{}
 
-func (m *mockClient) Push(mType string, Name string, Value string) error {
+func (m *mockClient) Update(j json.Marshaler) error {
 	return nil
 }
 
@@ -74,7 +75,7 @@ func Test_isTimeToPushReport(t *testing.T) {
 func Test_pushReport(t *testing.T) {
 
 	type args struct {
-		conn client
+		conn MetcollClient
 		s    *stats.Stats
 		cfg  *Config
 	}

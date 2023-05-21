@@ -27,8 +27,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	h := handlers.NewHandler()
-	r := handlers.NewRouter(h, l)
+	h := handlers.NewHandler(l)
+	r := handlers.NewRouter(h, l.RequestLogger)
 
 	log.Printf("Try running on %v\n", cfg.Address)
 	if err := http.ListenAndServe(cfg.Address, r); err != nil {
