@@ -14,10 +14,8 @@ const PollCount = "PollCount"
 type Storage interface {
 	GetInt64Value(key string) (int64, bool)
 	GetFloat64Value(key string) (float64, bool)
-	AddInt64Value(key string, value int64) int64
-	SetFloat64Value(key string, value float64) float64
-	GetCounterList() []string
-	GetGaugeList() []string
+	AddInt64Value(key string, value int64) (int64, error)
+	SetFloat64Value(key string, value float64) (float64, error)
 }
 
 type Metrics struct {
@@ -157,12 +155,18 @@ func (m *Metrics) Update(values Storage) error {
 	switch m.MType {
 	case GaugeMetric:
 
-		newValue := values.SetFloat64Value(m.ID, *m.Value)
+		newValue, err := values.SetFloat64Value(m.ID, *m.Value)
+		if err != nil {
+			return err
+		}
 		m.Value = &newValue
 
 	case CounterMetric:
 
-		newValue := values.AddInt64Value(m.ID, *m.Delta)
+		newValue, err := values.AddInt64Value(m.ID, *m.Delta)
+		if err != nil {
+			return err
+		}
 		m.Delta = &newValue
 
 	default:

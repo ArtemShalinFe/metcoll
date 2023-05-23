@@ -8,22 +8,40 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type testStateSaver struct{}
+
+func (tss *testStateSaver) Save(data []byte) error {
+	return nil
+}
+
+func (tss *testStateSaver) Load() ([]byte, error) {
+	return nil, nil
+}
+
 func TestNewMemStorage(t *testing.T) {
 	want := &MemStorage{
 		mutex:       &sync.Mutex{},
 		dataInt64:   make(map[string]int64),
 		dataFloat64: make(map[string]float64),
+		stateSaver:  &testStateSaver{},
+		syncSaving:  true,
 	}
 
 	t.Run("Test mem storage constructor", func(t *testing.T) {
-		if got := NewMemStorage(); !reflect.DeepEqual(got, want) {
+		if got, _ := NewMemStorage(false, 0, &testStateSaver{}); !reflect.DeepEqual(got, want) {
 			t.Errorf("NewMemStorage() = %v, want %v", got, want)
 		}
 	})
 }
 
 func TestMemStorage_GetFloat64Value(t *testing.T) {
-	ts := NewMemStorage()
+
+	ts, err := NewMemStorage(false, 0, &testStateSaver{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	ts.SetFloat64Value("test1", 1.0)
 	ts.SetFloat64Value("test2", 2.0)
 	ts.SetFloat64Value("test3", 4.0)
@@ -71,7 +89,12 @@ func TestMemStorage_GetFloat64Value(t *testing.T) {
 }
 
 func TestMemStorage_GetInt64Value(t *testing.T) {
-	ts := NewMemStorage()
+
+	ts, err := NewMemStorage(false, 0, &testStateSaver{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	ts.AddInt64Value("test1", 1)
 	ts.AddInt64Value("test2", 2)
@@ -122,7 +145,11 @@ func TestMemStorage_GetInt64Value(t *testing.T) {
 
 func TestMemStorage_GetDataList(t *testing.T) {
 
-	ts := NewMemStorage()
+	ts, err := NewMemStorage(false, 0, &testStateSaver{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 	ts.SetFloat64Value("test1", 1.2)
 	ts.AddInt64Value("test4", 5)
 

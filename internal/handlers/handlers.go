@@ -20,10 +20,10 @@ type Logger interface {
 	Error(args ...interface{})
 }
 
-func NewHandler(l Logger) *Handler {
+func NewHandler(s *storage.MemStorage, l Logger) *Handler {
 
 	return &Handler{
-		values: storage.NewMemStorage(),
+		values: s,
 		logger: l,
 	}
 }
@@ -93,6 +93,8 @@ func (h *Handler) UpdateMetricFromURL(w http.ResponseWriter, id string, mType st
 		return
 	}
 
+	h.logger.Info("Metric was updated - ", m.ID, " new value: ", m.String())
+
 }
 
 func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
@@ -138,6 +140,8 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
 		return
 	}
 
+	h.logger.Info("Metric was updated - ", m.ID, " new value: ", m.String())
+
 }
 
 func (h *Handler) ReadMetricFromURL(w http.ResponseWriter, id string, mType string) {
@@ -150,6 +154,7 @@ func (h *Handler) ReadMetricFromURL(w http.ResponseWriter, id string, mType stri
 
 	if ok := h.get(m); !ok {
 		http.Error(w, "metric not found", http.StatusNotFound)
+		h.logger.Info("ReadMetric not found metric: ", m.ID)
 		return
 	}
 
@@ -171,25 +176,26 @@ func (h *Handler) ReadMetric(w http.ResponseWriter, body io.ReadCloser) {
 	b, err := io.ReadAll(body)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("UpdateMetric error: ", err.Error())
+		h.logger.Error("ReadMetric error: ", err.Error())
 		return
 	}
 
 	if err := json.Unmarshal(b, &m); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
-		h.logger.Error("UpdateMetric marshal error: ", err.Error())
+		h.logger.Error("ReadMetric marshal error: ", err.Error())
 		return
 	}
 
 	if ok := h.get(&m); !ok {
 		http.Error(w, "metric not found", http.StatusNotFound)
+		h.logger.Info("ReadMetric not found metric: ", m.ID)
 		return
 	}
 
 	b, err = json.Marshal(m)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("UpdateMetric marshal to json error: ", err)
+		h.logger.Error("ReadMetric marshal to json error: ", err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

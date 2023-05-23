@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
+	"github.com/ArtemShalinFe/metcoll/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,10 +38,26 @@ func (tl *testLogger) RequestLogger(h http.Handler) http.Handler {
 	})
 }
 
+type testStateSaver struct{}
+
+func (tss *testStateSaver) Save(data []byte) error {
+	return nil
+}
+
+func (tss *testStateSaver) Load() ([]byte, error) {
+	return nil, nil
+}
+
 func TestUpdateMetricFromUrl(t *testing.T) {
 
+	s, err := storage.NewMemStorage(false, 0, &testStateSaver{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	l := NewTestlogger()
-	h := NewHandler(l)
+	h := NewHandler(s, l)
 	r := NewRouter(h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
@@ -82,8 +99,14 @@ func TestUpdateMetricFromUrl(t *testing.T) {
 
 func TestUpdateMetric(t *testing.T) {
 
+	s, err := storage.NewMemStorage(false, 0, &testStateSaver{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	l := NewTestlogger()
-	h := NewHandler(l)
+	h := NewHandler(s, l)
 	r := NewRouter(h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
@@ -247,8 +270,14 @@ func TestUpdateMetric(t *testing.T) {
 
 func TestCollectMetricList(t *testing.T) {
 
+	s, err := storage.NewMemStorage(false, 0, &testStateSaver{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	l := NewTestlogger()
-	h := NewHandler(l)
+	h := NewHandler(s, l)
 	r := NewRouter(h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)

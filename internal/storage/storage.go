@@ -1,23 +1,57 @@
 package storage
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"log"
 	"strconv"
 	"sync"
+	"time"
 )
+
+type stateSaver interface {
+	Save(data []byte) error
+	Load() ([]byte, error)
+}
 
 type MemStorage struct {
 	mutex       *sync.Mutex
 	dataInt64   map[string]int64
 	dataFloat64 map[string]float64
+	stateSaver  stateSaver
+	syncSaving  bool
 }
 
-func NewMemStorage() *MemStorage {
+func NewMemStorage(restore bool, storeInterval int, stateSaver stateSaver) (*MemStorage, error) {
 
-	return &MemStorage{
+	ms := &MemStorage{
 		mutex:       &sync.Mutex{},
 		dataInt64:   make(map[string]int64),
 		dataFloat64: make(map[string]float64),
+		stateSaver:  stateSaver,
+	}
+
+	if restore {
+		if err := ms.LoadState(); err != nil {
+			return nil, err
+		}
+	}
+
+	setupStateSaving(ms, storeInterval)
+
+	return ms, nil
+
+}
+
+func setupStateSaving(ms *MemStorage, storeInterval int) {
+
+	if storeInterval == 0 {
+		ms.syncSaving = true
+	} else {
+		ms.syncSaving = false
+		go ms.RunIntervalStateSaving(storeInterval)
 	}
 
 }
@@ -42,7 +76,18 @@ func (ms *MemStorage) GetFloat64Value(key string) (float64, bool) {
 
 }
 
-func (ms *MemStorage) AddInt64Value(key string, value int64) int64 {
+func (ms *MemStorage) AddInt64Value(key string, value int64) (int64, error) {
+
+	newValue := ms.updateInt64Value(key, value)
+	if ms.syncSaving {
+		return newValue, ms.SaveState()
+	} else {
+		return newValue, nil
+	}
+
+}
+
+func (ms *MemStorage) updateInt64Value(key string, value int64) int64 {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
@@ -58,7 +103,19 @@ func (ms *MemStorage) AddInt64Value(key string, value int64) int64 {
 
 }
 
-func (ms *MemStorage) SetFloat64Value(key string, value float64) float64 {
+func (ms *MemStorage) SetFloat64Value(key string, value float64) (float64, error) {
+
+	newValue := ms.updateFloat64Value(key, value)
+
+	if ms.syncSaving {
+		return newValue, ms.SaveState()
+	} else {
+		return newValue, nil
+	}
+
+}
+
+func (ms *MemStorage) updateFloat64Value(key string, value float64) float64 {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
@@ -69,14 +126,34 @@ func (ms *MemStorage) SetFloat64Value(key string, value float64) float64 {
 
 }
 
-func (ms *MemStorage) GetCounterList() []string {
+func (ms *MemStorage) GetAllDataInt64() map[string]int64 {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 
+	return ms.dataInt64
+
+}
+
+func (ms *MemStorage) GetAllDataFloat64() map[string]float64 {
+
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+
+	return ms.dataFloat64
+
+}
+
+func (ms *MemStorage) GetDataList() []string {
+
 	var list []string
 
-	for k, v := range ms.dataInt64 {
+	for k, v := range ms.GetAllDataFloat64() {
+		fv := strconv.FormatFloat(v, 'G', 12, 64)
+		list = append(list, fmt.Sprintf("%s %s", k, fv))
+	}
+
+	for k, v := range ms.GetAllDataInt64() {
 		iv := strconv.FormatInt(v, 10)
 		list = append(list, fmt.Sprintf("%s %s", k, iv))
 	}
@@ -85,29 +162,97 @@ func (ms *MemStorage) GetCounterList() []string {
 
 }
 
-func (ms *MemStorage) GetGaugeList() []string {
+func (ms *MemStorage) SaveState() error {
 
-	ms.mutex.Lock()
-	defer ms.mutex.Unlock()
-
-	var list []string
-
-	for k, v := range ms.dataFloat64 {
-		fv := strconv.FormatFloat(v, 'G', 10, 64)
-		list = append(list, fmt.Sprintf("%s %s", k, fv))
+	storageState, err := json.Marshal(&ms)
+	if err != nil {
+		return err
 	}
 
-	return list
+	return ms.stateSaver.Save(storageState)
 
 }
 
-func (ms *MemStorage) GetDataList() []string {
+func (ms *MemStorage) LoadState() error {
 
-	var list []string
+	data, err := ms.stateSaver.Load()
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		} else {
+			return err
+		}
+	}
 
-	list = append(list, ms.GetGaugeList()...)
-	list = append(list, ms.GetCounterList()...)
+	err = json.Unmarshal(data, &ms)
+	if err != nil {
+		return err
+	}
 
-	return list
+	return nil
+
+}
+
+func (ms *MemStorage) RunIntervalStateSaving(storeInterval int) {
+
+	sleepDuration := time.Duration(storeInterval) * time.Second
+	for {
+		if err := ms.SaveState(); err != nil {
+			log.Printf("cannot save state err: %v\n", err)
+		}
+		time.Sleep(sleepDuration)
+	}
+
+}
+
+func (ms *MemStorage) UnmarshalJSON(b []byte) error {
+
+	state := make(map[string]map[string]string)
+
+	if err := json.Unmarshal(b, &state); err != nil {
+		return err
+	}
+
+	stateFloat64 := state["float64"]
+	for k, v := range stateFloat64 {
+		pv, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return err
+		}
+		ms.SetFloat64Value(k, pv)
+	}
+
+	stateInt64 := state["int64"]
+	for k, v := range stateInt64 {
+		pv, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return err
+		}
+		ms.AddInt64Value(k, pv)
+	}
+
+	return nil
+
+}
+
+func (ms *MemStorage) MarshalJSON() ([]byte, error) {
+
+	float64map := make(map[string]string)
+	for k, v := range ms.GetAllDataFloat64() {
+		fv := strconv.FormatFloat(v, 'G', 18, 64)
+		float64map[k] = fv
+	}
+
+	int64map := make(map[string]string)
+	for k, v := range ms.GetAllDataInt64() {
+		iv := strconv.FormatInt(v, 10)
+		int64map[k] = iv
+	}
+
+	state := make(map[string]map[string]string)
+	state["float64"] = float64map
+	state["int64"] = int64map
+
+	return json.Marshal(state)
 
 }
