@@ -46,6 +46,7 @@ func (c *Client) prepareRequest(metric json.Marshaler) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+	req.Close = true
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
