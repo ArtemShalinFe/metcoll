@@ -43,6 +43,8 @@ func NewState(stg StorageState, l Logger, fileStoragePath string, storeInterval 
 
 	if st.storeInterval != 0 {
 		st.runIntervalStateSaving()
+	} else {
+		st.logger.Info("sync state saving disabling")
 	}
 
 	st.runGracefullInterrupt()
@@ -54,7 +56,6 @@ func NewState(stg StorageState, l Logger, fileStoragePath string, storeInterval 
 func (st *State) SyncSave() error {
 
 	if st.storeInterval != 0 {
-		st.logger.Info("sync state saving disabling")
 		return nil
 	}
 
