@@ -31,6 +31,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	log.Printf("Parsed agent config: %+v", cfg)
+
 	s := stats.NewStats()
 
 	pause := time.Duration(cfg.PollInterval) * time.Second

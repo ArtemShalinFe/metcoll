@@ -28,7 +28,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Printf("Parsed config: %+v", cfg)
+	log.Printf("Parsed server config: %+v", cfg)
 
 	l, err := logger.NewLogger()
 	if err != nil {
