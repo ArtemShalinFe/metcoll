@@ -113,6 +113,11 @@ func (st *State) Load() error {
 		}
 	}
 
+	if len(b) == 0 {
+		st.logger.Info("state cannot be restored, file is empty")
+		return nil
+	}
+
 	if err = st.stg.SetState(b); err != nil {
 		st.logger.Error("cannot set state err: ", err)
 		return err
@@ -133,7 +138,6 @@ func (st *State) runIntervalStateSaving() {
 		if err := st.Save(); err != nil {
 			st.logger.Error("cannot save state err: ", err)
 		}
-
 	}
 
 }
