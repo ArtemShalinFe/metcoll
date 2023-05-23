@@ -28,6 +28,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	log.Printf("Parsed config: %+v", cfg)
+
 	l, err := logger.NewLogger()
 	if err != nil {
 		log.Fatal(err)
@@ -64,8 +66,6 @@ func parseConfig() (*Config, error) {
 	if err := env.Parse(&c); err != nil {
 		return nil, err
 	}
-
-	log.Printf("Parsed config: %+v", c)
 
 	return &c, nil
 

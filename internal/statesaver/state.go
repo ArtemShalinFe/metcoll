@@ -130,7 +130,7 @@ func (st *State) runGracefullInterrupt() {
 	go func() {
 
 		sig := <-sigc
-		st.logger.Error("incomming signal ", sig)
+		st.logger.Info("incomming signal ", sig)
 
 		if err := st.Save(); err != nil {
 			st.logger.Error("cannot save state err: ", err)
