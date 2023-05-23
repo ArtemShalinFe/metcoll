@@ -13,6 +13,7 @@ import (
 type Handler struct {
 	values *storage.MemStorage
 	logger Logger
+	st     stateSaver
 }
 
 type Logger interface {
@@ -20,17 +21,32 @@ type Logger interface {
 	Error(args ...interface{})
 }
 
-func NewHandler(s *storage.MemStorage, l Logger) *Handler {
+type stateSaver interface {
+	SyncSave() error
+}
+
+func NewHandler(s *storage.MemStorage, l Logger, st stateSaver) *Handler {
 
 	return &Handler{
 		values: s,
 		logger: l,
+		st:     st,
 	}
 }
 
 func (h *Handler) update(m *metrics.Metrics) error {
 
-	return m.Update(h.values)
+	if err := m.Update(h.values); err != nil {
+		h.logger.Error("error update metric ", err)
+		return err
+	}
+
+	if err := h.st.SyncSave(); err != nil {
+		h.logger.Error("error sync state saving ", err)
+		return err
+	}
+
+	return nil
 
 }
 

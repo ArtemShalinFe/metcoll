@@ -4,16 +4,14 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
 
 	"github.com/caarlos0/env"
 
 	"github.com/ArtemShalinFe/metcoll/internal/compress"
 	"github.com/ArtemShalinFe/metcoll/internal/handlers"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
+	"github.com/ArtemShalinFe/metcoll/internal/statesaver"
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
-	"github.com/ArtemShalinFe/metcoll/internal/storageStateSaver"
 )
 
 type Config struct {
@@ -35,36 +33,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ss := storageStateSaver.NewState(cfg.FileStoragePath)
+	s := storage.NewMemStorage()
 
-	s, err := storage.NewMemStorage(cfg.Restore, cfg.StoreInterval, ss)
+	st, err := statesaver.NewState(s, l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
 	if err != nil {
-		log.Fatalf("cannot init mem storage err: %v", err)
+		log.Fatalf("cannot init state saver err: %v", err)
 	}
 
-	h := handlers.NewHandler(s, l)
+	h := handlers.NewHandler(s, l, st)
 	r := handlers.NewRouter(h, l.RequestLogger, compress.CompressMiddleware)
 
-	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc, os.Interrupt)
-
-	go func() {
-
-		sig := <-sigc
-		log.Printf("incomming signal %v", sig)
-
-		if err := s.SaveState(); err != nil {
-			log.Printf("cannot save state err: %v", err)
-		} else {
-			log.Println("state was saved")
-		}
-
-		os.Exit(0)
-
-	}()
-
 	log.Printf("Try running on %v\n", cfg.Address)
-	if err := http.ListenAndServe(cfg.Address, r); err != http.ErrServerClosed {
+	if err := http.ListenAndServe(cfg.Address, r); err != nil {
 		log.Fatalf("ListenAndServe() err: %v", err)
 	}
 
@@ -84,6 +64,8 @@ func parseConfig() (*Config, error) {
 	if err := env.Parse(&c); err != nil {
 		return nil, err
 	}
+
+	log.Printf("Parsed config: %+v", c)
 
 	return &c, nil
 

@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 )
 
-func NewRouter(hs *Handler, middlewares ...func(http.Handler) http.Handler) *chi.Mux {
+func NewRouter(handlers *Handler, middlewares ...func(http.Handler) http.Handler) *chi.Mux {
 
 	router := chi.NewRouter()
 	router.Use(middlewares...)
@@ -25,13 +25,13 @@ func NewRouter(hs *Handler, middlewares ...func(http.Handler) http.Handler) *chi
 			return
 		}
 
-		hs.UpdateMetricFromURL(w, metricName, metricType, metricValue)
+		handlers.UpdateMetricFromURL(w, metricName, metricType, metricValue)
 
 	})
 
 	router.Post("/update/", func(w http.ResponseWriter, r *http.Request) {
 
-		hs.UpdateMetric(w, r.Body)
+		handlers.UpdateMetric(w, r.Body)
 
 	})
 
@@ -40,19 +40,24 @@ func NewRouter(hs *Handler, middlewares ...func(http.Handler) http.Handler) *chi
 		metricName := chi.URLParam(r, "metricName")
 		metricType := chi.URLParam(r, "metricType")
 
-		hs.ReadMetricFromURL(w, metricName, metricType)
+		if strings.TrimSpace(metricName) == "" {
+			http.Error(w, "name metric is empty", http.StatusBadRequest)
+			return
+		}
+
+		handlers.ReadMetricFromURL(w, metricName, metricType)
 
 	})
 
 	router.Post("/value/", func(w http.ResponseWriter, r *http.Request) {
 
-		hs.ReadMetric(w, r.Body)
+		handlers.ReadMetric(w, r.Body)
 
 	})
 
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 
-		hs.CollectMetricList(w)
+		handlers.CollectMetricList(w)
 
 	})
 

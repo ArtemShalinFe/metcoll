@@ -40,24 +40,16 @@ func (tl *testLogger) RequestLogger(h http.Handler) http.Handler {
 
 type testStateSaver struct{}
 
-func (tss *testStateSaver) Save(data []byte) error {
+func (tss *testStateSaver) SyncSave() error {
 	return nil
-}
-
-func (tss *testStateSaver) Load() ([]byte, error) {
-	return nil, nil
 }
 
 func TestUpdateMetricFromUrl(t *testing.T) {
 
-	s, err := storage.NewMemStorage(false, 0, &testStateSaver{})
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	s := storage.NewMemStorage()
 
 	l := NewTestlogger()
-	h := NewHandler(s, l)
+	h := NewHandler(s, l, &testStateSaver{})
 	r := NewRouter(h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
@@ -80,6 +72,7 @@ func TestUpdateMetricFromUrl(t *testing.T) {
 		{"/update/gauge/metricg/1.0", "", http.StatusMethodNotAllowed, http.MethodGet},
 		{"/value/gauge/metricg", "1.2", http.StatusOK, http.MethodGet},
 		{"/value/counter/metricc", "1", http.StatusOK, http.MethodGet},
+		{"/value/counter/ ", "name metric is empty\n", http.StatusBadRequest, http.MethodGet},
 		{"/value/gauge/", "404 page not found\n", http.StatusNotFound, http.MethodGet},
 		{"/value/counter/", "404 page not found\n", http.StatusNotFound, http.MethodGet},
 		{"/value/summary/metric", "Bad request\n", http.StatusBadRequest, http.MethodGet},
@@ -99,14 +92,10 @@ func TestUpdateMetricFromUrl(t *testing.T) {
 
 func TestUpdateMetric(t *testing.T) {
 
-	s, err := storage.NewMemStorage(false, 0, &testStateSaver{})
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	s := storage.NewMemStorage()
 
 	l := NewTestlogger()
-	h := NewHandler(s, l)
+	h := NewHandler(s, l, &testStateSaver{})
 	r := NewRouter(h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
@@ -270,14 +259,10 @@ func TestUpdateMetric(t *testing.T) {
 
 func TestCollectMetricList(t *testing.T) {
 
-	s, err := storage.NewMemStorage(false, 0, &testStateSaver{})
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	s := storage.NewMemStorage()
 
 	l := NewTestlogger()
-	h := NewHandler(s, l)
+	h := NewHandler(s, l, &testStateSaver{})
 	r := NewRouter(h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)

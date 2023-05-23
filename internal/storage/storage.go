@@ -2,57 +2,26 @@ package storage
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"log"
 	"strconv"
 	"sync"
-	"time"
 )
-
-type stateSaver interface {
-	Save(data []byte) error
-	Load() ([]byte, error)
-}
 
 type MemStorage struct {
 	mutex       *sync.Mutex
 	dataInt64   map[string]int64
 	dataFloat64 map[string]float64
-	stateSaver  stateSaver
-	syncSaving  bool
 }
 
-func NewMemStorage(restore bool, storeInterval int, stateSaver stateSaver) (*MemStorage, error) {
+func NewMemStorage() *MemStorage {
 
 	ms := &MemStorage{
 		mutex:       &sync.Mutex{},
 		dataInt64:   make(map[string]int64),
 		dataFloat64: make(map[string]float64),
-		stateSaver:  stateSaver,
 	}
 
-	if restore {
-		if err := ms.LoadState(); err != nil {
-			return nil, err
-		}
-	}
-
-	setupStateSaving(ms, storeInterval)
-
-	return ms, nil
-
-}
-
-func setupStateSaving(ms *MemStorage, storeInterval int) {
-
-	if storeInterval == 0 {
-		ms.syncSaving = true
-	} else {
-		ms.syncSaving = false
-		go ms.RunIntervalStateSaving(storeInterval)
-	}
+	return ms
 
 }
 
@@ -76,18 +45,7 @@ func (ms *MemStorage) GetFloat64Value(key string) (float64, bool) {
 
 }
 
-func (ms *MemStorage) AddInt64Value(key string, value int64) (int64, error) {
-
-	newValue := ms.updateInt64Value(key, value)
-	if ms.syncSaving {
-		return newValue, ms.SaveState()
-	} else {
-		return newValue, nil
-	}
-
-}
-
-func (ms *MemStorage) updateInt64Value(key string, value int64) int64 {
+func (ms *MemStorage) AddInt64Value(key string, value int64) int64 {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
@@ -103,19 +61,7 @@ func (ms *MemStorage) updateInt64Value(key string, value int64) int64 {
 
 }
 
-func (ms *MemStorage) SetFloat64Value(key string, value float64) (float64, error) {
-
-	newValue := ms.updateFloat64Value(key, value)
-
-	if ms.syncSaving {
-		return newValue, ms.SaveState()
-	} else {
-		return newValue, nil
-	}
-
-}
-
-func (ms *MemStorage) updateFloat64Value(key string, value float64) float64 {
+func (ms *MemStorage) SetFloat64Value(key string, value float64) float64 {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
@@ -162,46 +108,15 @@ func (ms *MemStorage) GetDataList() []string {
 
 }
 
-func (ms *MemStorage) SaveState() error {
+func (ms *MemStorage) GetState() ([]byte, error) {
 
-	storageState, err := json.Marshal(&ms)
-	if err != nil {
-		return err
-	}
-
-	return ms.stateSaver.Save(storageState)
+	return json.Marshal(&ms)
 
 }
 
-func (ms *MemStorage) LoadState() error {
+func (ms *MemStorage) SetState(data []byte) error {
 
-	data, err := ms.stateSaver.Load()
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil
-		} else {
-			return err
-		}
-	}
-
-	err = json.Unmarshal(data, &ms)
-	if err != nil {
-		return err
-	}
-
-	return nil
-
-}
-
-func (ms *MemStorage) RunIntervalStateSaving(storeInterval int) {
-
-	sleepDuration := time.Duration(storeInterval) * time.Second
-	for {
-		if err := ms.SaveState(); err != nil {
-			log.Printf("cannot save state err: %v\n", err)
-		}
-		time.Sleep(sleepDuration)
-	}
+	return json.Unmarshal(data, &ms)
 
 }
 

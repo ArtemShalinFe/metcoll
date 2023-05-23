@@ -14,8 +14,8 @@ const PollCount = "PollCount"
 type Storage interface {
 	GetInt64Value(key string) (int64, bool)
 	GetFloat64Value(key string) (float64, bool)
-	AddInt64Value(key string, value int64) (int64, error)
-	SetFloat64Value(key string, value float64) (float64, error)
+	AddInt64Value(key string, value int64) int64
+	SetFloat64Value(key string, value float64) float64
 }
 
 type Metrics struct {
@@ -24,6 +24,8 @@ type Metrics struct {
 	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
 	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 }
+
+var errUnknowMetricType = errors.New("unknow metric type")
 
 func GetMetric(id string, mType string) (*Metrics, error) {
 
@@ -36,7 +38,7 @@ func GetMetric(id string, mType string) (*Metrics, error) {
 	case CounterMetric:
 		m.MType = CounterMetric
 	default:
-		return nil, errors.New("unknow metric type")
+		return nil, errUnknowMetricType
 	}
 
 	return &m, nil
@@ -64,7 +66,7 @@ func NewMetric(id string, mType string, value string) (*Metrics, error) {
 
 	default:
 
-		return nil, errors.New("unknow metric type")
+		return nil, errUnknowMetricType
 
 	}
 
@@ -101,7 +103,7 @@ func (m *Metrics) UnmarshalJSON(b []byte) error {
 	}
 
 	if am.MType != CounterMetric && am.MType != GaugeMetric {
-		return errors.New("unknow metric type")
+		return errUnknowMetricType
 	}
 
 	m.ID = am.ID
@@ -124,7 +126,7 @@ func (m *Metrics) MarshalJSON() ([]byte, error) {
 	}
 
 	if m.MType != CounterMetric && m.MType != GaugeMetric {
-		return nil, errors.New("unknow metric type")
+		return nil, errUnknowMetricType
 	}
 
 	return json.Marshal(am)
@@ -145,7 +147,7 @@ func (m *Metrics) String() string {
 	case CounterMetric:
 		return strconv.FormatInt(*m.Delta, 10)
 	default:
-		return "unknow metric type"
+		return errUnknowMetricType.Error()
 	}
 
 }
@@ -155,23 +157,17 @@ func (m *Metrics) Update(values Storage) error {
 	switch m.MType {
 	case GaugeMetric:
 
-		newValue, err := values.SetFloat64Value(m.ID, *m.Value)
-		if err != nil {
-			return err
-		}
+		newValue := values.SetFloat64Value(m.ID, *m.Value)
 		m.Value = &newValue
 
 	case CounterMetric:
 
-		newValue, err := values.AddInt64Value(m.ID, *m.Delta)
-		if err != nil {
-			return err
-		}
+		newValue := values.AddInt64Value(m.ID, *m.Delta)
 		m.Delta = &newValue
 
 	default:
 
-		return errors.New(`unknow metric type`)
+		return errUnknowMetricType
 
 	}
 
@@ -193,8 +189,11 @@ func (m *Metrics) Get(values Storage) bool {
 		newValue, ok := values.GetInt64Value(m.ID)
 		m.Delta = &newValue
 		return ok
-	}
 
-	return false
+	default:
+
+		return false
+
+	}
 
 }
