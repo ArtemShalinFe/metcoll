@@ -42,7 +42,7 @@ func NewState(stg StorageState, l Logger, fileStoragePath string, storeInterval 
 	}
 
 	if st.storeInterval != 0 {
-		st.runIntervalStateSaving()
+		go st.runIntervalStateSaving()
 	} else {
 		st.logger.Info("sync state saving disabling")
 	}
@@ -127,17 +127,14 @@ func (st *State) Load() error {
 func (st *State) runIntervalStateSaving() {
 
 	sleepDuration := time.Duration(st.storeInterval) * time.Second
-	go func() {
 
+	for {
 		time.Sleep(sleepDuration)
-
-		for {
-			if err := st.Save(); err != nil {
-				st.logger.Error("cannot save state err: ", err)
-			}
-
+		if err := st.Save(); err != nil {
+			st.logger.Error("cannot save state err: ", err)
 		}
-	}()
+
+	}
 
 }
 
@@ -157,6 +154,7 @@ func (st *State) runGracefullInterrupt() {
 		} else {
 			os.Exit(0)
 		}
+
 	}()
 
 }
