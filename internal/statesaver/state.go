@@ -72,6 +72,8 @@ func (st *State) Save() error {
 	}
 	defer file.Close()
 
+	st.logger.Info("try save state")
+
 	data, err := st.stg.GetState()
 	if err != nil {
 		st.logger.Error("cannot get storage state err: ", err)
@@ -80,8 +82,13 @@ func (st *State) Save() error {
 
 	data = append(data, '\n')
 
-	_, err = file.Write(data)
-	return err
+	if _, err = file.Write(data); err != nil {
+		return nil
+	}
+
+	st.logger.Info("state was saved")
+
+	return nil
 
 }
 
@@ -92,6 +99,8 @@ func (st *State) Load() error {
 		st.logger.Error("cannot open or creating file for state loading err: ", err)
 		return err
 	}
+
+	st.logger.Info("try restoring state")
 
 	defer file.Close()
 
@@ -104,7 +113,14 @@ func (st *State) Load() error {
 		}
 	}
 
-	return st.stg.SetState(b)
+	if err = st.stg.SetState(b); err != nil {
+		st.logger.Error("cannot set state err: ", err)
+		return err
+	}
+
+	st.logger.Info("state was restored")
+
+	return nil
 
 }
 
