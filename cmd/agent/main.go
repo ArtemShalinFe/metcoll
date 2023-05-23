@@ -40,6 +40,9 @@ func main() {
 	durReportInterval := time.Duration(cfg.ReportInterval) * time.Second
 
 	for {
+
+		time.Sleep(pause)
+
 		s.Update()
 		now := time.Now()
 
@@ -52,7 +55,6 @@ func main() {
 			}
 
 		}
-		time.Sleep(pause)
 	}
 
 }

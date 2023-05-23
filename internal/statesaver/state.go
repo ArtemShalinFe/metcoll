@@ -128,11 +128,14 @@ func (st *State) runIntervalStateSaving() {
 
 	sleepDuration := time.Duration(st.storeInterval) * time.Second
 	go func() {
+
+		time.Sleep(sleepDuration)
+
 		for {
 			if err := st.Save(); err != nil {
 				st.logger.Error("cannot save state err: ", err)
 			}
-			time.Sleep(sleepDuration)
+
 		}
 	}()
 
@@ -152,7 +155,6 @@ func (st *State) runGracefullInterrupt() {
 			st.logger.Error("cannot save state err: ", err)
 			os.Exit(1)
 		} else {
-			st.logger.Info("state was saved")
 			os.Exit(0)
 		}
 	}()
