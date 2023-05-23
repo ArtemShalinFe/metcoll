@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 )
 
@@ -17,6 +18,7 @@ type Logger interface {
 type State struct {
 	fileStoragePath string
 	storeInterval   int
+	disableSaving   bool
 	stg             StorageState
 	logger          Logger
 }
@@ -33,6 +35,12 @@ func NewState(stg StorageState, l Logger, fileStoragePath string, storeInterval 
 		storeInterval:   storeInterval,
 		stg:             stg,
 		logger:          l,
+	}
+
+	if strings.TrimSpace(st.fileStoragePath) == "" {
+		st.disableSaving = true
+		st.logger.Info("state saving was disable - empty path to file for storage")
+		return st, nil
 	}
 
 	if restore {
@@ -65,6 +73,10 @@ func (st *State) SyncSave() error {
 
 func (st *State) Save() error {
 
+	if st.disableSaving {
+		return nil
+	}
+
 	file, err := os.OpenFile(st.fileStoragePath, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		st.logger.Error("cannot open or creating file for state saving err: ", err)
@@ -94,6 +106,10 @@ func (st *State) Save() error {
 
 func (st *State) Load() error {
 
+	if st.disableSaving {
+		return nil
+	}
+
 	file, err := os.OpenFile(st.fileStoragePath, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
 		st.logger.Error("cannot open or creating file for state loading err: ", err)
@@ -114,7 +130,7 @@ func (st *State) Load() error {
 	}
 
 	if len(b) == 0 {
-		st.logger.Info("state cannot be restored, file is empty")
+		st.logger.Info("state cannot be restored - file is empty")
 		return nil
 	}
 
