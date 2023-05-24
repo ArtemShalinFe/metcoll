@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -23,31 +24,34 @@ type Config struct {
 
 func main() {
 
-	cfg, err := parseConfig()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Printf("Parsed server config: %+v", cfg)
-
 	l, err := logger.NewLogger()
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer l.Sync()
+
+	cfg, err := parseConfig()
+	if err != nil {
+		l.Error("cannot parse server config file err: ", err)
+		return
+	}
+
+	l.Info("parsed server config: ", fmt.Sprintf("%+v", cfg))
 
 	s := storage.NewMemStorage()
 
 	st, err := statesaver.NewState(s, l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
 	if err != nil {
-		log.Fatalf("cannot init state saver err: %v", err)
+		l.Error("cannot init state saver err: ", err)
+		return
 	}
 
 	h := handlers.NewHandler(s, l, st)
 	r := handlers.NewRouter(h, l.RequestLogger, compress.CompressMiddleware)
 
-	log.Printf("Try running on %v\n", cfg.Address)
+	l.Info("Try running on address: ", cfg.Address)
 	if err := http.ListenAndServe(cfg.Address, r); err != nil {
-		log.Fatalf("ListenAndServe() err: %v", err)
+		l.Error("ListenAndServe() err: ", err)
 	}
 
 }

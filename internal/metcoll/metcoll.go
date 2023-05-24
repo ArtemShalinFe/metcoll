@@ -4,24 +4,29 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
-	"fmt"
 	"io"
-	"log"
 	"net/http"
+	"net/url"
 
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 )
 
+type Logger interface {
+	Info(args ...interface{})
+}
+
 type Client struct {
 	host       string
 	httpClient *http.Client
+	logger     Logger
 }
 
-func NewClient(Host string) *Client {
+func NewClient(Host string, logger Logger) *Client {
 
 	return &Client{
 		host:       Host,
 		httpClient: &http.Client{},
+		logger:     logger,
 	}
 
 }
@@ -44,7 +49,12 @@ func (c *Client) prepareRequest(metric json.Marshaler) (*http.Request, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/update/", c.host), &zBuf)
+	url, err := url.JoinPath("http://", c.host, "/update/")
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, &zBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +85,9 @@ func (c *Client) Update(metric *metrics.Metrics) error {
 		return err
 	}
 
-	log.Printf("Resp: [%d] [%s]\n", resp.StatusCode, string(res))
+	c.logger.Info("request for update metric has been completed ",
+		"code: ", resp.StatusCode,
+		"result: ", string(res))
 
 	return nil
 }

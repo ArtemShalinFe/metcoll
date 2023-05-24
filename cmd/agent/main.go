@@ -8,6 +8,7 @@ import (
 
 	"github.com/caarlos0/env/v8"
 
+	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metcoll"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
@@ -26,19 +27,25 @@ type Config struct {
 func main() {
 
 	var lastReportPush time.Time
-
-	cfg, err := parseConfig()
+	l, err := logger.NewLogger()
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer l.Sync()
 
-	log.Printf("Parsed agent config: %+v", cfg)
+	cfg, err := parseConfig()
+	if err != nil {
+		l.Error("cannot parse agent config file err: ", err)
+		return
+	}
+
+	l.Info("parsed agent config: ", fmt.Sprintf("%+v", cfg))
 
 	s := stats.NewStats()
 
 	pause := time.Duration(cfg.PollInterval) * time.Second
 	durReportInterval := time.Duration(cfg.ReportInterval) * time.Second
-	conn := metcoll.NewClient(cfg.Server)
+	conn := metcoll.NewClient(cfg.Server, l)
 
 	for {
 
@@ -48,7 +55,7 @@ func main() {
 		if isTimeToPushReport(lastReportPush, now, durReportInterval) {
 
 			if err := pushReport(conn, s, cfg); err != nil {
-				log.Print(err)
+				l.Info(err)
 			} else {
 				lastReportPush = now
 			}

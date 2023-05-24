@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -15,9 +16,8 @@ func NewLogger() (*AppLogger, error) {
 
 	l, err := zap.NewProduction()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot init zap-logger err: %v ", err)
 	}
-	defer l.Sync()
 
 	sl := l.Sugar()
 
@@ -30,12 +30,10 @@ func NewLogger() (*AppLogger, error) {
 func (l *AppLogger) RequestLogger(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		start := time.Now()
-
 		rw := NewResponseLoggerWriter(w)
 
+		start := time.Now()
 		h.ServeHTTP(rw, r)
-
 		duration := time.Since(start)
 
 		l.Info("incomming HTTP request - ",
