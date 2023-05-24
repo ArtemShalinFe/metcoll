@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -10,11 +9,12 @@ import (
 	"github.com/caarlos0/env/v8"
 
 	"github.com/ArtemShalinFe/metcoll/internal/metcoll"
+	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
 )
 
 type metcollClient interface {
-	Update(j json.Marshaler) error
+	Update(m *metrics.Metrics) error
 }
 
 type Config struct {
@@ -38,16 +38,15 @@ func main() {
 
 	pause := time.Duration(cfg.PollInterval) * time.Second
 	durReportInterval := time.Duration(cfg.ReportInterval) * time.Second
+	conn := metcoll.NewClient(cfg.Server)
 
 	for {
-
-		time.Sleep(pause)
 
 		s.Update()
 		now := time.Now()
 
 		if isTimeToPushReport(lastReportPush, now, durReportInterval) {
-			conn := metcoll.NewClient(cfg.Server)
+
 			if err := pushReport(conn, s, cfg); err != nil {
 				log.Print(err)
 			} else {
@@ -55,6 +54,9 @@ func main() {
 			}
 
 		}
+
+		time.Sleep(pause)
+
 	}
 
 }

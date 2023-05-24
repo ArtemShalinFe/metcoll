@@ -1,12 +1,12 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
 )
 
@@ -14,7 +14,7 @@ var cfg *Config
 
 type mockClient struct{}
 
-func (m *mockClient) Update(j json.Marshaler) error {
+func (c *mockClient) Update(m *metrics.Metrics) error {
 	return nil
 }
 

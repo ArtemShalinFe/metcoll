@@ -8,6 +8,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 )
 
 type Client struct {
@@ -54,7 +56,7 @@ func (c *Client) prepareRequest(metric json.Marshaler) (*http.Request, error) {
 	return req, nil
 }
 
-func (c *Client) Update(metric json.Marshaler) error {
+func (c *Client) Update(metric *metrics.Metrics) error {
 
 	req, err := c.prepareRequest(metric)
 	if err != nil {
