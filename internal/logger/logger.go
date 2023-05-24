@@ -45,3 +45,13 @@ func (l *AppLogger) RequestLogger(h http.Handler) http.Handler {
 		)
 	})
 }
+
+func (l *AppLogger) LoggerInterrupt() error {
+
+	if err := l.Sync(); err != nil {
+		return fmt.Errorf("cannot flush buffered log entries err: %v", err)
+	}
+
+	return nil
+
+}

@@ -49,7 +49,7 @@ func TestUpdateMetricFromUrl(t *testing.T) {
 	s := storage.NewMemStorage()
 
 	l := NewTestlogger()
-	h := NewHandler(s, l, &testStateSaver{})
+	h := NewHandler(s, l)
 	r := NewRouter(h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
@@ -95,7 +95,7 @@ func TestUpdateMetric(t *testing.T) {
 	s := storage.NewMemStorage()
 
 	l := NewTestlogger()
-	h := NewHandler(s, l, &testStateSaver{})
+	h := NewHandler(s, l)
 	r := NewRouter(h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
@@ -262,7 +262,7 @@ func TestCollectMetricList(t *testing.T) {
 	s := storage.NewMemStorage()
 
 	l := NewTestlogger()
-	h := NewHandler(s, l, &testStateSaver{})
+	h := NewHandler(s, l)
 	r := NewRouter(h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)

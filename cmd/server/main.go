@@ -5,13 +5,17 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"strings"
 
 	"github.com/caarlos0/env"
 
 	"github.com/ArtemShalinFe/metcoll/internal/compress"
+	"github.com/ArtemShalinFe/metcoll/internal/filestorage"
 	"github.com/ArtemShalinFe/metcoll/internal/handlers"
+	"github.com/ArtemShalinFe/metcoll/internal/interrupter"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
-	"github.com/ArtemShalinFe/metcoll/internal/statesaver"
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
@@ -24,11 +28,13 @@ type Config struct {
 
 func main() {
 
+	i := interrupter.NewInterrupters()
+
 	l, err := logger.NewLogger()
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer l.Sync()
+	i.Use(l.LoggerInterrupt)
 
 	cfg, err := parseConfig()
 	if err != nil {
@@ -38,21 +44,66 @@ func main() {
 
 	l.Info("parsed server config: ", fmt.Sprintf("%+v", cfg))
 
-	s := storage.NewMemStorage()
-
-	st, err := statesaver.NewState(s, l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
+	h, err := initHandler(cfg, i, l)
 	if err != nil {
-		l.Error("cannot init state saver err: ", err)
+		l.Error("cannot init handlers err: ", err)
 		return
 	}
 
-	h := handlers.NewHandler(s, l, st)
-	r := handlers.NewRouter(h, l.RequestLogger, compress.CompressMiddleware)
+	runGracefullInterrupt(l, i)
 
+	r := handlers.NewRouter(h, l.RequestLogger, compress.CompressMiddleware)
 	l.Info("Try running on address: ", cfg.Address)
 	if err := http.ListenAndServe(cfg.Address, r); err != nil {
 		l.Error("ListenAndServe() err: ", err)
 	}
+
+}
+
+func initHandler(cfg *Config, i *interrupter.Interrupters, l *logger.AppLogger) (*handlers.Handler, error) {
+
+	s := storage.NewMemStorage()
+	if strings.TrimSpace(cfg.FileStoragePath) != "" {
+
+		fs, err := filestorage.NewFilestorage(s, l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
+		if err != nil {
+			l.Error("cannot init filestorage err: ", err)
+			return nil, err
+		}
+
+		i.Use(fs.FilestorageInterrupt)
+
+		l.Info("saving the state to a filestorage has been enabled")
+		return handlers.NewHandler(fs, l), nil
+
+	}
+
+	l.Info("saving the state to a filestorage has been disabled - empty filestorage path")
+	return handlers.NewHandler(s, l), nil
+
+}
+
+func runGracefullInterrupt(l *logger.AppLogger, i *interrupter.Interrupters) {
+
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, os.Interrupt)
+
+	go func() {
+
+		<-sigc
+
+		ers := i.Do()
+
+		if len(ers) > 0 {
+			for _, v := range ers {
+				l.Error(v)
+			}
+			os.Exit(1)
+		}
+
+		os.Exit(0)
+
+	}()
 
 }
 

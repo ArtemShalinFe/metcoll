@@ -56,7 +56,6 @@ func (ms *MemStorage) AddInt64Value(key string, value int64) int64 {
 	}
 	newValue := v + value
 	ms.dataInt64[key] = newValue
-
 	return newValue
 
 }

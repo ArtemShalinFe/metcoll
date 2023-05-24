@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewMemStorage(t *testing.T) {
+
 	want := &MemStorage{
 		mutex:       &sync.Mutex{},
 		dataInt64:   make(map[string]int64),

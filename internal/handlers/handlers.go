@@ -7,13 +7,19 @@ import (
 	"net/http"
 
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
-	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
 type Handler struct {
-	values *storage.MemStorage
+	values Storage
 	logger Logger
-	st     stateSaver
+}
+
+type Storage interface {
+	GetInt64Value(key string) (int64, bool)
+	GetFloat64Value(key string) (float64, bool)
+	AddInt64Value(key string, value int64) int64
+	SetFloat64Value(key string, value float64) float64
+	GetDataList() []string
 }
 
 type Logger interface {
@@ -21,32 +27,17 @@ type Logger interface {
 	Error(args ...interface{})
 }
 
-type stateSaver interface {
-	SyncSave() error
-}
-
-func NewHandler(s *storage.MemStorage, l Logger, st stateSaver) *Handler {
+func NewHandler(s Storage, l Logger) *Handler {
 
 	return &Handler{
 		values: s,
 		logger: l,
-		st:     st,
 	}
 }
 
 func (h *Handler) update(m *metrics.Metrics) error {
 
-	if err := m.Update(h.values); err != nil {
-		h.logger.Error("error update metric ", err)
-		return err
-	}
-
-	if err := h.st.SyncSave(); err != nil {
-		h.logger.Error("error sync state saving ", err)
-		return err
-	}
-
-	return nil
+	return m.Update(h.values)
 
 }
 
