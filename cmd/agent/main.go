@@ -75,7 +75,7 @@ func pushReport(conn metcollClient, s *stats.Stats, cfg *Config) error {
 		for name, metric := range data {
 
 			if err := conn.Update(metric); err != nil {
-				return fmt.Errorf("cannot push %s %s with value %v on server: %v", mType, name, metric, err)
+				return fmt.Errorf("cannot push %s %s with value %v on server err: %w", mType, name, metric, err)
 			}
 
 			if metric.IsPollCount() {

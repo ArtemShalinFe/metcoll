@@ -31,7 +31,7 @@ func NewClient(Host string, logger Logger) *Client {
 
 }
 
-func (c *Client) prepareRequest(metric json.Marshaler) (*http.Request, error) {
+func (c *Client) prepareRequest(metric *metrics.Metrics) (*http.Request, error) {
 
 	body, err := json.Marshal(metric)
 	if err != nil {

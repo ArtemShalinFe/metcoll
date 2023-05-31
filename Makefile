@@ -14,7 +14,7 @@ go-tests:
 
 cur-test:
 	metricstest-darwin-arm64 -test.v -test.run=^TestIteration9\$$ -source-path=. -agent-binary-path=cmd/agent/agent -binary-path=cmd/server/server -server-port=8081 -file-storage-path=/tmp/test-db.json
-	/tmp/test-db.json
+	rm /tmp/test-db.json
 
 ya-tests:	
 	metricstest-darwin-arm64 -test.v -test.run=^TestIteration1\$$ -source-path=. -binary-path=cmd/server/server

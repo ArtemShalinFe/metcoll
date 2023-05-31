@@ -17,22 +17,27 @@ func CompressMiddleware(h http.Handler) http.Handler {
 
 		origWriter := w
 
-		acceptEncoding := r.Header.Get("Accept-Encoding")
-		if strings.Contains(acceptEncoding, "gzip") {
-			compressWriter := NewCompressWriter(w)
-			origWriter = compressWriter
-			defer compressWriter.Close()
+		acceptEncodings := r.Header.Values("Accept-Encoding")
+		for _, acceptEncoding := range acceptEncodings {
+			if strings.Contains(acceptEncoding, "gzip") {
+				gzipWriter := NewGzipWriter(w)
+				origWriter = gzipWriter
+				defer gzipWriter.Close()
+			}
 		}
 
-		contentEncoding := r.Header.Get("Content-Encoding")
-		if strings.Contains(contentEncoding, "gzip") {
-			compressReader, err := NewCompressReader(r.Body)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
+		contentEncodings := r.Header.Values("Content-Encoding")
+
+		for _, contentEncoding := range contentEncodings {
+			if strings.Contains(contentEncoding, "gzip") {
+				compressReader, err := NewGzipReader(r.Body)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				r.Body = compressReader
+				defer compressReader.Close()
 			}
-			r.Body = compressReader
-			defer compressReader.Close()
 		}
 
 		h.ServeHTTP(origWriter, r)

@@ -121,6 +121,11 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
 		return
 	}
 
+	if m.MType != metrics.CounterMetric && m.MType != metrics.GaugeMetric {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
 	if m.Delta == nil && m.Value == nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
@@ -190,6 +195,11 @@ func (h *Handler) ReadMetric(w http.ResponseWriter, body io.ReadCloser) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		h.logger.Error("ReadMetric marshal error: ", err.Error())
+		return
+	}
+
+	if m.MType != metrics.CounterMetric && m.MType != metrics.GaugeMetric {
+		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 

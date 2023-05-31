@@ -4,13 +4,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
+
+	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 )
 
 type MemStorage struct {
 	mutex       *sync.Mutex
 	dataInt64   map[string]int64
 	dataFloat64 map[string]float64
+}
+
+type Storage interface {
+	GetInt64Value(key string) (int64, bool)
+	GetFloat64Value(key string) (float64, bool)
+	AddInt64Value(key string, value int64) int64
+	SetFloat64Value(key string, value float64) float64
+	GetDataList() []string
+	Interrupt() error
 }
 
 func NewMemStorage() *MemStorage {
@@ -168,5 +180,28 @@ func (ms *MemStorage) MarshalJSON() ([]byte, error) {
 	state["int64"] = int64map
 
 	return json.Marshal(state)
+
+}
+
+func (ms *MemStorage) Interrupt() error {
+	return nil
+}
+
+func InitStorage(cfg *configuration.Config, s *MemStorage, l Logger) (Storage, error) {
+
+	if strings.TrimSpace(cfg.FileStoragePath) != "" {
+
+		fs, err := newFilestorage(s, l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
+		if err != nil {
+			l.Error("cannot init filestorage err: ", err)
+			return nil, err
+		}
+
+		return fs, nil
+
+	}
+
+	l.Info("saving the state to a filestorage has been disabled - empty filestorage path")
+	return s, nil
 
 }

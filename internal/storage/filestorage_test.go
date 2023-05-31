@@ -1,11 +1,9 @@
-package filestorage
+package storage
 
 import (
 	"log"
 	"os"
 	"testing"
-
-	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
 type testLogger struct{}
@@ -20,14 +18,14 @@ func (tl *testLogger) Error(args ...any) {
 
 func TestState_SaveLoad(t *testing.T) {
 
-	ts := storage.NewMemStorage()
+	ts := NewMemStorage()
 	ts.SetFloat64Value("test1", 1.2)
 	ts.AddInt64Value("test4", 5)
 
 	type fields struct {
 		path          string
 		storeInterval int
-		stg           *storage.MemStorage
+		stg           *MemStorage
 		logger        Logger
 	}
 	tests := []struct {

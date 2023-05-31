@@ -1,4 +1,4 @@
-package filestorage
+package storage
 
 import (
 	"bufio"
@@ -7,8 +7,6 @@ import (
 	"io"
 	"os"
 	"time"
-
-	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
 type Logger interface {
@@ -17,13 +15,13 @@ type Logger interface {
 }
 
 type Filestorage struct {
-	*storage.MemStorage
+	*MemStorage
 	path          string
 	storeInterval int
 	logger        Logger
 }
 
-func NewFilestorage(stg *storage.MemStorage, l Logger, path string, storeInterval int, restore bool) (*Filestorage, error) {
+func newFilestorage(stg *MemStorage, l Logger, path string, storeInterval int, restore bool) (*Filestorage, error) {
 
 	fs := &Filestorage{
 		MemStorage:    stg,
@@ -67,7 +65,7 @@ func (fs *Filestorage) SetFloat64Value(key string, value float64) float64 {
 
 }
 
-func (fs *Filestorage) Save(storage *storage.MemStorage) error {
+func (fs *Filestorage) Save(storage *MemStorage) error {
 
 	file, err := os.OpenFile(fs.path, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
@@ -96,7 +94,7 @@ func (fs *Filestorage) Save(storage *storage.MemStorage) error {
 
 }
 
-func (fs *Filestorage) Load(storage *storage.MemStorage) error {
+func (fs *Filestorage) Load(storage *MemStorage) error {
 
 	file, err := os.OpenFile(fs.path, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
@@ -146,10 +144,10 @@ func (fs *Filestorage) runIntervalStateSaving() {
 
 }
 
-func (fs *Filestorage) FilestorageInterrupt() error {
+func (fs *Filestorage) Interrupt() error {
 
 	if err := fs.Save(fs.MemStorage); err != nil {
-		return fmt.Errorf("cannot save state err: %v", err)
+		return fmt.Errorf("cannot save state err: %w", err)
 	}
 
 	return nil

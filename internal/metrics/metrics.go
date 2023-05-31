@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -86,51 +85,6 @@ func NewCounterMetric(id string, delta int64) *Metrics {
 		MType: CounterMetric,
 		Delta: &delta,
 	}
-}
-
-func (m *Metrics) UnmarshalJSON(b []byte) error {
-
-	type MetricAlias Metrics
-
-	am := struct {
-		MetricAlias
-	}{
-		MetricAlias: MetricAlias(*m),
-	}
-
-	if err := json.Unmarshal(b, &am); err != nil {
-		return err
-	}
-
-	if am.MType != CounterMetric && am.MType != GaugeMetric {
-		return errUnknowMetricType
-	}
-
-	m.ID = am.ID
-	m.MType = am.MType
-	m.Value = am.Value
-	m.Delta = am.Delta
-
-	return nil
-
-}
-
-func (m *Metrics) MarshalJSON() ([]byte, error) {
-
-	type MetricAlias Metrics
-
-	am := struct {
-		MetricAlias
-	}{
-		MetricAlias: MetricAlias(*m),
-	}
-
-	if m.MType != CounterMetric && m.MType != GaugeMetric {
-		return nil, errUnknowMetricType
-	}
-
-	return json.Marshal(am)
-
 }
 
 func (m *Metrics) IsPollCount() bool {

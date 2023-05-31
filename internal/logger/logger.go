@@ -3,6 +3,7 @@ package logger
 import (
 	"fmt"
 	"net/http"
+	"runtime"
 	"time"
 
 	"go.uber.org/zap"
@@ -16,7 +17,7 @@ func NewLogger() (*AppLogger, error) {
 
 	l, err := zap.NewProduction()
 	if err != nil {
-		return nil, fmt.Errorf("cannot init zap-logger err: %v ", err)
+		return nil, fmt.Errorf("cannot init zap-logger err: %w ", err)
 	}
 
 	sl := l.Sugar()
@@ -46,10 +47,16 @@ func (l *AppLogger) RequestLogger(h http.Handler) http.Handler {
 	})
 }
 
-func (l *AppLogger) LoggerInterrupt() error {
+func (l *AppLogger) Interrupt() error {
 
 	if err := l.Sync(); err != nil {
-		return fmt.Errorf("cannot flush buffered log entries err: %v", err)
+
+		if runtime.GOOS == "darwin" {
+			return nil
+		} else {
+			return fmt.Errorf("cannot flush buffered log entries err: %w", err)
+		}
+
 	}
 
 	return nil

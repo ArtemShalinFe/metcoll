@@ -38,12 +38,6 @@ func (tl *testLogger) RequestLogger(h http.Handler) http.Handler {
 	})
 }
 
-type testStateSaver struct{}
-
-func (tss *testStateSaver) SyncSave() error {
-	return nil
-}
-
 func TestUpdateMetricFromUrl(t *testing.T) {
 
 	s := storage.NewMemStorage()
