@@ -42,7 +42,7 @@ func main() {
 
 	i.Use(stg.Interrupt)
 
-	s := NewHttpServer(cfg)
+	s := NewHTTPServer(cfg)
 	s.Handler = handlers.NewRouter(handlers.NewHandler(stg, l), l.RequestLogger, compress.CompressMiddleware)
 
 	runGracefullInterrupt(s, l, i)
@@ -54,7 +54,7 @@ func main() {
 
 }
 
-func NewHttpServer(cfg *configuration.Config) *http.Server {
+func NewHTTPServer(cfg *configuration.Config) *http.Server {
 	s := http.Server{
 		Addr: cfg.Address,
 	}
