@@ -23,8 +23,8 @@ type Storage interface {
 }
 
 type Logger interface {
-	Info(args ...interface{})
-	Error(args ...interface{})
+	Infof(template string, args ...interface{})
+	Errorf(template string, args ...interface{})
 }
 
 func NewHandler(s Storage, l Logger) *Handler {
@@ -70,7 +70,7 @@ func (h *Handler) CollectMetricList(w http.ResponseWriter) {
 
 	if _, err := w.Write([]byte(fmt.Sprintf(body, list))); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("GetMetricList error: ", err)
+		h.logger.Errorf("GetMetricList error: %w", err)
 	}
 
 }
@@ -80,13 +80,13 @@ func (h *Handler) UpdateMetricFromURL(w http.ResponseWriter, id string, mType st
 	m, err := metrics.NewMetric(id, mType, value)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
-		h.logger.Error("UpdateMetric error: ", err.Error())
+		h.logger.Errorf("UpdateMetric error: %w", err)
 		return
 	}
 
 	if err := h.update(m); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("UpdateMetric error: ", err.Error())
+		h.logger.Errorf("UpdateMetric error: %w", err)
 		return
 	}
 
@@ -96,11 +96,11 @@ func (h *Handler) UpdateMetricFromURL(w http.ResponseWriter, id string, mType st
 	resp := fmt.Sprintf("%s %s", m.ID, m.String())
 	if _, err = w.Write([]byte(resp)); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("UpdateMetric error: ", err)
+		h.logger.Errorf("UpdateMetric error: %w", err)
 		return
 	}
 
-	h.logger.Info("Metric was updated - ", m.ID, " new value: ", m.String())
+	h.logger.Infof("Metric was updated - %s new value: %s", m.ID, m.String())
 
 }
 
@@ -111,13 +111,13 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
 	b, err := io.ReadAll(body)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("UpdateMetric read body error: ", err.Error())
+		h.logger.Errorf("UpdateMetric read body error: %w", err)
 		return
 	}
 
 	if err := json.Unmarshal(b, &m); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
-		h.logger.Error("UpdateMetric unmarshal error: ", err.Error())
+		h.logger.Errorf("UpdateMetric unmarshal error: %w", err)
 		return
 	}
 
@@ -133,14 +133,14 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
 
 	if err := h.update(&m); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("UpdateMetric error: ", err.Error())
+		h.logger.Errorf("UpdateMetric error: %w", err)
 		return
 	}
 
 	b, err = json.Marshal(&m)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("UpdateMetric marshal to json error: ", err)
+		h.logger.Errorf("UpdateMetric marshal to json error: %w", err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -148,11 +148,11 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
 
 	if _, err = w.Write(b); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("UpdateMetric error: ", err)
+		h.logger.Errorf("UpdateMetric error: %w", err)
 		return
 	}
 
-	h.logger.Info("Metric was updated - ", m.ID, " new value: ", m.String())
+	h.logger.Infof("Metric was updated - %s new value: %s", m.ID, m.String())
 
 }
 
@@ -166,7 +166,7 @@ func (h *Handler) ReadMetricFromURL(w http.ResponseWriter, id string, mType stri
 
 	if ok := h.get(m); !ok {
 		http.Error(w, "metric not found", http.StatusNotFound)
-		h.logger.Info("ReadMetric not found metric: ", m.ID)
+		h.logger.Infof("ReadMetric not found metric: %s", m.ID)
 		return
 	}
 
@@ -175,7 +175,7 @@ func (h *Handler) ReadMetricFromURL(w http.ResponseWriter, id string, mType stri
 
 	if _, err = w.Write([]byte(m.String())); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("GetMetric error: ", err)
+		h.logger.Errorf("GetMetric error: %w", err)
 		return
 	}
 
@@ -188,13 +188,13 @@ func (h *Handler) ReadMetric(w http.ResponseWriter, body io.ReadCloser) {
 	b, err := io.ReadAll(body)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("ReadMetric error: ", err.Error())
+		h.logger.Errorf("ReadMetric error: %w", err)
 		return
 	}
 
 	if err := json.Unmarshal(b, &m); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
-		h.logger.Error("ReadMetric marshal error: ", err.Error())
+		h.logger.Errorf("ReadMetric marshal error: %w", err)
 		return
 	}
 
@@ -205,14 +205,14 @@ func (h *Handler) ReadMetric(w http.ResponseWriter, body io.ReadCloser) {
 
 	if ok := h.get(&m); !ok {
 		http.Error(w, "metric not found", http.StatusNotFound)
-		h.logger.Info("ReadMetric not found metric: ", m.ID)
+		h.logger.Infof("ReadMetric not found metric: %s", m.ID)
 		return
 	}
 
 	b, err = json.Marshal(m)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("ReadMetric marshal to json error: ", err)
+		h.logger.Errorf("ReadMetric marshal to json error: %w", err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -220,7 +220,7 @@ func (h *Handler) ReadMetric(w http.ResponseWriter, body io.ReadCloser) {
 
 	if _, err = w.Write([]byte(b)); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Error("GetMetric error: ", err)
+		h.logger.Errorf("GetMetric error: %w", err)
 		return
 	}
 

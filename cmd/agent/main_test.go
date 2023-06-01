@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
 )
 
-var cfg *Config
+var cfg *configuration.ConfigAgent
 
 type mockClient struct{}
 
@@ -19,7 +20,7 @@ func (c *mockClient) Update(m *metrics.Metrics) error {
 }
 
 func TestMain(m *testing.M) {
-	c, err := parseConfig()
+	c, err := configuration.ParseAgent()
 	if err != nil {
 		log.Print(err)
 	}
@@ -77,7 +78,7 @@ func Test_pushReport(t *testing.T) {
 	type args struct {
 		conn metcollClient
 		s    *stats.Stats
-		cfg  *Config
+		cfg  *configuration.ConfigAgent
 	}
 	tests := []struct {
 		name    string

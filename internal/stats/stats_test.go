@@ -76,8 +76,8 @@ func TestStats_GetReportData(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt := tt
-		rGm := requiredGaugeMetrics()
-		rCm := requiredCounterMetrics()
+		rGm := gaugeMetrics()
+		rCm := counterMetrics()
 
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Stats{
@@ -102,49 +102,4 @@ func TestStats_GetReportData(t *testing.T) {
 
 		})
 	}
-}
-
-func requiredGaugeMetrics() []string {
-
-	var rGm []string
-	rGm = append(rGm, "Alloc")
-	rGm = append(rGm, "BuckHashSys")
-	rGm = append(rGm, "Frees")
-	rGm = append(rGm, "GCCPUFraction")
-	rGm = append(rGm, "GCSys")
-	rGm = append(rGm, "HeapAlloc")
-	rGm = append(rGm, "HeapIdle")
-	rGm = append(rGm, "HeapInuse")
-	rGm = append(rGm, "HeapObjects")
-	rGm = append(rGm, "HeapReleased")
-	rGm = append(rGm, "HeapSys")
-	rGm = append(rGm, "LastGC")
-	rGm = append(rGm, "Lookups")
-	rGm = append(rGm, "MCacheInuse")
-	rGm = append(rGm, "MCacheSys")
-	rGm = append(rGm, "MSpanInuse")
-	rGm = append(rGm, "MSpanSys")
-	rGm = append(rGm, "Mallocs")
-	rGm = append(rGm, "NextGC")
-	rGm = append(rGm, "NumForcedGC")
-	rGm = append(rGm, "NumGC")
-	rGm = append(rGm, "OtherSys")
-	rGm = append(rGm, "PauseTotalNs")
-	rGm = append(rGm, "StackInuse")
-	rGm = append(rGm, "StackSys")
-	rGm = append(rGm, "Sys")
-	rGm = append(rGm, "TotalAlloc")
-	rGm = append(rGm, "RandomValue")
-
-	return rGm
-
-}
-
-func requiredCounterMetrics() []string {
-
-	var rCm []string
-	rCm = append(rCm, "PollCount")
-
-	return rCm
-
 }

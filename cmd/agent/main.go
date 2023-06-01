@@ -1,13 +1,12 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"time"
 
-	"github.com/caarlos0/env/v8"
-
+	"github.com/ArtemShalinFe/metcoll/internal/configuration"
+	"github.com/ArtemShalinFe/metcoll/internal/interrupter"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metcoll"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
@@ -18,31 +17,27 @@ type metcollClient interface {
 	Update(m *metrics.Metrics) error
 }
 
-type Config struct {
-	PollInterval   int    `env:"POLL_INTERVAL"`
-	ReportInterval int    `env:"REPORT_INTERVAL"`
-	Server         string `env:"ADDRESS"`
-}
-
 func main() {
 
-	var lastReportPush time.Time
+	i := interrupter.NewInterrupters()
+
 	l, err := logger.NewLogger()
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer l.Sync()
+	i.Use(l.Interrupt)
+	i.Run(l)
 
-	cfg, err := parseConfig()
+	cfg, err := configuration.ParseAgent()
 	if err != nil {
-		l.Error("cannot parse agent config file err: ", err)
+		l.Errorf("cannot parse server config file err: %w", err)
 		return
 	}
 
-	l.Info("parsed agent config: ", fmt.Sprintf("%+v", cfg))
+	l.Infof("parsed agent config: %+v", cfg)
 
+	var lastReportPush time.Time
 	s := stats.NewStats()
-
 	pause := time.Duration(cfg.PollInterval) * time.Second
 	durReportInterval := time.Duration(cfg.ReportInterval) * time.Second
 	conn := metcoll.NewClient(cfg.Server, l)
@@ -68,7 +63,7 @@ func main() {
 
 }
 
-func pushReport(conn metcollClient, s *stats.Stats, cfg *Config) error {
+func pushReport(conn metcollClient, s *stats.Stats, cfg *configuration.ConfigAgent) error {
 
 	for mType, data := range s.GetReportData() {
 
@@ -87,23 +82,6 @@ func pushReport(conn metcollClient, s *stats.Stats, cfg *Config) error {
 	}
 
 	return nil
-
-}
-
-func parseConfig() (*Config, error) {
-
-	var c Config
-
-	flag.StringVar(&c.Server, "a", "localhost:8080", "server end point")
-	flag.IntVar(&c.ReportInterval, "r", 10, "report push interval")
-	flag.IntVar(&c.PollInterval, "p", 2, "poll interval")
-	flag.Parse()
-
-	if err := env.Parse(&c); err != nil {
-		return nil, err
-	}
-
-	return &c, nil
 
 }
 

@@ -36,44 +36,151 @@ func (s *Stats) ClearPollCount() {
 
 func (s *Stats) GetReportData() map[string]map[string]*metrics.Metrics {
 
-	gaugeMetrics := make(map[string]*metrics.Metrics)
+	gm := make(map[string]*metrics.Metrics)
+	for _, id := range gaugeMetrics() {
+		m := metrics.NewGaugeMetric(id, 0)
+		m.Get(s)
+		gm[id] = m
+	}
 
-	gaugeMetrics["Alloc"] = metrics.NewGaugeMetric("Alloc", float64(s.memStats.Alloc))
-	gaugeMetrics["BuckHashSys"] = metrics.NewGaugeMetric("BuckHashSys", float64(s.memStats.BuckHashSys))
-	gaugeMetrics["GCCPUFraction"] = metrics.NewGaugeMetric("GCCPUFraction", float64(s.memStats.GCCPUFraction))
-	gaugeMetrics["HeapAlloc"] = metrics.NewGaugeMetric("HeapAlloc", float64(s.memStats.HeapAlloc))
-	gaugeMetrics["GCSys"] = metrics.NewGaugeMetric("GCSys", float64(s.memStats.GCSys))
-	gaugeMetrics["HeapIdle"] = metrics.NewGaugeMetric("HeapIdle", float64(s.memStats.HeapIdle))
-	gaugeMetrics["HeapInuse"] = metrics.NewGaugeMetric("HeapInuse", float64(s.memStats.HeapInuse))
-	gaugeMetrics["HeapObjects"] = metrics.NewGaugeMetric("HeapObjects", float64(s.memStats.HeapObjects))
-	gaugeMetrics["HeapReleased"] = metrics.NewGaugeMetric("HeapReleased", float64(s.memStats.HeapReleased))
-	gaugeMetrics["HeapSys"] = metrics.NewGaugeMetric("HeapSys", float64(s.memStats.HeapSys))
-	gaugeMetrics["LastGC"] = metrics.NewGaugeMetric("LastGC", float64(s.memStats.LastGC))
-	gaugeMetrics["Lookups"] = metrics.NewGaugeMetric("Lookups", float64(s.memStats.Lookups))
-	gaugeMetrics["MCacheInuse"] = metrics.NewGaugeMetric("MCacheInuse", float64(s.memStats.MCacheInuse))
-	gaugeMetrics["MCacheSys"] = metrics.NewGaugeMetric("MCacheSys", float64(s.memStats.MCacheSys))
-	gaugeMetrics["MSpanInuse"] = metrics.NewGaugeMetric("MSpanInuse", float64(s.memStats.MSpanInuse))
-	gaugeMetrics["MSpanSys"] = metrics.NewGaugeMetric("MSpanSys", float64(s.memStats.MSpanSys))
-	gaugeMetrics["Mallocs"] = metrics.NewGaugeMetric("Mallocs", float64(s.memStats.Mallocs))
-	gaugeMetrics["NextGC"] = metrics.NewGaugeMetric("NextGC", float64(s.memStats.NextGC))
-	gaugeMetrics["NumForcedGC"] = metrics.NewGaugeMetric("NumForcedGC", float64(s.memStats.NumForcedGC))
-	gaugeMetrics["NumGC"] = metrics.NewGaugeMetric("NumGC", float64(s.memStats.NumGC))
-	gaugeMetrics["OtherSys"] = metrics.NewGaugeMetric("OtherSys", float64(s.memStats.OtherSys))
-	gaugeMetrics["PauseTotalNs"] = metrics.NewGaugeMetric("PauseTotalNs", float64(s.memStats.PauseTotalNs))
-	gaugeMetrics["StackInuse"] = metrics.NewGaugeMetric("StackInuse", float64(s.memStats.StackInuse))
-	gaugeMetrics["StackSys"] = metrics.NewGaugeMetric("StackSys", float64(s.memStats.StackSys))
-	gaugeMetrics["TotalAlloc"] = metrics.NewGaugeMetric("TotalAlloc", float64(s.memStats.TotalAlloc))
-	gaugeMetrics["RandomValue"] = metrics.NewGaugeMetric("RandomValue", float64(s.randomValue))
-	gaugeMetrics["Frees"] = metrics.NewGaugeMetric("Frees", float64(s.memStats.Frees))
-	gaugeMetrics["Sys"] = metrics.NewGaugeMetric("Sys", float64(s.memStats.Sys))
-
-	counterMetrics := make(map[string]*metrics.Metrics)
-	counterMetrics[metrics.PollCount] = metrics.NewCounterMetric(metrics.PollCount, s.pollCount)
+	cm := make(map[string]*metrics.Metrics)
+	for _, mid := range counterMetrics() {
+		m := metrics.NewCounterMetric(mid, 0)
+		m.Get(s)
+		cm[mid] = m
+	}
 
 	reportData := make(map[string]map[string]*metrics.Metrics)
-	reportData[metrics.GaugeMetric] = gaugeMetrics
-	reportData[metrics.CounterMetric] = counterMetrics
+	reportData[metrics.GaugeMetric] = gm
+	reportData[metrics.CounterMetric] = cm
 
 	return reportData
+
+}
+
+func (s *Stats) GetFloat64Value(id string) (float64, bool) {
+
+	switch id {
+	case "Alloc":
+		return float64(s.memStats.Alloc), true
+	case "BuckHashSys":
+		return float64(s.memStats.BuckHashSys), true
+	case "GCCPUFraction":
+		return float64(s.memStats.GCCPUFraction), true
+	case "HeapAlloc":
+		return float64(s.memStats.HeapAlloc), true
+	case "GCSys":
+		return float64(s.memStats.GCSys), true
+	case "HeapIdle":
+		return float64(s.memStats.HeapIdle), true
+	case "HeapInuse":
+		return float64(s.memStats.HeapInuse), true
+	case "HeapObjects":
+		return float64(s.memStats.HeapObjects), true
+	case "HeapReleased":
+		return float64(s.memStats.HeapReleased), true
+	case "LastGC":
+		return float64(s.memStats.LastGC), true
+	case "Lookups":
+		return float64(s.memStats.Lookups), true
+	case "MCacheInuse":
+		return float64(s.memStats.MCacheInuse), true
+	case "MCacheSys":
+		return float64(s.memStats.MCacheSys), true
+	case "MSpanInuse":
+		return float64(s.memStats.MSpanInuse), true
+	case "MSpanSys":
+		return float64(s.memStats.MSpanSys), true
+	case "Mallocs":
+		return float64(s.memStats.Mallocs), true
+	case "NextGC":
+		return float64(s.memStats.NextGC), true
+	case "NumForcedGC":
+		return float64(s.memStats.NumForcedGC), true
+	case "NumGC":
+		return float64(s.memStats.NumGC), true
+	case "OtherSys":
+		return float64(s.memStats.OtherSys), true
+	case "PauseTotalNs":
+		return float64(s.memStats.PauseTotalNs), true
+	case "StackInuse":
+		return float64(s.memStats.StackInuse), true
+	case "StackSys":
+		return float64(s.memStats.StackSys), true
+	case "TotalAlloc":
+		return float64(s.memStats.TotalAlloc), true
+	case "Frees":
+		return float64(s.memStats.Frees), true
+	case "Sys":
+		return float64(s.memStats.Sys), true
+	case "RandomValue":
+		return float64(s.randomValue), true
+	default:
+		return 0, false
+	}
+
+}
+
+func (s *Stats) GetInt64Value(id string) (int64, bool) {
+
+	switch id {
+	case metrics.PollCount:
+		return s.pollCount, true
+	default:
+		return 0, false
+	}
+
+}
+
+func (s *Stats) SetFloat64Value(key string, value float64) float64 {
+	return 0
+}
+
+func (s *Stats) AddInt64Value(key string, value int64) int64 {
+	return 0
+}
+
+func gaugeMetrics() []string {
+
+	var gauges []string
+	gauges = append(gauges, "Alloc")
+	gauges = append(gauges, "BuckHashSys")
+	gauges = append(gauges, "Frees")
+	gauges = append(gauges, "GCCPUFraction")
+	gauges = append(gauges, "GCSys")
+	gauges = append(gauges, "HeapAlloc")
+	gauges = append(gauges, "HeapIdle")
+	gauges = append(gauges, "HeapInuse")
+	gauges = append(gauges, "HeapObjects")
+	gauges = append(gauges, "HeapReleased")
+	gauges = append(gauges, "HeapSys")
+	gauges = append(gauges, "LastGC")
+	gauges = append(gauges, "Lookups")
+	gauges = append(gauges, "MCacheInuse")
+	gauges = append(gauges, "MCacheSys")
+	gauges = append(gauges, "MSpanInuse")
+	gauges = append(gauges, "MSpanSys")
+	gauges = append(gauges, "Mallocs")
+	gauges = append(gauges, "NextGC")
+	gauges = append(gauges, "NumForcedGC")
+	gauges = append(gauges, "NumGC")
+	gauges = append(gauges, "OtherSys")
+	gauges = append(gauges, "PauseTotalNs")
+	gauges = append(gauges, "StackInuse")
+	gauges = append(gauges, "StackSys")
+	gauges = append(gauges, "Sys")
+	gauges = append(gauges, "TotalAlloc")
+	gauges = append(gauges, "RandomValue")
+
+	return gauges
+
+}
+
+func counterMetrics() []string {
+
+	var counters []string
+	counters = append(counters, "PollCount")
+
+	return counters
 
 }

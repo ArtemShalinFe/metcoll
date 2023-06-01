@@ -193,8 +193,7 @@ func InitStorage(cfg *configuration.Config, s *MemStorage, l Logger) (Storage, e
 
 		fs, err := newFilestorage(s, l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
 		if err != nil {
-			l.Error("cannot init filestorage err: ", err)
-			return nil, err
+			return nil, fmt.Errorf("cannot init filestorage err: %s", err)
 		}
 
 		return fs, nil

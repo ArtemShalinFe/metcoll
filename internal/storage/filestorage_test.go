@@ -12,8 +12,12 @@ func (tl *testLogger) Info(args ...any) {
 	log.Println(args...)
 }
 
-func (tl *testLogger) Error(args ...any) {
-	log.Println(args...)
+func (tl *testLogger) Infof(template string, args ...any) {
+	log.Printf(template, args...)
+}
+
+func (tl *testLogger) Errorf(template string, args ...any) {
+	log.Printf(template, args...)
 }
 
 func TestState_SaveLoad(t *testing.T) {
@@ -28,6 +32,7 @@ func TestState_SaveLoad(t *testing.T) {
 		stg           *MemStorage
 		logger        Logger
 	}
+
 	tests := []struct {
 		name    string
 		fields  fields
@@ -36,7 +41,7 @@ func TestState_SaveLoad(t *testing.T) {
 		{
 			name: "#1 case",
 			fields: fields{
-				path:          "/tmp/tests-state-save-storage-1.json",
+				path:          newTempFile(t),
 				storeInterval: 10,
 				stg:           ts,
 				logger:        &testLogger{},
@@ -46,7 +51,7 @@ func TestState_SaveLoad(t *testing.T) {
 		{
 			name: "#2 case",
 			fields: fields{
-				path:          "/tmp/tests-state-save-storage-2.json",
+				path:          newTempFile(t),
 				storeInterval: 10,
 				stg:           ts,
 				logger:        &testLogger{},
@@ -76,4 +81,18 @@ func TestState_SaveLoad(t *testing.T) {
 
 		})
 	}
+}
+
+func newTempFile(t *testing.T) string {
+
+	td := os.TempDir()
+
+	f, err := os.CreateTemp(td, "*")
+	if err != nil {
+		t.Errorf("cannot create new temp file for filestorage tests: %v", err)
+	}
+	defer f.Close()
+
+	return f.Name()
+
 }

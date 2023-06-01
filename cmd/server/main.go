@@ -1,18 +1,15 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
-	"net/http"
-	"os"
-	"os/signal"
 
 	"github.com/ArtemShalinFe/metcoll/internal/compress"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/handlers"
 	"github.com/ArtemShalinFe/metcoll/internal/interrupter"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
+	"github.com/ArtemShalinFe/metcoll/internal/metcoll"
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
@@ -42,50 +39,16 @@ func main() {
 
 	i.Use(stg.Interrupt)
 
-	s := NewHTTPServer(cfg)
+	s := metcoll.NewServer(cfg)
+	i.Use(s.Interrupt)
+
 	s.Handler = handlers.NewRouter(handlers.NewHandler(stg, l), l.RequestLogger, compress.CompressMiddleware)
 
-	runGracefullInterrupt(s, l, i)
+	i.Run(l)
 
 	l.Info("Try running on address: ", cfg.Address)
 	if err := s.ListenAndServe(); err != nil {
 		l.Error("ListenAndServe() err: ", err)
 	}
-
-}
-
-func NewHTTPServer(cfg *configuration.Config) *http.Server {
-	s := http.Server{
-		Addr: cfg.Address,
-	}
-	return &s
-}
-
-func runGracefullInterrupt(s *http.Server, l *logger.AppLogger, i *interrupter.Interrupters) {
-
-	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc, os.Interrupt)
-
-	go func() {
-
-		<-sigc
-
-		// пакет context же пока не проходили - пока todo поиспользую
-		if err := s.Shutdown(context.TODO()); err != nil {
-			l.Error(err)
-		}
-
-		ers := i.Do()
-
-		if len(ers) > 0 {
-			for _, v := range ers {
-				l.Error(v)
-			}
-			os.Exit(1)
-		}
-
-		os.Exit(0)
-
-	}()
 
 }

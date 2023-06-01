@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -12,7 +13,7 @@ import (
 )
 
 type Logger interface {
-	Info(args ...interface{})
+	Infof(template string, args ...interface{})
 }
 
 type Client struct {
@@ -35,28 +36,28 @@ func (c *Client) prepareRequest(metric *metrics.Metrics) (*http.Request, error) 
 
 	body, err := json.Marshal(metric)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot marshal metric err: %w", err)
 	}
 
 	var zBuf bytes.Buffer
 	zw := gzip.NewWriter(&zBuf)
 
 	if _, err := zw.Write(body); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot write compressed body err: %w", err)
 	}
 
 	if err := zw.Close(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot close compress writer err: %w", err)
 	}
 
 	url, err := url.JoinPath("http://", c.host, "/update/")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot join elements in path err: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, &zBuf)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot create request err: %w", err)
 	}
 	req.Close = true
 
@@ -70,24 +71,24 @@ func (c *Client) Update(metric *metrics.Metrics) error {
 
 	req, err := c.prepareRequest(metric)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot prepare request err: %w", err)
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("request execute err: %w", err)
 	}
 
 	defer resp.Body.Close()
 
 	res, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading response body err: %w", err)
 	}
 
-	c.logger.Info("request for update metric has been completed ",
-		"code: ", resp.StatusCode,
-		"result: ", string(res))
+	c.logger.Infof(`request for update metric has been completed
+	code: %d
+	result: %s`, resp.StatusCode, string(res))
 
 	return nil
 }

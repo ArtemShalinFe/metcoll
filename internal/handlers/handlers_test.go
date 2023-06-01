@@ -18,11 +18,11 @@ import (
 
 type testLogger struct{}
 
-func (tl *testLogger) Info(args ...any) {
-	log.Println(args...)
+func (tl *testLogger) Infof(template string, args ...any) {
+	log.Printf(template, args...)
 }
 
-func (tl *testLogger) Error(args ...any) {
+func (tl *testLogger) Errorf(template string, args ...any) {
 	log.Println(args...)
 }
 
@@ -79,7 +79,7 @@ func TestUpdateMetricFromUrl(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf("URL: %s", v.url))
 		if v.want != "" {
-			assert.Equal(t, v.want, get, fmt.Sprintf("URL: %s", v.url))
+			assert.Equal(t, v.want, string(get), fmt.Sprintf("URL: %s", v.url))
 		}
 	}
 }
@@ -243,11 +243,17 @@ func TestUpdateMetric(t *testing.T) {
 			t.Error(err)
 		}
 
-		resp, met := testMetricRequest(t, ts, v.method, v.url, bytes.NewBuffer(b))
+		resp, b := testRequest(t, ts, v.method, v.url, bytes.NewBuffer(b))
 		defer resp.Body.Close()
-
 		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf("%s URL: %s", v.name, v.url))
-		require.Equal(t, v.want, met, fmt.Sprintf("%s URL: %s", v.name, v.url))
+
+		if resp.StatusCode < 300 {
+			var met metrics.Metrics
+			if err = json.Unmarshal(b, &met); err != nil {
+				t.Error(err)
+			}
+			require.Equal(t, v.want, &met, fmt.Sprintf("%s URL: %s", v.name, v.url))
+		}
 	}
 }
 
@@ -281,13 +287,13 @@ func TestCollectMetricList(t *testing.T) {
 		}
 
 		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf("URL: %s", v.url))
-		assert.NotContains(t, get, "metricq", "request home page")
-		assert.Contains(t, get, "metricg", "request home page")
-		assert.Contains(t, get, "metricc", "request home page")
+		assert.NotContains(t, string(get), "metricq", "request home page")
+		assert.Contains(t, string(get), "metricg", "request home page")
+		assert.Contains(t, string(get), "metricc", "request home page")
 	}
 }
 
-func testRequest(t *testing.T, ts *httptest.Server, method string, path string, body io.Reader) (*http.Response, string) {
+func testRequest(t *testing.T, ts *httptest.Server, method string, path string, body io.Reader) (*http.Response, []byte) {
 
 	req, err := http.NewRequest(method, ts.URL+path, body)
 	require.NoError(t, err)
@@ -299,26 +305,5 @@ func testRequest(t *testing.T, ts *httptest.Server, method string, path string, 
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	return resp, string(respBody)
-}
-
-func testMetricRequest(t *testing.T, ts *httptest.Server, method string, path string, body io.Reader) (*http.Response, *metrics.Metrics) {
-
-	req, err := http.NewRequest(method, ts.URL+path, body)
-	require.NoError(t, err)
-
-	resp, err := ts.Client().Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	b, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	var met metrics.Metrics
-	if json.Unmarshal(b, &met); err != nil {
-		t.Error(err)
-	}
-
-	return resp, &met
-
+	return resp, respBody
 }
