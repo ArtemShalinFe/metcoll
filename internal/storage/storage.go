@@ -23,6 +23,7 @@ type Storage interface {
 	SetFloat64Value(key string, value float64) float64
 	GetDataList() []string
 	Interrupt() error
+	Ping() error
 }
 
 func NewMemStorage() *MemStorage {
@@ -187,9 +188,22 @@ func (ms *MemStorage) Interrupt() error {
 	return nil
 }
 
+func (ms *MemStorage) Ping() error {
+	return nil
+}
+
 func InitStorage(cfg *configuration.Config, s *MemStorage, l Logger) (Storage, error) {
 
-	if strings.TrimSpace(cfg.FileStoragePath) != "" {
+	if strings.TrimSpace(cfg.Database) != "" {
+
+		db, err := newSQLStorage(cfg.Database, l)
+		if err != nil {
+			return nil, fmt.Errorf("cannot init filestorage err: %s", err)
+		}
+
+		return db, nil
+
+	} else if strings.TrimSpace(cfg.FileStoragePath) != "" {
 
 		fs, err := newFilestorage(s, l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
 		if err != nil {

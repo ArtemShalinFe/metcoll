@@ -61,6 +61,12 @@ func NewRouter(handlers *Handler, middlewares ...func(http.Handler) http.Handler
 
 	})
 
+	router.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
+
+		handlers.Ping(w)
+
+	})
+
 	return router
 
 }

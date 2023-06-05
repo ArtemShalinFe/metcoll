@@ -20,6 +20,7 @@ type Storage interface {
 	AddInt64Value(key string, value int64) int64
 	SetFloat64Value(key string, value float64) float64
 	GetDataList() []string
+	Ping() error
 }
 
 type Logger interface {
@@ -223,5 +224,17 @@ func (h *Handler) ReadMetric(w http.ResponseWriter, body io.ReadCloser) {
 		h.logger.Errorf("GetMetric error: %w", err)
 		return
 	}
+
+}
+
+func (h *Handler) Ping(w http.ResponseWriter) {
+
+	if err := h.values.Ping(); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		h.logger.Errorf("Ping error: %w", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 
 }

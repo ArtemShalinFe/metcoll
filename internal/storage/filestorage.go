@@ -152,3 +152,7 @@ func (fs *Filestorage) Interrupt() error {
 
 	return nil
 }
+
+func (fs *Filestorage) Ping() error {
+	return nil
+}
