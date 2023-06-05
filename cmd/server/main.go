@@ -1,46 +1,54 @@
 package main
 
 import (
-	"flag"
+	"fmt"
 	"log"
-	"net/http"
 
-	"github.com/caarlos0/env"
-
+	"github.com/ArtemShalinFe/metcoll/internal/compress"
+	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/handlers"
+	"github.com/ArtemShalinFe/metcoll/internal/interrupter"
+	"github.com/ArtemShalinFe/metcoll/internal/logger"
+	"github.com/ArtemShalinFe/metcoll/internal/metcoll"
+	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
-
-type Config struct {
-	Address string `env:"ADDRESS"`
-}
 
 func main() {
 
-	cfg, err := parseConfig()
+	i := interrupter.NewInterrupters()
+
+	l, err := logger.NewLogger()
 	if err != nil {
 		log.Fatal(err)
 	}
+	i.Use(l.Interrupt)
 
-	r := handlers.ChiRouter()
-
-	log.Printf("Try running on %v\n", cfg.Address)
-	if err := http.ListenAndServe(cfg.Address, r); err != nil {
-		log.Fatal(err)
+	cfg, err := configuration.Parse()
+	if err != nil {
+		l.Error("cannot parse server config file err: ", err)
+		return
 	}
 
-}
+	l.Info("parsed server config: ", fmt.Sprintf("%+v", cfg))
 
-func parseConfig() (*Config, error) {
-
-	var c Config
-
-	flag.StringVar(&c.Address, "a", "localhost:8080", "server end point")
-	flag.Parse()
-
-	if err := env.Parse(&c); err != nil {
-		return nil, err
+	stg, err := storage.InitStorage(cfg, storage.NewMemStorage(), l)
+	if err != nil {
+		l.Error("cannot init storage err: ", err)
+		return
 	}
 
-	return &c, nil
+	i.Use(stg.Interrupt)
+
+	s := metcoll.NewServer(cfg)
+	i.Use(s.Interrupt)
+
+	s.Handler = handlers.NewRouter(handlers.NewHandler(stg, l), l.RequestLogger, compress.CompressMiddleware)
+
+	i.Run(l)
+
+	l.Info("Try running on address: ", cfg.Address)
+	if err := s.ListenAndServe(); err != nil {
+		l.Error("ListenAndServe() err: ", err)
+	}
 
 }

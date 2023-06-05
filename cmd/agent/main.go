@@ -1,69 +1,79 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"time"
 
-	"github.com/caarlos0/env/v8"
-
+	"github.com/ArtemShalinFe/metcoll/internal/configuration"
+	"github.com/ArtemShalinFe/metcoll/internal/interrupter"
+	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metcoll"
+	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
 )
 
-type Config struct {
-	PollInterval   int    `env:"POLL_INTERVAL"`
-	ReportInterval int    `env:"REPORT_INTERVAL"`
-	Server         string `env:"ADDRESS"`
-}
-
-type client interface {
-	Push(mType string, Name string, Value string) error
+type metcollClient interface {
+	Update(m *metrics.Metrics) error
 }
 
 func main() {
 
-	var lastReportPush time.Time
+	i := interrupter.NewInterrupters()
 
-	cfg, err := parseConfig()
+	l, err := logger.NewLogger()
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := stats.NewStats()
+	i.Use(l.Interrupt)
+	i.Run(l)
 
+	cfg, err := configuration.ParseAgent()
+	if err != nil {
+		l.Errorf("cannot parse server config file err: %w", err)
+		return
+	}
+
+	l.Infof("parsed agent config: %+v", cfg)
+
+	var lastReportPush time.Time
+	s := stats.NewStats()
 	pause := time.Duration(cfg.PollInterval) * time.Second
 	durReportInterval := time.Duration(cfg.ReportInterval) * time.Second
+	conn := metcoll.NewClient(cfg.Server, l)
 
 	for {
+
 		s.Update()
 		now := time.Now()
 
 		if isTimeToPushReport(lastReportPush, now, durReportInterval) {
-			conn := metcoll.NewClient(cfg.Server)
+
 			if err := pushReport(conn, s, cfg); err != nil {
-				log.Print(err)
+				l.Info(err)
 			} else {
 				lastReportPush = now
 			}
 
 		}
+
 		time.Sleep(pause)
+
 	}
 
 }
 
-func pushReport(conn client, s *stats.Stats, cfg *Config) error {
+func pushReport(conn metcollClient, s *stats.Stats, cfg *configuration.ConfigAgent) error {
 
 	for mType, data := range s.GetReportData() {
 
-		for name, value := range data {
+		for name, metric := range data {
 
-			if err := conn.Push(mType, name, value); err != nil {
-				return fmt.Errorf("cannot push %s %s with value %s on server: %v", mType, name, value, err)
+			if err := conn.Update(metric); err != nil {
+				return fmt.Errorf("cannot push %s %s with value %v on server err: %w", mType, name, metric, err)
 			}
 
-			if stats.IsPollCountMetric(mType, name) {
+			if metric.IsPollCount() {
 				s.ClearPollCount()
 			}
 
@@ -72,23 +82,6 @@ func pushReport(conn client, s *stats.Stats, cfg *Config) error {
 	}
 
 	return nil
-
-}
-
-func parseConfig() (*Config, error) {
-
-	var c Config
-
-	flag.StringVar(&c.Server, "a", "localhost:8080", "server end point")
-	flag.IntVar(&c.ReportInterval, "r", 10, "report push interval")
-	flag.IntVar(&c.PollInterval, "p", 2, "poll interval")
-	flag.Parse()
-
-	if err := env.Parse(&c); err != nil {
-		return nil, err
-	}
-
-	return &c, nil
 
 }
 

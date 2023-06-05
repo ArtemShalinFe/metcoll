@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewMemStorage(t *testing.T) {
+
 	want := &MemStorage{
 		mutex:       &sync.Mutex{},
 		dataInt64:   make(map[string]int64),
@@ -23,6 +24,7 @@ func TestNewMemStorage(t *testing.T) {
 }
 
 func TestMemStorage_GetFloat64Value(t *testing.T) {
+
 	ts := NewMemStorage()
 	ts.SetFloat64Value("test1", 1.0)
 	ts.SetFloat64Value("test2", 2.0)
@@ -71,8 +73,8 @@ func TestMemStorage_GetFloat64Value(t *testing.T) {
 }
 
 func TestMemStorage_GetInt64Value(t *testing.T) {
-	ts := NewMemStorage()
 
+	ts := NewMemStorage()
 	ts.AddInt64Value("test1", 1)
 	ts.AddInt64Value("test2", 2)
 	ts.AddInt64Value("test3", 3)
@@ -150,4 +152,24 @@ func TestMemStorage_GetDataList(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetSetState(t *testing.T) {
+
+	ts := NewMemStorage()
+	ts.SetFloat64Value("test1", 1.2)
+	ts.AddInt64Value("test4", 5)
+
+	tsb := ts
+	b, err := ts.GetState()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if err := ts.SetState(b); err != nil {
+		t.Error(err)
+	}
+
+	assert.Equal(t, tsb, ts)
+
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/go-playground/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -75,8 +76,8 @@ func TestStats_GetReportData(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt := tt
-		rGm := requiredGaugeMetrics()
-		rCm := requiredCounterMetrics()
+		rGm := gaugeMetrics()
+		rCm := counterMetrics()
 
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Stats{
@@ -86,8 +87,8 @@ func TestStats_GetReportData(t *testing.T) {
 			}
 			s.Update()
 
-			gaugeData := s.GetReportData()[gaugeMetric]
-			counterData := s.GetReportData()[counterMetric]
+			gaugeData := s.GetReportData()[metrics.GaugeMetric]
+			counterData := s.GetReportData()[metrics.CounterMetric]
 
 			for name := range gaugeData {
 				require.Contains(t, rGm, name, fmt.Sprintf("Tests GetReportData gaugeData not contain required gauge metrics %s", name))
@@ -99,105 +100,6 @@ func TestStats_GetReportData(t *testing.T) {
 				require.NotContains(t, rGm, name, fmt.Sprintf("Tests GetReportData counterData contain required gauge metrics %s", name))
 			}
 
-		})
-	}
-}
-
-func requiredGaugeMetrics() []string {
-
-	var rGm []string
-	rGm = append(rGm, "Alloc")
-	rGm = append(rGm, "BuckHashSys")
-	rGm = append(rGm, "Frees")
-	rGm = append(rGm, "GCCPUFraction")
-	rGm = append(rGm, "GCSys")
-	rGm = append(rGm, "HeapAlloc")
-	rGm = append(rGm, "HeapIdle")
-	rGm = append(rGm, "HeapInuse")
-	rGm = append(rGm, "HeapObjects")
-	rGm = append(rGm, "HeapReleased")
-	rGm = append(rGm, "HeapSys")
-	rGm = append(rGm, "LastGC")
-	rGm = append(rGm, "Lookups")
-	rGm = append(rGm, "MCacheInuse")
-	rGm = append(rGm, "MCacheSys")
-	rGm = append(rGm, "MSpanInuse")
-	rGm = append(rGm, "MSpanSys")
-	rGm = append(rGm, "Mallocs")
-	rGm = append(rGm, "NextGC")
-	rGm = append(rGm, "NumForcedGC")
-	rGm = append(rGm, "NumGC")
-	rGm = append(rGm, "OtherSys")
-	rGm = append(rGm, "PauseTotalNs")
-	rGm = append(rGm, "StackInuse")
-	rGm = append(rGm, "StackSys")
-	rGm = append(rGm, "Sys")
-	rGm = append(rGm, "TotalAlloc")
-	rGm = append(rGm, "RandomValue")
-
-	return rGm
-
-}
-
-func requiredCounterMetrics() []string {
-
-	var rCm []string
-	rCm = append(rCm, "PollCount")
-
-	return rCm
-
-}
-
-func TestIsPollCountMetric(t *testing.T) {
-
-	type args struct {
-		metType string
-		name    string
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "positive case #1",
-			args: args{
-				metType: counterMetric,
-				name:    pollCount,
-			},
-			want: true,
-		},
-		{
-			name: "negative case #1",
-			args: args{
-				metType: gaugeMetric,
-				name:    pollCount,
-			},
-			want: false,
-		},
-		{
-			name: "negative case #2",
-			args: args{
-				metType: gaugeMetric,
-				name:    "TotalAlloc",
-			},
-			want: false,
-		},
-		{
-			name: "negative case #3",
-			args: args{
-				metType: counterMetric,
-				name:    "TotalAlloc",
-			},
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			if got := IsPollCountMetric(tt.args.metType, tt.args.name); got != tt.want {
-				t.Errorf("IsPollCountMetric() = %v, want %v", got, tt.want)
-			}
 		})
 	}
 }
