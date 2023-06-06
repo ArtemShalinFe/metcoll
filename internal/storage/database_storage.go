@@ -151,6 +151,11 @@ func (s *SQLStorage) GetAllDataInt64() map[string]int64 {
 
 	}
 
+	if r.Err() != nil {
+		s.l.Errorf("get all int64 data iteration err: %w", q, err)
+		return dataInt64
+	}
+
 	return dataInt64
 
 }
@@ -181,6 +186,11 @@ func (s *SQLStorage) GetAllDataFloat64() map[string]float64 {
 
 		dataFloat64[id] = value
 
+	}
+
+	if r.Err() != nil {
+		s.l.Errorf("get all int64 data iteration err: %w", q, err)
+		return dataFloat64
 	}
 
 	return dataFloat64
