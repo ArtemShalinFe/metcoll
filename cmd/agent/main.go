@@ -15,6 +15,7 @@ import (
 
 type metcollClient interface {
 	Update(m *metrics.Metrics) error
+	BatchUpdate(metrics []*metrics.Metrics) error
 }
 
 func main() {
@@ -65,20 +66,19 @@ func main() {
 
 func pushReport(conn metcollClient, s *stats.Stats, cfg *configuration.ConfigAgent) error {
 
-	for mType, data := range s.GetReportData() {
+	var ms []*metrics.Metrics
 
-		for name, metric := range data {
-
-			if err := conn.Update(metric); err != nil {
-				return fmt.Errorf("cannot push %s %s with value %v on server err: %w", mType, name, metric, err)
-			}
-
-			if metric.IsPollCount() {
-				s.ClearPollCount()
-			}
-
+	for _, data := range s.GetReportData() {
+		for _, metric := range data {
+			ms = append(ms, metric)
 		}
+	}
 
+	if len(ms) > 0 {
+		if err := conn.BatchUpdate(ms); err != nil {
+			return fmt.Errorf("cannot push batch on server err: %w", err)
+		}
+		s.ClearPollCount()
 	}
 
 	return nil

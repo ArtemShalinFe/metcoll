@@ -37,12 +37,8 @@ func (l *AppLogger) RequestLogger(h http.Handler) http.Handler {
 		h.ServeHTTP(rw, r)
 		duration := time.Since(start)
 
-		l.Info("incomming HTTP request - ",
-			"method:", r.Method,
-			", path:", r.RequestURI,
-			", duration:", duration,
-			", statusCode:", rw.responseData.status,
-			", responseSize:", rw.responseData.size,
+		l.Infof("HTTP request method:%s, url:%s, duration:%s, statusCode:%d, responseSize: %d",
+			r.Method, r.RequestURI, duration, rw.responseData.status, rw.responseData.size,
 		)
 	})
 }

@@ -67,6 +67,12 @@ func NewRouter(handlers *Handler, middlewares ...func(http.Handler) http.Handler
 
 	})
 
+	router.Post("/updates/", func(w http.ResponseWriter, r *http.Request) {
+
+		handlers.BatchUpdate(w, r.Body)
+
+	})
+
 	return router
 
 }

@@ -157,6 +157,72 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
 
 }
 
+func (h *Handler) BatchUpdate(w http.ResponseWriter, body io.ReadCloser) {
+
+	var ms []metrics.Metrics
+
+	b, err := io.ReadAll(body)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		h.logger.Errorf("BatchUpdate read body error: %w", err)
+		return
+	}
+
+	if err := json.Unmarshal(b, &ms); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		h.logger.Errorf("BatchUpdate unmarshal error: %w", err)
+		return
+	}
+
+	h.logger.Infof("BatchUpdate body: %s", string(b))
+
+	var errs []error
+
+	for _, m := range ms {
+
+		if m.MType != metrics.CounterMetric && m.MType != metrics.GaugeMetric {
+			errs = append(errs, fmt.Errorf("metric %s has unknow type: %s", m.ID, m.MType))
+			continue
+		}
+
+		if m.Delta == nil && m.Value == nil {
+			errs = append(errs, fmt.Errorf("metric %s has nil delta and value", m.ID))
+			continue
+		}
+
+		if err := h.update(&m); err != nil {
+			errs = append(errs, fmt.Errorf("cannot update metric %s", m.ID))
+			h.logger.Errorf("BatchUpdate error: %w", err)
+			continue
+		}
+
+		h.logger.Infof("Metrics was updated - %s new value: %s", m.ID, m.String())
+
+	}
+
+	b, err = json.Marshal(&errs)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		h.logger.Errorf("BatchUpdate marshal to json error: %w", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if len(errs) > 0 {
+		w.WriteHeader(http.StatusBadRequest)
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	if _, err = w.Write(b); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		h.logger.Errorf("UpdateMetric error: %w", err)
+		return
+	}
+
+}
+
 func (h *Handler) ReadMetricFromURL(w http.ResponseWriter, id string, mType string) {
 
 	m, err := metrics.GetMetric(id, mType)

@@ -32,12 +32,7 @@ func NewClient(Host string, logger Logger) *Client {
 
 }
 
-func (c *Client) prepareRequest(metric *metrics.Metrics) (*http.Request, error) {
-
-	body, err := json.Marshal(metric)
-	if err != nil {
-		return nil, fmt.Errorf("cannot marshal metric err: %w", err)
-	}
+func (c *Client) prepareRequest(body []byte) (*http.Request, error) {
 
 	var zBuf bytes.Buffer
 	zw := gzip.NewWriter(&zBuf)
@@ -69,10 +64,37 @@ func (c *Client) prepareRequest(metric *metrics.Metrics) (*http.Request, error) 
 
 func (c *Client) Update(metric *metrics.Metrics) error {
 
-	req, err := c.prepareRequest(metric)
+	body, err := json.Marshal(metric)
+	if err != nil {
+		return fmt.Errorf("cannot marshal metric err: %w", err)
+	}
+
+	req, err := c.prepareRequest(body)
 	if err != nil {
 		return fmt.Errorf("cannot prepare request err: %w", err)
 	}
+
+	return c.DoRequest(req)
+
+}
+
+func (c *Client) BatchUpdate(metrics []*metrics.Metrics) error {
+
+	body, err := json.Marshal(metrics)
+	if err != nil {
+		return fmt.Errorf("cannot marshal metric err: %w", err)
+	}
+
+	req, err := c.prepareRequest(body)
+	if err != nil {
+		return fmt.Errorf("cannot prepare request err: %w", err)
+	}
+
+	return c.DoRequest(req)
+
+}
+
+func (c *Client) DoRequest(req *http.Request) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -91,4 +113,5 @@ func (c *Client) Update(metric *metrics.Metrics) error {
 	result: %s`, resp.StatusCode, string(res))
 
 	return nil
+
 }

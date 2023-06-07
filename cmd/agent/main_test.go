@@ -19,6 +19,10 @@ func (c *mockClient) Update(m *metrics.Metrics) error {
 	return nil
 }
 
+func (c *mockClient) BatchUpdate(m []*metrics.Metrics) error {
+	return nil
+}
+
 func TestMain(m *testing.M) {
 	c, err := configuration.ParseAgent()
 	if err != nil {
