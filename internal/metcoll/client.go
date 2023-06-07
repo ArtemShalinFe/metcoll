@@ -32,7 +32,7 @@ func NewClient(Host string, logger Logger) *Client {
 
 }
 
-func (c *Client) prepareRequest(body []byte) (*http.Request, error) {
+func (c *Client) prepareRequest(body []byte, url string) (*http.Request, error) {
 
 	var zBuf bytes.Buffer
 	zw := gzip.NewWriter(&zBuf)
@@ -43,11 +43,6 @@ func (c *Client) prepareRequest(body []byte) (*http.Request, error) {
 
 	if err := zw.Close(); err != nil {
 		return nil, fmt.Errorf("cannot close compress writer err: %w", err)
-	}
-
-	url, err := url.JoinPath("http://", c.host, "/update/")
-	if err != nil {
-		return nil, fmt.Errorf("cannot join elements in path err: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, &zBuf)
@@ -69,7 +64,12 @@ func (c *Client) Update(metric *metrics.Metrics) error {
 		return fmt.Errorf("cannot marshal metric err: %w", err)
 	}
 
-	req, err := c.prepareRequest(body)
+	url, err := url.JoinPath("http://", c.host, "/update/")
+	if err != nil {
+		return fmt.Errorf("cannot join elements in path err: %w", err)
+	}
+
+	req, err := c.prepareRequest(body, url)
 	if err != nil {
 		return fmt.Errorf("cannot prepare request err: %w", err)
 	}
@@ -85,7 +85,12 @@ func (c *Client) BatchUpdate(metrics []*metrics.Metrics) error {
 		return fmt.Errorf("cannot marshal metric err: %w", err)
 	}
 
-	req, err := c.prepareRequest(body)
+	url, err := url.JoinPath("http://", c.host, "/updates/")
+	if err != nil {
+		return fmt.Errorf("cannot join elements in path err: %w", err)
+	}
+
+	req, err := c.prepareRequest(body, url)
 	if err != nil {
 		return fmt.Errorf("cannot prepare request err: %w", err)
 	}
