@@ -14,6 +14,7 @@ import (
 
 type Logger interface {
 	Infof(template string, args ...interface{})
+	Errorf(template string, args ...interface{})
 }
 
 type Client struct {
@@ -113,9 +114,14 @@ func (c *Client) DoRequest(req *http.Request) error {
 		return fmt.Errorf("reading response body err: %w", err)
 	}
 
-	c.logger.Infof(`request for update metric has been completed
+	if resp.StatusCode < 300 {
+		c.logger.Infof(`request for update metric has been completed
+	code: %d`, resp.StatusCode)
+	} else {
+		c.logger.Errorf(`request for update metric has failed
 	code: %d
 	result: %s`, resp.StatusCode, string(res))
+	}
 
 	return nil
 
