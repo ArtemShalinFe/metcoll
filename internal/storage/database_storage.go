@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"strconv"
 
-	sleepstepper "github.com/ArtemShalinFe/metcoll/internal/sleep_stepper"
 	"github.com/jackc/pgerrcode"
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/ArtemShalinFe/metcoll/internal/sleepstepper"
 )
 
 type SQLStorage struct {
@@ -138,7 +139,7 @@ func (s *SQLStorage) AddInt64Value(ctx context.Context, key string, value int64)
 	rctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	row, err := s.QueryRowContext(rctx, q, key, value)
+	row, err := s.QueryRowContext(rctx, q, key, val)
 	if err != nil {
 		s.l.Errorf("query %s \n\n execute error: %w", q, err)
 		return value

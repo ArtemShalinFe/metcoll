@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/go-playground/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 )
 
 func TestStats_Update(t *testing.T) {

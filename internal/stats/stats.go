@@ -5,6 +5,9 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
+
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 )
 
@@ -116,6 +119,35 @@ func (s *Stats) GetFloat64Value(ctx context.Context, id string) (float64, bool) 
 		return float64(s.memStats.Sys), true
 	case "RandomValue":
 		return float64(s.randomValue), true
+	case "TotalMemory":
+
+		vm, err := mem.VirtualMemory()
+		if err != nil {
+			return 0, false
+		}
+		return float64(vm.Total), true
+
+	case "FreeMemory":
+
+		vm, err := mem.VirtualMemory()
+		if err != nil {
+			return 0, false
+		}
+		return float64(vm.Free), true
+
+	case "CPUutilization1":
+
+		c, err := cpu.Info()
+		if err != nil {
+			return 0, false
+		}
+
+		if len(c) > 0 {
+			return float64(c[0].Mhz), true
+		} else {
+			return 0, false
+		}
+
 	default:
 		return 0, false
 	}
@@ -172,6 +204,9 @@ func gaugeMetrics() []string {
 	gauges = append(gauges, "Sys")
 	gauges = append(gauges, "TotalAlloc")
 	gauges = append(gauges, "RandomValue")
+	gauges = append(gauges, "TotalMemory")
+	gauges = append(gauges, "FreeMemory")
+	gauges = append(gauges, "CPUutilization1")
 
 	return gauges
 

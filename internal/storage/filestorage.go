@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	sleepstepper "github.com/ArtemShalinFe/metcoll/internal/sleep_stepper"
+	"github.com/ArtemShalinFe/metcoll/internal/sleepstepper"
 )
 
 type Logger interface {
