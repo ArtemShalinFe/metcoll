@@ -145,8 +145,7 @@ func (s *SQLStorage) AddInt64Value(ctx context.Context, key string, value int64)
 	}
 
 	var newVal int64
-	row.Scan(&newVal)
-	if err != nil {
+	if row.Scan(&newVal); err != nil {
 		s.l.Errorf("query %s \n\n scan error: %w", q, err)
 		return 0
 	}
@@ -173,8 +172,7 @@ func (s *SQLStorage) SetFloat64Value(ctx context.Context, key string, value floa
 	}
 
 	var newVal float64
-	row.Scan(&newVal)
-	if err != nil {
+	if row.Scan(&newVal); err != nil {
 		s.l.Errorf("query %s \n\n scan error: %w", q, err)
 		return 0
 	}
