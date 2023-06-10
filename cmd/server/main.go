@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/ArtemShalinFe/metcoll/internal/compress"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
@@ -51,7 +53,9 @@ func main() {
 
 	l.Info("Try running on address: ", cfg.Address)
 	if err := s.ListenAndServe(); err != nil {
-		l.Error("ListenAndServe() err: ", err)
+		if !errors.Is(err, http.ErrServerClosed) {
+			l.Error("ListenAndServe() err: ", err)
+		}
 	}
 
 }
