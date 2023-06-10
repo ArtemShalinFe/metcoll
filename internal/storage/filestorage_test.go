@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"log"
 	"os"
 	"testing"
@@ -22,9 +23,11 @@ func (tl *testLogger) Errorf(template string, args ...any) {
 
 func TestState_SaveLoad(t *testing.T) {
 
-	ts := NewMemStorage()
-	ts.SetFloat64Value("test1", 1.2)
-	ts.AddInt64Value("test4", 5)
+	ctx := context.Background()
+
+	ts := newMemStorage()
+	ts.SetFloat64Value(ctx, "test1", 1.2)
+	ts.AddInt64Value(ctx, "test4", 5)
 
 	type fields struct {
 		path          string

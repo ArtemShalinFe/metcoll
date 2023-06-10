@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -17,16 +18,16 @@ type MemStorage struct {
 }
 
 type Storage interface {
-	GetInt64Value(key string) (int64, bool)
-	GetFloat64Value(key string) (float64, bool)
-	AddInt64Value(key string, value int64) int64
-	SetFloat64Value(key string, value float64) float64
-	GetDataList() []string
+	GetInt64Value(ctx context.Context, key string) (int64, bool)
+	GetFloat64Value(ctx context.Context, key string) (float64, bool)
+	AddInt64Value(ctx context.Context, key string, value int64) int64
+	SetFloat64Value(ctx context.Context, key string, value float64) float64
+	GetDataList(ctx context.Context) []string
 	Interrupt() error
-	Ping() error
+	Ping(ctx context.Context) error
 }
 
-func NewMemStorage() *MemStorage {
+func newMemStorage() *MemStorage {
 
 	ms := &MemStorage{
 		mutex:       &sync.Mutex{},
@@ -38,7 +39,7 @@ func NewMemStorage() *MemStorage {
 
 }
 
-func (ms *MemStorage) GetInt64Value(key string) (int64, bool) {
+func (ms *MemStorage) GetInt64Value(ctx context.Context, key string) (int64, bool) {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
@@ -48,7 +49,7 @@ func (ms *MemStorage) GetInt64Value(key string) (int64, bool) {
 
 }
 
-func (ms *MemStorage) GetFloat64Value(key string) (float64, bool) {
+func (ms *MemStorage) GetFloat64Value(ctx context.Context, key string) (float64, bool) {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
@@ -58,7 +59,7 @@ func (ms *MemStorage) GetFloat64Value(key string) (float64, bool) {
 
 }
 
-func (ms *MemStorage) AddInt64Value(key string, value int64) int64 {
+func (ms *MemStorage) AddInt64Value(ctx context.Context, key string, value int64) int64 {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
@@ -73,7 +74,7 @@ func (ms *MemStorage) AddInt64Value(key string, value int64) int64 {
 
 }
 
-func (ms *MemStorage) SetFloat64Value(key string, value float64) float64 {
+func (ms *MemStorage) SetFloat64Value(ctx context.Context, key string, value float64) float64 {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
@@ -84,7 +85,7 @@ func (ms *MemStorage) SetFloat64Value(key string, value float64) float64 {
 
 }
 
-func (ms *MemStorage) GetAllDataInt64() map[string]int64 {
+func (ms *MemStorage) GetAllDataInt64(ctx context.Context) map[string]int64 {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
@@ -93,7 +94,7 @@ func (ms *MemStorage) GetAllDataInt64() map[string]int64 {
 
 }
 
-func (ms *MemStorage) GetAllDataFloat64() map[string]float64 {
+func (ms *MemStorage) GetAllDataFloat64(ctx context.Context) map[string]float64 {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
@@ -102,16 +103,16 @@ func (ms *MemStorage) GetAllDataFloat64() map[string]float64 {
 
 }
 
-func (ms *MemStorage) GetDataList() []string {
+func (ms *MemStorage) GetDataList(ctx context.Context) []string {
 
 	var list []string
 
-	for k, v := range ms.GetAllDataFloat64() {
+	for k, v := range ms.GetAllDataFloat64(ctx) {
 		fv := strconv.FormatFloat(v, 'G', 12, 64)
 		list = append(list, fmt.Sprintf("%s %s", k, fv))
 	}
 
-	for k, v := range ms.GetAllDataInt64() {
+	for k, v := range ms.GetAllDataInt64(ctx) {
 		iv := strconv.FormatInt(v, 10)
 		list = append(list, fmt.Sprintf("%s %s", k, iv))
 	}
@@ -140,13 +141,15 @@ func (ms *MemStorage) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
+	ctx := context.Background()
+
 	stateFloat64 := state["float64"]
 	for k, v := range stateFloat64 {
 		pv, err := strconv.ParseFloat(v, 64)
 		if err != nil {
 			return err
 		}
-		ms.SetFloat64Value(k, pv)
+		ms.SetFloat64Value(ctx, k, pv)
 	}
 
 	stateInt64 := state["int64"]
@@ -155,7 +158,7 @@ func (ms *MemStorage) UnmarshalJSON(b []byte) error {
 		if err != nil {
 			return err
 		}
-		ms.AddInt64Value(k, pv)
+		ms.AddInt64Value(ctx, k, pv)
 	}
 
 	return nil
@@ -164,14 +167,16 @@ func (ms *MemStorage) UnmarshalJSON(b []byte) error {
 
 func (ms *MemStorage) MarshalJSON() ([]byte, error) {
 
+	ctx := context.Background()
+
 	float64map := make(map[string]string)
-	for k, v := range ms.GetAllDataFloat64() {
+	for k, v := range ms.GetAllDataFloat64(ctx) {
 		fv := strconv.FormatFloat(v, 'G', 18, 64)
 		float64map[k] = fv
 	}
 
 	int64map := make(map[string]string)
-	for k, v := range ms.GetAllDataInt64() {
+	for k, v := range ms.GetAllDataInt64(ctx) {
 		iv := strconv.FormatInt(v, 10)
 		int64map[k] = iv
 	}
@@ -188,33 +193,38 @@ func (ms *MemStorage) Interrupt() error {
 	return nil
 }
 
-func (ms *MemStorage) Ping() error {
+func (ms *MemStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
-func InitStorage(cfg *configuration.Config, s *MemStorage, l Logger) (Storage, error) {
+func InitStorage(ctx context.Context, cfg *configuration.Config, l Logger) (Storage, error) {
+
+	pctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	if strings.TrimSpace(cfg.Database) != "" {
 
-		db, err := newSQLStorage(cfg.Database, l)
+		db, err := newSQLStorage(pctx, cfg.Database, l)
 		if err != nil {
-			return nil, fmt.Errorf("cannot init filestorage err: %s", err)
+			return nil, fmt.Errorf("cannot init db storage err: %s", err)
 		}
 
 		return db, nil
 
 	} else if strings.TrimSpace(cfg.FileStoragePath) != "" {
 
-		fs, err := newFilestorage(s, l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
+		fs, err := newFilestorage(newMemStorage(), l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
 		if err != nil {
 			return nil, fmt.Errorf("cannot init filestorage err: %s", err)
 		}
 
 		return fs, nil
 
-	}
+	} else {
 
-	l.Info("saving the state to a filestorage has been disabled - empty filestorage path")
-	return s, nil
+		l.Info("saving the state to a filestorage has been disabled - empty filestorage path")
+		return newMemStorage(), nil
+
+	}
 
 }

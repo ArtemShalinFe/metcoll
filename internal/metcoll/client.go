@@ -3,13 +3,17 @@ package metcoll
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"syscall"
 
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
+	sleepstepper "github.com/ArtemShalinFe/metcoll/internal/sleep_stepper"
 )
 
 type Logger interface {
@@ -33,7 +37,7 @@ func NewClient(Host string, logger Logger) *Client {
 
 }
 
-func (c *Client) prepareRequest(body []byte, url string) (*http.Request, error) {
+func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*http.Request, error) {
 
 	var zBuf bytes.Buffer
 	zw := gzip.NewWriter(&zBuf)
@@ -46,7 +50,7 @@ func (c *Client) prepareRequest(body []byte, url string) (*http.Request, error) 
 		return nil, fmt.Errorf("cannot close compress writer err: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, url, &zBuf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &zBuf)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create request err: %w", err)
 	}
@@ -58,7 +62,7 @@ func (c *Client) prepareRequest(body []byte, url string) (*http.Request, error) 
 	return req, nil
 }
 
-func (c *Client) Update(metric *metrics.Metrics) error {
+func (c *Client) Update(ctx context.Context, metric *metrics.Metrics) error {
 
 	body, err := json.Marshal(metric)
 	if err != nil {
@@ -70,7 +74,10 @@ func (c *Client) Update(metric *metrics.Metrics) error {
 		return fmt.Errorf("cannot join elements in path err: %w", err)
 	}
 
-	req, err := c.prepareRequest(body, url)
+	rctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	req, err := c.prepareRequest(rctx, body, url)
 	if err != nil {
 		return fmt.Errorf("cannot prepare request err: %w", err)
 	}
@@ -79,7 +86,7 @@ func (c *Client) Update(metric *metrics.Metrics) error {
 
 }
 
-func (c *Client) BatchUpdate(metrics []*metrics.Metrics) error {
+func (c *Client) BatchUpdate(ctx context.Context, metrics []*metrics.Metrics) error {
 
 	body, err := json.Marshal(metrics)
 	if err != nil {
@@ -91,7 +98,10 @@ func (c *Client) BatchUpdate(metrics []*metrics.Metrics) error {
 		return fmt.Errorf("cannot join elements in path err: %w", err)
 	}
 
-	req, err := c.prepareRequest(body, url)
+	rctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	req, err := c.prepareRequest(rctx, body, url)
 	if err != nil {
 		return fmt.Errorf("cannot prepare request err: %w", err)
 	}
@@ -102,7 +112,8 @@ func (c *Client) BatchUpdate(metrics []*metrics.Metrics) error {
 
 func (c *Client) DoRequest(req *http.Request) error {
 
-	resp, err := c.httpClient.Do(req)
+	ss := sleepstepper.NewSleepStepper(1, 2, 5)
+	resp, err := retryHTTPrequest(c.httpClient.Do, req, ss)
 	if err != nil {
 		return fmt.Errorf("request execute err: %w", err)
 	}
@@ -124,5 +135,33 @@ func (c *Client) DoRequest(req *http.Request) error {
 	}
 
 	return nil
+
+}
+
+type Func func(req *http.Request) (*http.Response, error)
+
+type Sleeper interface {
+	Sleep() bool
+}
+
+func retryHTTPrequest(f Func, req *http.Request, ss Sleeper) (*http.Response, error) {
+
+	res, err := f(req)
+
+	if err != nil {
+
+		if !errors.Is(err, syscall.ECONNREFUSED) {
+			return nil, err
+		}
+
+		if !ss.Sleep() {
+			return nil, err
+		}
+
+		return retryHTTPrequest(f, req, ss)
+
+	}
+
+	return res, nil
 
 }

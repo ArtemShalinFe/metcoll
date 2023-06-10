@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
 	"github.com/stretchr/testify/assert"
@@ -17,6 +19,10 @@ import (
 )
 
 type testLogger struct{}
+
+func (tl *testLogger) Info(args ...any) {
+	log.Println(args...)
+}
 
 func (tl *testLogger) Infof(template string, args ...any) {
 	log.Printf(template, args...)
@@ -40,11 +46,15 @@ func (tl *testLogger) RequestLogger(h http.Handler) http.Handler {
 
 func TestUpdateMetricFromUrl(t *testing.T) {
 
-	s := storage.NewMemStorage()
+	ctx := context.Background()
+	cfg := &configuration.Config{}
 
 	l := NewTestlogger()
+
+	s, _ := storage.InitStorage(ctx, cfg, l)
+
 	h := NewHandler(s, l)
-	r := NewRouter(h, l.RequestLogger)
+	r := NewRouter(ctx, h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
 	defer ts.Close()
@@ -86,11 +96,15 @@ func TestUpdateMetricFromUrl(t *testing.T) {
 
 func TestUpdateMetric(t *testing.T) {
 
-	s := storage.NewMemStorage()
+	ctx := context.Background()
+	cfg := &configuration.Config{}
 
 	l := NewTestlogger()
+
+	s, _ := storage.InitStorage(ctx, cfg, l)
+
 	h := NewHandler(s, l)
-	r := NewRouter(h, l.RequestLogger)
+	r := NewRouter(ctx, h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
 	defer ts.Close()
@@ -259,11 +273,15 @@ func TestUpdateMetric(t *testing.T) {
 
 func TestCollectMetricList(t *testing.T) {
 
-	s := storage.NewMemStorage()
+	ctx := context.Background()
+	cfg := &configuration.Config{}
 
 	l := NewTestlogger()
+
+	s, _ := storage.InitStorage(ctx, cfg, l)
+
 	h := NewHandler(s, l)
-	r := NewRouter(h, l.RequestLogger)
+	r := NewRouter(ctx, h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
 	defer ts.Close()

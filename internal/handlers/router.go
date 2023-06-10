@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 )
 
-func NewRouter(handlers *Handler, middlewares ...func(http.Handler) http.Handler) *chi.Mux {
+func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.Handler) http.Handler) *chi.Mux {
 
 	router := chi.NewRouter()
 	router.Use(middlewares...)
@@ -25,13 +26,19 @@ func NewRouter(handlers *Handler, middlewares ...func(http.Handler) http.Handler
 			return
 		}
 
-		handlers.UpdateMetricFromURL(w, metricName, metricType, metricValue)
+		rctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		handlers.UpdateMetricFromURL(rctx, w, metricName, metricType, metricValue)
 
 	})
 
 	router.Post("/update/", func(w http.ResponseWriter, r *http.Request) {
 
-		handlers.UpdateMetric(w, r.Body)
+		rctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		handlers.UpdateMetric(rctx, w, r.Body)
 
 	})
 
@@ -45,31 +52,46 @@ func NewRouter(handlers *Handler, middlewares ...func(http.Handler) http.Handler
 			return
 		}
 
-		handlers.ReadMetricFromURL(w, metricName, metricType)
+		rctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		handlers.ReadMetricFromURL(rctx, w, metricName, metricType)
 
 	})
 
 	router.Post("/value/", func(w http.ResponseWriter, r *http.Request) {
 
-		handlers.ReadMetric(w, r.Body)
+		rctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		handlers.ReadMetric(rctx, w, r.Body)
 
 	})
 
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 
-		handlers.CollectMetricList(w)
+		rctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		handlers.CollectMetricList(rctx, w)
 
 	})
 
 	router.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 
-		handlers.Ping(w)
+		rctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		handlers.Ping(rctx, w)
 
 	})
 
 	router.Post("/updates/", func(w http.ResponseWriter, r *http.Request) {
 
-		handlers.BatchUpdate(w, r.Body)
+		rctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		handlers.BatchUpdate(rctx, w, r.Body)
 
 	})
 

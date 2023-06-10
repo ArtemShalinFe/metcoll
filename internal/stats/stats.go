@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"context"
 	"runtime"
 	"time"
 
@@ -34,19 +35,19 @@ func (s *Stats) ClearPollCount() {
 	s.pollCount = 0
 }
 
-func (s *Stats) GetReportData() map[string]map[string]*metrics.Metrics {
+func (s *Stats) GetReportData(ctx context.Context) map[string]map[string]*metrics.Metrics {
 
 	gm := make(map[string]*metrics.Metrics)
 	for _, id := range gaugeMetrics() {
 		m := metrics.NewGaugeMetric(id, 0)
-		m.Get(s)
+		m.Get(ctx, s)
 		gm[id] = m
 	}
 
 	cm := make(map[string]*metrics.Metrics)
 	for _, mid := range counterMetrics() {
 		m := metrics.NewCounterMetric(mid, 0)
-		m.Get(s)
+		m.Get(ctx, s)
 		cm[mid] = m
 	}
 
@@ -58,7 +59,7 @@ func (s *Stats) GetReportData() map[string]map[string]*metrics.Metrics {
 
 }
 
-func (s *Stats) GetFloat64Value(id string) (float64, bool) {
+func (s *Stats) GetFloat64Value(ctx context.Context, id string) (float64, bool) {
 
 	switch id {
 	case "Alloc":
@@ -121,7 +122,7 @@ func (s *Stats) GetFloat64Value(id string) (float64, bool) {
 
 }
 
-func (s *Stats) GetInt64Value(id string) (int64, bool) {
+func (s *Stats) GetInt64Value(ctx context.Context, id string) (int64, bool) {
 
 	switch id {
 	case metrics.PollCount:
@@ -132,11 +133,11 @@ func (s *Stats) GetInt64Value(id string) (int64, bool) {
 
 }
 
-func (s *Stats) SetFloat64Value(key string, value float64) float64 {
+func (s *Stats) SetFloat64Value(ctx context.Context, key string, value float64) float64 {
 	return 0
 }
 
-func (s *Stats) AddInt64Value(key string, value int64) int64 {
+func (s *Stats) AddInt64Value(ctx context.Context, key string, value int64) int64 {
 	return 0
 }
 

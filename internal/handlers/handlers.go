@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,12 +16,12 @@ type Handler struct {
 }
 
 type Storage interface {
-	GetInt64Value(key string) (int64, bool)
-	GetFloat64Value(key string) (float64, bool)
-	AddInt64Value(key string, value int64) int64
-	SetFloat64Value(key string, value float64) float64
-	GetDataList() []string
-	Ping() error
+	GetInt64Value(ctx context.Context, key string) (int64, bool)
+	GetFloat64Value(ctx context.Context, key string) (float64, bool)
+	AddInt64Value(ctx context.Context, key string, value int64) int64
+	SetFloat64Value(ctx context.Context, key string, value float64) float64
+	GetDataList(ctx context.Context) []string
+	Ping(ctx context.Context) error
 }
 
 type Logger interface {
@@ -36,19 +37,7 @@ func NewHandler(s Storage, l Logger) *Handler {
 	}
 }
 
-func (h *Handler) update(m *metrics.Metrics) error {
-
-	return m.Update(h.values)
-
-}
-
-func (h *Handler) get(m *metrics.Metrics) bool {
-
-	return m.Get(h.values)
-
-}
-
-func (h *Handler) CollectMetricList(w http.ResponseWriter) {
+func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) {
 
 	body := `
 	<html>
@@ -62,7 +51,8 @@ func (h *Handler) CollectMetricList(w http.ResponseWriter) {
 	</html>`
 
 	list := ""
-	for _, v := range h.values.GetDataList() {
+
+	for _, v := range h.values.GetDataList(ctx) {
 		list += fmt.Sprintf(`<p>%s</p>`, v)
 	}
 
@@ -76,7 +66,7 @@ func (h *Handler) CollectMetricList(w http.ResponseWriter) {
 
 }
 
-func (h *Handler) UpdateMetricFromURL(w http.ResponseWriter, id string, mType string, value string) {
+func (h *Handler) UpdateMetricFromURL(ctx context.Context, w http.ResponseWriter, id string, mType string, value string) {
 
 	m, err := metrics.NewMetric(id, mType, value)
 	if err != nil {
@@ -85,7 +75,7 @@ func (h *Handler) UpdateMetricFromURL(w http.ResponseWriter, id string, mType st
 		return
 	}
 
-	if err := h.update(m); err != nil {
+	if err := m.Update(ctx, h.values); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		h.logger.Errorf("UpdateMetric error: %w", err)
 		return
@@ -105,7 +95,7 @@ func (h *Handler) UpdateMetricFromURL(w http.ResponseWriter, id string, mType st
 
 }
 
-func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
+func (h *Handler) UpdateMetric(ctx context.Context, w http.ResponseWriter, body io.ReadCloser) {
 
 	var m metrics.Metrics
 
@@ -132,7 +122,7 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
 		return
 	}
 
-	if err := h.update(&m); err != nil {
+	if err := m.Update(ctx, h.values); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		h.logger.Errorf("UpdateMetric error: %w", err)
 		return
@@ -157,7 +147,7 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
 
 }
 
-func (h *Handler) BatchUpdate(w http.ResponseWriter, body io.ReadCloser) {
+func (h *Handler) BatchUpdate(ctx context.Context, w http.ResponseWriter, body io.ReadCloser) {
 
 	var ms []metrics.Metrics
 
@@ -190,7 +180,7 @@ func (h *Handler) BatchUpdate(w http.ResponseWriter, body io.ReadCloser) {
 			continue
 		}
 
-		if err := h.update(&m); err != nil {
+		if err := m.Update(ctx, h.values); err != nil {
 			errs = append(errs, fmt.Errorf("cannot update metric %s", m.ID))
 			h.logger.Errorf("BatchUpdate error: %w", err)
 			continue
@@ -223,7 +213,7 @@ func (h *Handler) BatchUpdate(w http.ResponseWriter, body io.ReadCloser) {
 
 }
 
-func (h *Handler) ReadMetricFromURL(w http.ResponseWriter, id string, mType string) {
+func (h *Handler) ReadMetricFromURL(ctx context.Context, w http.ResponseWriter, id string, mType string) {
 
 	m, err := metrics.GetMetric(id, mType)
 	if err != nil {
@@ -231,7 +221,7 @@ func (h *Handler) ReadMetricFromURL(w http.ResponseWriter, id string, mType stri
 		return
 	}
 
-	if ok := h.get(m); !ok {
+	if ok := m.Get(ctx, h.values); !ok {
 		http.Error(w, "metric not found", http.StatusNotFound)
 		h.logger.Infof("ReadMetric not found metric: %s", m.ID)
 		return
@@ -248,7 +238,7 @@ func (h *Handler) ReadMetricFromURL(w http.ResponseWriter, id string, mType stri
 
 }
 
-func (h *Handler) ReadMetric(w http.ResponseWriter, body io.ReadCloser) {
+func (h *Handler) ReadMetric(ctx context.Context, w http.ResponseWriter, body io.ReadCloser) {
 
 	var m metrics.Metrics
 
@@ -270,7 +260,7 @@ func (h *Handler) ReadMetric(w http.ResponseWriter, body io.ReadCloser) {
 		return
 	}
 
-	if ok := h.get(&m); !ok {
+	if ok := m.Get(ctx, h.values); !ok {
 		http.Error(w, "metric not found", http.StatusNotFound)
 		h.logger.Infof("ReadMetric not found metric: %s", m.ID)
 		return
@@ -293,9 +283,9 @@ func (h *Handler) ReadMetric(w http.ResponseWriter, body io.ReadCloser) {
 
 }
 
-func (h *Handler) Ping(w http.ResponseWriter) {
+func (h *Handler) Ping(ctx context.Context, w http.ResponseWriter) {
 
-	if err := h.values.Ping(); err != nil {
+	if err := h.values.Ping(ctx); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		h.logger.Errorf("Ping error: %w", err)
 		return

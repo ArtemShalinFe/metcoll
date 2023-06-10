@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"reflect"
 	"sync"
 	"testing"
@@ -17,7 +18,7 @@ func TestNewMemStorage(t *testing.T) {
 	}
 
 	t.Run("Test mem storage constructor", func(t *testing.T) {
-		if got := NewMemStorage(); !reflect.DeepEqual(got, want) {
+		if got := newMemStorage(); !reflect.DeepEqual(got, want) {
 			t.Errorf("NewMemStorage() = %v, want %v", got, want)
 		}
 	})
@@ -25,10 +26,12 @@ func TestNewMemStorage(t *testing.T) {
 
 func TestMemStorage_GetFloat64Value(t *testing.T) {
 
-	ts := NewMemStorage()
-	ts.SetFloat64Value("test1", 1.0)
-	ts.SetFloat64Value("test2", 2.0)
-	ts.SetFloat64Value("test3", 4.0)
+	ctx := context.Background()
+
+	ts := newMemStorage()
+	ts.SetFloat64Value(ctx, "test1", 1.0)
+	ts.SetFloat64Value(ctx, "test2", 2.0)
+	ts.SetFloat64Value(ctx, "test3", 4.0)
 
 	type args struct {
 		Key string
@@ -63,7 +66,7 @@ func TestMemStorage_GetFloat64Value(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			value, ok := ts.GetFloat64Value(tt.args.Key)
+			value, ok := ts.GetFloat64Value(ctx, tt.args.Key)
 			if value != tt.want {
 				t.Errorf("MemStorage.GetFloat64Value() = %v, want %v", value, tt.want)
 			}
@@ -74,11 +77,13 @@ func TestMemStorage_GetFloat64Value(t *testing.T) {
 
 func TestMemStorage_GetInt64Value(t *testing.T) {
 
-	ts := NewMemStorage()
-	ts.AddInt64Value("test1", 1)
-	ts.AddInt64Value("test2", 2)
-	ts.AddInt64Value("test3", 3)
-	ts.AddInt64Value("test3", 3)
+	ctx := context.Background()
+
+	ts := newMemStorage()
+	ts.AddInt64Value(ctx, "test1", 1)
+	ts.AddInt64Value(ctx, "test2", 2)
+	ts.AddInt64Value(ctx, "test3", 3)
+	ts.AddInt64Value(ctx, "test3", 3)
 
 	type args struct {
 		Key string
@@ -113,7 +118,7 @@ func TestMemStorage_GetInt64Value(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			value, ok := ts.GetInt64Value(tt.args.Key)
+			value, ok := ts.GetInt64Value(ctx, tt.args.Key)
 			if value != tt.want {
 				t.Errorf("MemStorage.GetInt64Value() = %v, want %v", value, tt.want)
 			}
@@ -124,9 +129,11 @@ func TestMemStorage_GetInt64Value(t *testing.T) {
 
 func TestMemStorage_GetDataList(t *testing.T) {
 
-	ts := NewMemStorage()
-	ts.SetFloat64Value("test1", 1.2)
-	ts.AddInt64Value("test4", 5)
+	ctx := context.Background()
+
+	ts := newMemStorage()
+	ts.SetFloat64Value(ctx, "test1", 1.2)
+	ts.AddInt64Value(ctx, "test4", 5)
 
 	var want []string
 	want = append(want, "test1 1.2")
@@ -147,7 +154,7 @@ func TestMemStorage_GetDataList(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 
-			if got := tt.ms.GetDataList(); !reflect.DeepEqual(got, tt.want) {
+			if got := tt.ms.GetDataList(ctx); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("MemStorage.GetDataList() = %v, want %v", got, tt.want)
 			}
 		})
@@ -156,9 +163,11 @@ func TestMemStorage_GetDataList(t *testing.T) {
 
 func TestGetSetState(t *testing.T) {
 
-	ts := NewMemStorage()
-	ts.SetFloat64Value("test1", 1.2)
-	ts.AddInt64Value("test4", 5)
+	ctx := context.Background()
+
+	ts := newMemStorage()
+	ts.SetFloat64Value(ctx, "test1", 1.2)
+	ts.AddInt64Value(ctx, "test4", 5)
 
 	tsb := ts
 	b, err := ts.GetState()

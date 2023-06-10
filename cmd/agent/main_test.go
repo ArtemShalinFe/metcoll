@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"testing"
@@ -15,11 +16,7 @@ var cfg *configuration.ConfigAgent
 
 type mockClient struct{}
 
-func (c *mockClient) Update(m *metrics.Metrics) error {
-	return nil
-}
-
-func (c *mockClient) BatchUpdate(m []*metrics.Metrics) error {
+func (c *mockClient) BatchUpdate(ctx context.Context, m []*metrics.Metrics) error {
 	return nil
 }
 
@@ -79,6 +76,8 @@ func Test_isTimeToPushReport(t *testing.T) {
 
 func Test_pushReport(t *testing.T) {
 
+	ctx := context.Background()
+
 	type args struct {
 		conn metcollClient
 		s    *stats.Stats
@@ -101,7 +100,7 @@ func Test_pushReport(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			if err := pushReport(tt.args.conn, tt.args.s, tt.args.cfg); (err != nil) != tt.wantErr {
+			if err := pushReport(ctx, tt.args.conn, tt.args.s, tt.args.cfg); (err != nil) != tt.wantErr {
 				t.Errorf("pushReport() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

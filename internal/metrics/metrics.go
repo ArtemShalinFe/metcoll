@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -11,10 +12,10 @@ const CounterMetric = "counter"
 const PollCount = "PollCount"
 
 type Storage interface {
-	GetInt64Value(key string) (int64, bool)
-	GetFloat64Value(key string) (float64, bool)
-	AddInt64Value(key string, value int64) int64
-	SetFloat64Value(key string, value float64) float64
+	GetInt64Value(ctx context.Context, key string) (int64, bool)
+	GetFloat64Value(ctx context.Context, key string) (float64, bool)
+	AddInt64Value(ctx context.Context, key string, value int64) int64
+	SetFloat64Value(ctx context.Context, key string, value float64) float64
 }
 
 type Metrics struct {
@@ -106,17 +107,20 @@ func (m *Metrics) String() string {
 
 }
 
-func (m *Metrics) Update(values Storage) error {
+func (m *Metrics) Update(ctx context.Context, values Storage) error {
+
+	rctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	switch m.MType {
 	case GaugeMetric:
 
-		newValue := values.SetFloat64Value(m.ID, *m.Value)
+		newValue := values.SetFloat64Value(rctx, m.ID, *m.Value)
 		m.Value = &newValue
 
 	case CounterMetric:
 
-		newValue := values.AddInt64Value(m.ID, *m.Delta)
+		newValue := values.AddInt64Value(rctx, m.ID, *m.Delta)
 		m.Delta = &newValue
 
 	default:
@@ -129,18 +133,21 @@ func (m *Metrics) Update(values Storage) error {
 
 }
 
-func (m *Metrics) Get(values Storage) bool {
+func (m *Metrics) Get(ctx context.Context, values Storage) bool {
+
+	rctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	switch m.MType {
 	case GaugeMetric:
 
-		newValue, ok := values.GetFloat64Value(m.ID)
+		newValue, ok := values.GetFloat64Value(rctx, m.ID)
 		m.Value = &newValue
 		return ok
 
 	case CounterMetric:
 
-		newValue, ok := values.GetInt64Value(m.ID)
+		newValue, ok := values.GetInt64Value(rctx, m.ID)
 		m.Delta = &newValue
 		return ok
 

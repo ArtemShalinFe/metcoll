@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -31,7 +32,9 @@ func main() {
 
 	l.Info("parsed server config: ", fmt.Sprintf("%+v", cfg))
 
-	stg, err := storage.InitStorage(cfg, storage.NewMemStorage(), l)
+	ctx := context.Background()
+
+	stg, err := storage.InitStorage(ctx, cfg, l)
 	if err != nil {
 		l.Error("cannot init storage err: ", err)
 		return
@@ -42,7 +45,7 @@ func main() {
 	s := metcoll.NewServer(cfg)
 	i.Use(s.Interrupt)
 
-	s.Handler = handlers.NewRouter(handlers.NewHandler(stg, l), l.RequestLogger, compress.CompressMiddleware)
+	s.Handler = handlers.NewRouter(ctx, handlers.NewHandler(stg, l), l.RequestLogger, compress.CompressMiddleware)
 
 	i.Run(l)
 

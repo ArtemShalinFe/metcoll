@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -14,8 +15,7 @@ import (
 )
 
 type metcollClient interface {
-	Update(m *metrics.Metrics) error
-	BatchUpdate(metrics []*metrics.Metrics) error
+	BatchUpdate(ctx context.Context, ms []*metrics.Metrics) error
 }
 
 func main() {
@@ -37,12 +37,13 @@ func main() {
 
 	l.Infof("parsed agent config: %+v", cfg)
 
+	ctx := context.Background()
+
 	var lastReportPush time.Time
 	s := stats.NewStats()
 	pause := time.Duration(cfg.PollInterval) * time.Second
 	durReportInterval := time.Duration(cfg.ReportInterval) * time.Second
 	conn := metcoll.NewClient(cfg.Server, l)
-
 	for {
 
 		s.Update()
@@ -50,7 +51,7 @@ func main() {
 
 		if isTimeToPushReport(lastReportPush, now, durReportInterval) {
 
-			if err := pushReport(conn, s, cfg); err != nil {
+			if err := pushReport(ctx, conn, s, cfg); err != nil {
 				l.Info(err)
 			} else {
 				lastReportPush = now
@@ -64,18 +65,18 @@ func main() {
 
 }
 
-func pushReport(conn metcollClient, s *stats.Stats, cfg *configuration.ConfigAgent) error {
+func pushReport(ctx context.Context, conn metcollClient, s *stats.Stats, cfg *configuration.ConfigAgent) error {
 
 	var ms []*metrics.Metrics
 
-	for _, data := range s.GetReportData() {
+	for _, data := range s.GetReportData(ctx) {
 		for _, metric := range data {
 			ms = append(ms, metric)
 		}
 	}
 
 	if len(ms) > 0 {
-		if err := conn.BatchUpdate(ms); err != nil {
+		if err := conn.BatchUpdate(ctx, ms); err != nil {
 			return fmt.Errorf("cannot push batch on server err: %w", err)
 		}
 		s.ClearPollCount()
