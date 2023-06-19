@@ -3,14 +3,12 @@ package interrupter
 import (
 	"os"
 	"os/signal"
+
+	"github.com/ArtemShalinFe/metcoll/internal/logger"
 )
 
 type Interrupters struct {
 	fs []func() error
-}
-
-type Logger interface {
-	Error(args ...interface{})
 }
 
 func NewInterrupters() *Interrupters {
@@ -35,7 +33,7 @@ func (i *Interrupters) Do() []error {
 
 }
 
-func (i *Interrupters) Run(l Logger) {
+func (i *Interrupters) Run(l *logger.AppLogger) {
 
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, os.Interrupt)
@@ -47,8 +45,8 @@ func (i *Interrupters) Run(l Logger) {
 		ers := i.Do()
 
 		if len(ers) > 0 {
-			for _, v := range ers {
-				l.Error(v)
+			for _, err := range ers {
+				l.Log.Errorf("cannot do interrrupt err: %w", err)
 			}
 			os.Exit(1)
 		}

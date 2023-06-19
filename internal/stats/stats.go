@@ -9,6 +9,7 @@ import (
 	"github.com/shirou/gopsutil/mem"
 
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
+	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
 type Stats struct {
@@ -62,115 +63,123 @@ func (s *Stats) GetReportData(ctx context.Context) map[string]map[string]*metric
 
 }
 
-func (s *Stats) GetFloat64Value(ctx context.Context, id string) (float64, bool) {
+func (s *Stats) GetFloat64Value(ctx context.Context, id string) (float64, error) {
 
 	switch id {
 	case "Alloc":
-		return float64(s.memStats.Alloc), true
+		return float64(s.memStats.Alloc), nil
 	case "BuckHashSys":
-		return float64(s.memStats.BuckHashSys), true
+		return float64(s.memStats.BuckHashSys), nil
 	case "GCCPUFraction":
-		return float64(s.memStats.GCCPUFraction), true
+		return float64(s.memStats.GCCPUFraction), nil
 	case "HeapAlloc":
-		return float64(s.memStats.HeapAlloc), true
+		return float64(s.memStats.HeapAlloc), nil
 	case "GCSys":
-		return float64(s.memStats.GCSys), true
+		return float64(s.memStats.GCSys), nil
 	case "HeapIdle":
-		return float64(s.memStats.HeapIdle), true
+		return float64(s.memStats.HeapIdle), nil
 	case "HeapInuse":
-		return float64(s.memStats.HeapInuse), true
+		return float64(s.memStats.HeapInuse), nil
 	case "HeapObjects":
-		return float64(s.memStats.HeapObjects), true
+		return float64(s.memStats.HeapObjects), nil
 	case "HeapReleased":
-		return float64(s.memStats.HeapReleased), true
+		return float64(s.memStats.HeapReleased), nil
 	case "LastGC":
-		return float64(s.memStats.LastGC), true
+		return float64(s.memStats.LastGC), nil
 	case "Lookups":
-		return float64(s.memStats.Lookups), true
+		return float64(s.memStats.Lookups), nil
 	case "MCacheInuse":
-		return float64(s.memStats.MCacheInuse), true
+		return float64(s.memStats.MCacheInuse), nil
 	case "MCacheSys":
-		return float64(s.memStats.MCacheSys), true
+		return float64(s.memStats.MCacheSys), nil
 	case "MSpanInuse":
-		return float64(s.memStats.MSpanInuse), true
+		return float64(s.memStats.MSpanInuse), nil
 	case "MSpanSys":
-		return float64(s.memStats.MSpanSys), true
+		return float64(s.memStats.MSpanSys), nil
 	case "Mallocs":
-		return float64(s.memStats.Mallocs), true
+		return float64(s.memStats.Mallocs), nil
 	case "NextGC":
-		return float64(s.memStats.NextGC), true
+		return float64(s.memStats.NextGC), nil
 	case "NumForcedGC":
-		return float64(s.memStats.NumForcedGC), true
+		return float64(s.memStats.NumForcedGC), nil
 	case "NumGC":
-		return float64(s.memStats.NumGC), true
+		return float64(s.memStats.NumGC), nil
 	case "OtherSys":
-		return float64(s.memStats.OtherSys), true
+		return float64(s.memStats.OtherSys), nil
 	case "PauseTotalNs":
-		return float64(s.memStats.PauseTotalNs), true
+		return float64(s.memStats.PauseTotalNs), nil
 	case "StackInuse":
-		return float64(s.memStats.StackInuse), true
+		return float64(s.memStats.StackInuse), nil
 	case "StackSys":
-		return float64(s.memStats.StackSys), true
+		return float64(s.memStats.StackSys), nil
 	case "TotalAlloc":
-		return float64(s.memStats.TotalAlloc), true
+		return float64(s.memStats.TotalAlloc), nil
 	case "Frees":
-		return float64(s.memStats.Frees), true
+		return float64(s.memStats.Frees), nil
 	case "Sys":
-		return float64(s.memStats.Sys), true
+		return float64(s.memStats.Sys), nil
 	case "RandomValue":
-		return float64(s.randomValue), true
+		return float64(s.randomValue), nil
 	case "TotalMemory":
 
 		vm, err := mem.VirtualMemory()
 		if err != nil {
-			return 0, false
+			return 0, storage.ErrNoRows
 		}
-		return float64(vm.Total), true
+		return float64(vm.Total), nil
 
 	case "FreeMemory":
 
 		vm, err := mem.VirtualMemory()
 		if err != nil {
-			return 0, false
+			return 0, nil
 		}
-		return float64(vm.Free), true
+		return float64(vm.Free), nil
 
 	case "CPUutilization1":
 
 		c, err := cpu.Info()
 		if err != nil {
-			return 0, false
+			return 0, nil
 		}
 
 		if len(c) > 0 {
-			return float64(c[0].Mhz), true
+			return float64(c[0].Mhz), nil
 		} else {
-			return 0, false
+			return 0, nil
 		}
 
 	default:
-		return 0, false
+		return 0, nil
 	}
 
 }
 
-func (s *Stats) GetInt64Value(ctx context.Context, id string) (int64, bool) {
+func (s *Stats) GetInt64Value(ctx context.Context, id string) (int64, error) {
 
 	switch id {
 	case metrics.PollCount:
-		return s.pollCount, true
+		return s.pollCount, nil
 	default:
-		return 0, false
+		return 0, storage.ErrNoRows
 	}
 
 }
 
-func (s *Stats) SetFloat64Value(ctx context.Context, key string, value float64) float64 {
-	return 0
+func (s *Stats) SetFloat64Value(ctx context.Context, key string, value float64) (float64, error) {
+	return 0, nil
 }
 
-func (s *Stats) AddInt64Value(ctx context.Context, key string, value int64) int64 {
-	return 0
+func (s *Stats) AddInt64Value(ctx context.Context, key string, value int64) (int64, error) {
+	return 0, nil
+}
+
+func (s *Stats) BatchAddInt64Value(ctx context.Context, counters map[string]int64) (map[string]int64, []error, error) {
+	return nil, nil, nil
+}
+
+func (s *Stats) BatchSetFloat64Value(ctx context.Context, counters map[string]float64) (map[string]float64, []error, error) {
+	return nil, nil, nil
 }
 
 func gaugeMetrics() []string {

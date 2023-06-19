@@ -31,11 +31,11 @@ func main() {
 
 	cfg, err := configuration.ParseAgent()
 	if err != nil {
-		l.Errorf("cannot parse server config file err: %w", err)
+		l.Log.Errorf("cannot parse server config file err: %w", err)
 		return
 	}
 
-	l.Infof("parsed agent config: %+v", cfg)
+	l.Log.Infof("parsed agent config: %+v", cfg)
 
 	ctx := context.Background()
 
@@ -51,10 +51,20 @@ func main() {
 
 		if isTimeToPushReport(lastReportPush, now, durReportInterval) {
 
-			if err := pushReport(ctx, conn, s, cfg); err != nil {
-				l.Info(err)
-			} else {
-				lastReportPush = now
+			var ms []*metrics.Metrics
+			for _, data := range s.GetReportData(ctx) {
+				for _, metric := range data {
+					ms = append(ms, metric)
+				}
+			}
+
+			if len(ms) > 0 {
+				if err := pushReport(ctx, conn, ms); err != nil {
+					l.Log.Infof("cannot push report on server err: %w", err)
+				} else {
+					lastReportPush = now
+				}
+				s.ClearPollCount()
 			}
 
 		}
@@ -65,21 +75,10 @@ func main() {
 
 }
 
-func pushReport(ctx context.Context, conn metcollClient, s *stats.Stats, cfg *configuration.ConfigAgent) error {
+func pushReport(ctx context.Context, conn metcollClient, ms []*metrics.Metrics) error {
 
-	var ms []*metrics.Metrics
-
-	for _, data := range s.GetReportData(ctx) {
-		for _, metric := range data {
-			ms = append(ms, metric)
-		}
-	}
-
-	if len(ms) > 0 {
-		if err := conn.BatchUpdate(ctx, ms); err != nil {
-			return fmt.Errorf("cannot push batch on server err: %w", err)
-		}
-		s.ClearPollCount()
+	if err := conn.BatchUpdate(ctx, ms); err != nil {
+		return fmt.Errorf("cannot push batch on server err: %w", err)
 	}
 
 	return nil

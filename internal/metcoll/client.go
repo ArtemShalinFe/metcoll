@@ -11,33 +11,47 @@ import (
 	"net/http"
 	"net/url"
 	"syscall"
+	"time"
 
+	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
-	"github.com/ArtemShalinFe/metcoll/internal/sleepstepper"
+	"github.com/hashicorp/go-retryablehttp"
 )
-
-type Logger interface {
-	Infof(template string, args ...interface{})
-	Errorf(template string, args ...interface{})
-}
 
 type Client struct {
 	host       string
-	httpClient *http.Client
-	logger     Logger
+	httpClient *retryablehttp.Client
+	logger     *logger.AppLogger
 }
 
-func NewClient(Host string, logger Logger) *Client {
+func NewClient(Host string, logger *logger.AppLogger) *Client {
+
+	retryClient := retryablehttp.NewClient()
+	retryClient.RetryMax = 2
+	retryClient.CheckRetry = CheckRetry
+	retryClient.RetryWaitMin = time.Duration(3 * time.Second)
+	retryClient.RetryWaitMax = time.Duration(5 * time.Second)
+	retryClient.Logger = logger
 
 	return &Client{
 		host:       Host,
-		httpClient: &http.Client{},
+		httpClient: retryClient,
 		logger:     logger,
 	}
 
 }
 
-func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*http.Request, error) {
+func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
+
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return true, err
+	} else {
+		return false, err
+	}
+
+}
+
+func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*retryablehttp.Request, error) {
 
 	var zBuf bytes.Buffer
 	zw := gzip.NewWriter(&zBuf)
@@ -50,7 +64,7 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 		return nil, fmt.Errorf("cannot close compress writer err: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &zBuf)
+	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodPost, url, &zBuf)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create request err: %w", err)
 	}
@@ -110,10 +124,9 @@ func (c *Client) BatchUpdate(ctx context.Context, metrics []*metrics.Metrics) er
 
 }
 
-func (c *Client) DoRequest(req *http.Request) error {
+func (c *Client) DoRequest(req *retryablehttp.Request) error {
 
-	ss := sleepstepper.NewSleepStepper(1, 2, 5)
-	resp, err := retryHTTPrequest(c.httpClient.Do, req, ss)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("request execute err: %w", err)
 	}
@@ -126,42 +139,14 @@ func (c *Client) DoRequest(req *http.Request) error {
 	}
 
 	if resp.StatusCode < 300 {
-		c.logger.Infof(`request for update metric has been completed
+		c.logger.Log.Infof(`request for update metric has been completed
 	code: %d`, resp.StatusCode)
 	} else {
-		c.logger.Errorf(`request for update metric has failed
+		c.logger.Log.Errorf(`request for update metric has failed
 	code: %d
 	result: %s`, resp.StatusCode, string(res))
 	}
 
 	return nil
-
-}
-
-type Func func(req *http.Request) (*http.Response, error)
-
-type Sleeper interface {
-	Sleep() bool
-}
-
-func retryHTTPrequest(f Func, req *http.Request, ss Sleeper) (*http.Response, error) {
-
-	res, err := f(req)
-
-	if err != nil {
-
-		if !errors.Is(err, syscall.ECONNREFUSED) {
-			return nil, err
-		}
-
-		if !ss.Sleep() {
-			return nil, err
-		}
-
-		return retryHTTPrequest(f, req, ss)
-
-	}
-
-	return res, nil
 
 }

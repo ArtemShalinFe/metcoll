@@ -2,24 +2,11 @@ package storage
 
 import (
 	"context"
-	"log"
 	"os"
 	"testing"
+
+	"github.com/ArtemShalinFe/metcoll/internal/logger"
 )
-
-type testLogger struct{}
-
-func (tl *testLogger) Info(args ...any) {
-	log.Println(args...)
-}
-
-func (tl *testLogger) Infof(template string, args ...any) {
-	log.Printf(template, args...)
-}
-
-func (tl *testLogger) Errorf(template string, args ...any) {
-	log.Printf(template, args...)
-}
 
 func TestState_SaveLoad(t *testing.T) {
 
@@ -29,11 +16,16 @@ func TestState_SaveLoad(t *testing.T) {
 	ts.SetFloat64Value(ctx, "test1", 1.2)
 	ts.AddInt64Value(ctx, "test4", 5)
 
+	l, err := logger.NewLogger()
+	if err != nil {
+		t.Errorf("TestState_SaveLoad err: %v", err)
+	}
+
 	type fields struct {
 		path          string
 		storeInterval int
 		stg           *MemStorage
-		logger        Logger
+		logger        *logger.AppLogger
 	}
 
 	tests := []struct {
@@ -47,7 +39,7 @@ func TestState_SaveLoad(t *testing.T) {
 				path:          newTempFile(t),
 				storeInterval: 10,
 				stg:           ts,
-				logger:        &testLogger{},
+				logger:        l,
 			},
 			wantErr: false,
 		},
@@ -57,7 +49,7 @@ func TestState_SaveLoad(t *testing.T) {
 				path:          newTempFile(t),
 				storeInterval: 10,
 				stg:           ts,
-				logger:        &testLogger{},
+				logger:        l,
 			},
 			wantErr: false,
 		},

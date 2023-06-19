@@ -6,52 +6,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
+	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type testLogger struct{}
-
-func (tl *testLogger) Info(args ...any) {
-	log.Println(args...)
-}
-
-func (tl *testLogger) Infof(template string, args ...any) {
-	log.Printf(template, args...)
-}
-
-func (tl *testLogger) Errorf(template string, args ...any) {
-	log.Println(args...)
-}
-
-func NewTestlogger() *testLogger {
-	return &testLogger{}
-}
-
-func (tl *testLogger) RequestLogger(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		h.ServeHTTP(w, r)
-
-	})
-}
-
 func TestUpdateMetricFromUrl(t *testing.T) {
 
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
-	l := NewTestlogger()
+	l, err := logger.NewLogger()
+	if err != nil {
+		t.Errorf("cannot init logger err: %v", err)
+	}
 
-	s, _ := storage.InitStorage(ctx, cfg, l)
+	s, err := storage.InitStorage(ctx, cfg, l)
+	if err != nil {
+		t.Errorf("cannot init storage err: %v", err)
+	}
 
 	h := NewHandler(s, l)
 	r := NewRouter(ctx, h, l.RequestLogger)
@@ -99,9 +79,15 @@ func TestUpdateMetric(t *testing.T) {
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
-	l := NewTestlogger()
+	l, err := logger.NewLogger()
+	if err != nil {
+		t.Errorf("cannot init logger err: %v", err)
+	}
 
-	s, _ := storage.InitStorage(ctx, cfg, l)
+	s, err := storage.InitStorage(ctx, cfg, l)
+	if err != nil {
+		t.Errorf("cannot init logger err: %v", err)
+	}
 
 	h := NewHandler(s, l)
 	r := NewRouter(ctx, h, l.RequestLogger)
@@ -271,14 +257,88 @@ func TestUpdateMetric(t *testing.T) {
 	}
 }
 
+func TestHandler_BatchUpdate(t *testing.T) {
+
+	ctx := context.Background()
+	cfg := &configuration.Config{}
+
+	l, err := logger.NewLogger()
+	if err != nil {
+		t.Errorf("cannot init logger err: %v", err)
+	}
+
+	s, err := storage.InitStorage(ctx, cfg, l)
+	if err != nil {
+		t.Errorf("cannot init logger err: %v", err)
+	}
+
+	h := NewHandler(s, l)
+	r := NewRouter(ctx, h, l.RequestLogger)
+
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	var bodyMetrics []*metrics.Metrics
+	bodyMetrics = append(bodyMetrics, metrics.NewCounterMetric("one", 1))
+	bodyMetrics = append(bodyMetrics, metrics.NewCounterMetric("two", 2))
+	bodyMetrics = append(bodyMetrics, metrics.NewGaugeMetric("three dot one", 3.1))
+	bodyMetrics = append(bodyMetrics, metrics.NewGaugeMetric("four dot two", 4.2))
+
+	var want []string
+
+	var tests = []struct {
+		name        string
+		url         string
+		status      int
+		method      string
+		bodyMetrics []*metrics.Metrics
+		want        []string
+	}{
+		{
+			name:        "BatchUpdate #1",
+			url:         "/updates/",
+			want:        want,
+			status:      http.StatusOK,
+			method:      http.MethodPost,
+			bodyMetrics: bodyMetrics,
+		},
+	}
+
+	for _, v := range tests {
+
+		b, err := json.Marshal(v.bodyMetrics)
+		if err != nil {
+			t.Error(err)
+		}
+
+		resp, b := testRequest(t, ts, v.method, v.url, bytes.NewBuffer(b))
+		defer resp.Body.Close()
+		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf("%s URL: %s", v.name, v.url))
+
+		if resp.StatusCode < 300 {
+			var errs []string
+			if err = json.Unmarshal(b, &errs); err != nil {
+				t.Error(err)
+			}
+			require.Equal(t, v.want, errs, fmt.Sprintf("%s URL: %s", v.name, v.url))
+		}
+	}
+}
+
 func TestCollectMetricList(t *testing.T) {
 
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
-	l := NewTestlogger()
+	l, err := logger.NewLogger()
+	if err != nil {
+		t.Errorf("cannot init logger err: %v", err)
+	}
 
-	s, _ := storage.InitStorage(ctx, cfg, l)
+	s, err := storage.InitStorage(ctx, cfg, l)
+	if err != nil {
+		t.Errorf("cannot init logger err: %v", err)
+	}
 
 	h := NewHandler(s, l)
 	r := NewRouter(ctx, h, l.RequestLogger)

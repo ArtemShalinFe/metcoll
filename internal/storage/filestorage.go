@@ -6,28 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
-	"syscall"
 	"time"
 
-	"github.com/ArtemShalinFe/metcoll/internal/sleepstepper"
+	"github.com/ArtemShalinFe/metcoll/internal/logger"
 )
-
-type Logger interface {
-	Info(args ...interface{})
-	Infof(template string, args ...interface{})
-	Errorf(template string, args ...interface{})
-}
 
 type Filestorage struct {
 	*MemStorage
 	path          string
 	storeInterval int
-	logger        Logger
+	logger        *logger.AppLogger
 }
 
-func newFilestorage(stg *MemStorage, l Logger, path string, storeInterval int, restore bool) (*Filestorage, error) {
+func newFilestorage(stg *MemStorage, l *logger.AppLogger, path string, storeInterval int, restore bool) (*Filestorage, error) {
 
 	fs := &Filestorage{
 		MemStorage:    stg,
@@ -38,7 +30,7 @@ func newFilestorage(stg *MemStorage, l Logger, path string, storeInterval int, r
 
 	if restore {
 		if err := fs.Load(fs.MemStorage); err != nil {
-			fs.logger.Infof("cannot restore state storage err: %w", err)
+			fs.logger.Log.Infof("cannot restore state storage err: %w", err)
 			return fs, nil
 		}
 	}
@@ -51,34 +43,75 @@ func newFilestorage(stg *MemStorage, l Logger, path string, storeInterval int, r
 
 }
 
-func (fs *Filestorage) AddInt64Value(ctx context.Context, key string, value int64) int64 {
+func (fs *Filestorage) BatchSetFloat64Value(ctx context.Context, gauges map[string]float64) (map[string]float64, []error, error) {
 
-	newValue := fs.MemStorage.AddInt64Value(ctx, key, value)
+	gauges, errs, err := fs.MemStorage.BatchSetFloat64Value(ctx, gauges)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot add int64 value in filestorage err: %w", err)
+	}
+
 	if fs.storeInterval == 0 {
 		if err := fs.Save(fs.MemStorage); err != nil {
-			fs.logger.Errorf("synchronous saving to file storage cannot be performed err: %w", err)
+			return nil, nil, fmt.Errorf("synchronous saving to file storage cannot be performed err: %w", err)
 		}
 	}
-	return newValue
+
+	return gauges, errs, nil
 
 }
 
-func (fs *Filestorage) SetFloat64Value(ctx context.Context, key string, value float64) float64 {
+func (fs *Filestorage) BatchAddInt64Value(ctx context.Context, counters map[string]int64) (map[string]int64, []error, error) {
 
-	newValue := fs.MemStorage.SetFloat64Value(ctx, key, value)
+	counters, errs, err := fs.MemStorage.BatchAddInt64Value(ctx, counters)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot add int64 value in filestorage err: %w", err)
+	}
+
 	if fs.storeInterval == 0 {
 		if err := fs.Save(fs.MemStorage); err != nil {
-			fs.logger.Errorf("synchronous saving to file storage cannot be performed err: %w", err)
+			return nil, nil, fmt.Errorf("synchronous saving to file storage cannot be performed err: %w", err)
 		}
 	}
-	return newValue
+
+	return counters, errs, nil
+
+}
+
+func (fs *Filestorage) AddInt64Value(ctx context.Context, key string, value int64) (int64, error) {
+
+	newValue, err := fs.MemStorage.AddInt64Value(ctx, key, value)
+	if err != nil {
+		return 0, fmt.Errorf("cannot add int64 value in filestorage err: %w", err)
+	}
+
+	if fs.storeInterval == 0 {
+		if err := fs.Save(fs.MemStorage); err != nil {
+			return 0, fmt.Errorf("synchronous saving to file storage cannot be performed err: %w", err)
+		}
+	}
+	return newValue, nil
+
+}
+
+func (fs *Filestorage) SetFloat64Value(ctx context.Context, key string, value float64) (float64, error) {
+
+	newValue, err := fs.MemStorage.SetFloat64Value(ctx, key, value)
+	if err != nil {
+		return 0, fmt.Errorf("cannot set float64 value in filestorage err: %w", err)
+	}
+
+	if fs.storeInterval == 0 {
+		if err := fs.Save(fs.MemStorage); err != nil {
+			return 0, fmt.Errorf("synchronous saving to file storage cannot be performed err: %w", err)
+		}
+	}
+	return newValue, nil
 
 }
 
 func (fs *Filestorage) Save(storage *MemStorage) error {
 
-	ss := sleepstepper.NewSleepStepper(1, 2, 5)
-	file, err := retryOpenFile(os.OpenFile, ss, fs.path, os.O_WRONLY|os.O_CREATE, 0666)
+	file, err := os.OpenFile(fs.path, os.O_WRONLY|os.O_CREATE, 0666)
 
 	if err != nil {
 		return fmt.Errorf("cannot open or creating file for state saving err: %w", err)
@@ -106,8 +139,7 @@ func (fs *Filestorage) Save(storage *MemStorage) error {
 
 func (fs *Filestorage) Load(storage *MemStorage) error {
 
-	ss := sleepstepper.NewSleepStepper(1, 2, 5)
-	file, err := retryOpenFile(os.OpenFile, ss, fs.path, os.O_RDONLY|os.O_CREATE, 0666)
+	file, err := os.OpenFile(fs.path, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return fmt.Errorf("cannot open or creating file for state loading err: %w", err)
 	}
@@ -146,7 +178,7 @@ func (fs *Filestorage) runIntervalStateSaving() {
 	for {
 		time.Sleep(sleepDuration)
 		if err := fs.Save(fs.MemStorage); err != nil {
-			fs.logger.Errorf("cannot save state err: %w", err)
+			fs.logger.Log.Errorf("cannot save state err: %w", err)
 		}
 	}
 
@@ -163,27 +195,4 @@ func (fs *Filestorage) Interrupt() error {
 
 func (fs *Filestorage) Ping(ctx context.Context) error {
 	return nil
-}
-
-type OpenFileFunc func(name string, flag int, perm fs.FileMode) (*os.File, error)
-
-func retryOpenFile(f OpenFileFunc, ss Sleeper, name string, flag int, perm fs.FileMode) (*os.File, error) {
-
-	row, err := f(name, flag, perm)
-	if err != nil {
-
-		if !errors.Is(err, syscall.EACCES) {
-			return nil, err
-		}
-
-		if !ss.Sleep() {
-			return nil, err
-		}
-
-		return retryOpenFile(f, ss, name, flag, perm)
-
-	}
-
-	return row, nil
-
 }

@@ -45,7 +45,15 @@ func main() {
 	i.Use(stg.Interrupt)
 
 	s := metcoll.NewServer(cfg)
-	i.Use(s.Interrupt)
+	i.Use(func() error {
+
+		if err := s.Shutdown(ctx); err != nil {
+			return err
+		}
+
+		return nil
+
+	})
 
 	s.Handler = handlers.NewRouter(ctx, handlers.NewHandler(stg, l), l.RequestLogger, compress.CompressMiddleware)
 

@@ -2,201 +2,301 @@ package storage
 
 import (
 	"context"
-	"database/sql"
+	"syscall"
+	"time"
+
 	"errors"
 	"fmt"
 	"strconv"
 
+	"github.com/avast/retry-go"
 	"github.com/jackc/pgerrcode"
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/ArtemShalinFe/metcoll/internal/sleepstepper"
+	"github.com/ArtemShalinFe/metcoll/internal/logger"
 )
 
-type SQLStorage struct {
-	db *sql.DB
-	l  Logger
+type DB struct {
+	pool *pgxpool.Pool
 }
 
-func newSQLStorage(ctx context.Context, dataSourceName string, logger Logger) (*SQLStorage, error) {
+func newSQLStorage(ctx context.Context, dataSourceName string, logger *logger.AppLogger) (*DB, error) {
 
-	db, err := sql.Open("pgx", dataSourceName)
+	pool, err := pgxpool.New(context.Background(), dataSourceName)
 	if err != nil {
-		return nil, fmt.Errorf("cannot open database connection err: %w", err)
+		return nil, fmt.Errorf("failed to create a connection pool: %w", err)
 	}
 
-	logger.Infof("successfully opened connection to database")
+	logger.Log.Infof("successfully opened connection to database")
 
-	s := &SQLStorage{
-		db: db,
-		l:  logger}
+	db := &DB{
+		pool: pool}
 
-	if err := s.createTables(ctx); err != nil {
+	if err := db.createTables(ctx); err != nil {
 		return nil, err
 	}
 
-	logger.Infof("successfully created tables in database")
+	logger.Log.Infof("successfully created tables in database")
 
-	return s, nil
+	return db, nil
 }
 
-func (s *SQLStorage) createTables(ctx context.Context) error {
+func (db *DB) createTables(ctx context.Context) error {
 
-	rctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	t, err := s.db.BeginTx(rctx, nil)
+	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("cannot begin transaction for creating tables err : %w", err)
 	}
 
-	q := `CREATE TABLE IF NOT EXISTS 
-		counters (id character(36) PRIMARY KEY, 
-				value bigint);`
-	if _, err := t.ExecContext(rctx, q); err != nil {
-		return fmt.Errorf("cannot create counter table err : %w", err)
+	defer tx.Rollback(ctx)
+
+	q := `CREATE TABLE IF NOT EXISTS counters (id character(36) PRIMARY KEY, value bigint);`
+	if err = retryExec(ctx, tx, q); err != nil {
+		return fmt.Errorf("cannot create table for gauges err : %w", err)
 	}
 
-	q = `CREATE TABLE IF NOT EXISTS 
-		gauges (id character(36) PRIMARY KEY, 
-				delta double precision);`
-	if _, err := t.ExecContext(rctx, q); err != nil {
-		return fmt.Errorf("cannot create gauge table err : %w", err)
+	q = `CREATE TABLE IF NOT EXISTS gauges (id character(36) PRIMARY KEY, delta double precision);`
+	if err = retryExec(ctx, tx, q); err != nil {
+		return fmt.Errorf("cannot create table for couters err : %w", err)
 	}
 
-	return t.Commit()
+	return retryCommit(ctx, tx)
 
 }
 
-func (s *SQLStorage) GetInt64Value(ctx context.Context, key string) (int64, bool) {
+func (db *DB) GetInt64Value(ctx context.Context, key string) (int64, error) {
 
-	ok := true
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("cannot begin transaction err: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	q := `SELECT value FROM counters WHERE id = $1`
-
-	rctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	row, err := s.QueryRowContext(rctx, q, key)
+	val, err := retryQueryRowInt64(ctx, tx, q, key)
 	if err != nil {
-		s.l.Errorf("query %s \n\n execute error: %w", q, err)
-		return 0, false
-	}
-
-	var val int64
-	err = row.Scan(&val)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			ok = false
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, ErrNoRows
 		} else {
-			s.l.Errorf("query %s \n\n execute error: %w", q, err)
-			return val, false
+			return 0, fmt.Errorf("query %s \n\n execute error: %w", q, err)
 		}
 	}
 
-	return val, ok
+	if err = retryCommit(ctx, tx); err != nil {
+		return 0, fmt.Errorf("cannot commit transaction err: %w", err)
+	}
+
+	return val, nil
 
 }
 
-func (s *SQLStorage) GetFloat64Value(ctx context.Context, key string) (float64, bool) {
+func (db *DB) GetFloat64Value(ctx context.Context, key string) (float64, error) {
 
-	ok := true
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("cannot begin transaction err: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	q := `SELECT delta FROM gauges WHERE id = $1`
-
-	rctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	row, err := s.QueryRowContext(rctx, q, key)
+	val, err := retryQueryRowFloat64(ctx, tx, q, key)
 	if err != nil {
-		s.l.Errorf("query %s \n\n execute error: %w", q, err)
-		return 0, false
-	}
-
-	var val float64
-	err = row.Scan(&val)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			ok = false
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, ErrNoRows
 		} else {
-			s.l.Errorf("query %s \n\n execute error: %w", q, err)
-			return val, false
+			return 0, fmt.Errorf("query %s \n\n execute error: %w", q, err)
 		}
 	}
 
-	return val, ok
+	if err = retryCommit(ctx, tx); err != nil {
+		return 0, fmt.Errorf("cannot commit transaction err: %w", err)
+	}
+
+	return val, nil
 
 }
 
-func (s *SQLStorage) AddInt64Value(ctx context.Context, key string, value int64) int64 {
+func (db *DB) AddInt64Value(ctx context.Context, key string, value int64) (int64, error) {
 
-	val, _ := s.GetInt64Value(ctx, key)
-	val += value
-
-	q := `
-	INSERT INTO counters (id, value) VALUES ($1, $2)
-	ON CONFLICT (id) DO UPDATE SET value = $2 
-	RETURNING value`
-
-	rctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	row, err := s.QueryRowContext(rctx, q, key, val)
+	tx, err := db.pool.Begin(ctx)
 	if err != nil {
-		s.l.Errorf("query %s \n\n execute error: %w", q, err)
-		return value
+		return 0, fmt.Errorf("cannot begin transaction err: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	q := `
+	INSERT 
+		INTO counters (id, value) 
+		VALUES ($1, $2)
+	ON CONFLICT (id) 
+		DO UPDATE SET value = $2 + (SELECT value FROM counters WHERE id = $1)
+	RETURNING value
+	`
+
+	val, err := retryQueryRowInt64(ctx, tx, q, key, value)
+	if err != nil {
+		return 0, fmt.Errorf("query %s \n\n execute error: %w", q, err)
 	}
 
-	var newVal int64
-	if err = row.Scan(&newVal); err != nil {
-		s.l.Errorf("query %s \n\n scan error: %w", q, err)
-		return 0
+	if err = retryCommit(ctx, tx); err != nil {
+		return 0, fmt.Errorf("cannot commit transaction err: %w", err)
 	}
 
-	return val
+	return val, nil
 
 }
 
-func (s *SQLStorage) SetFloat64Value(ctx context.Context, key string, value float64) float64 {
+func (db *DB) SetFloat64Value(ctx context.Context, key string, value float64) (float64, error) {
+
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("cannot begin transaction err: %w", err)
+	}
+	defer tx.Rollback(ctx)
 
 	q := `
-	INSERT INTO gauges (id, delta) VALUES ($1, $2)
-	ON CONFLICT (id) DO UPDATE SET delta = $2
+	INSERT 
+		INTO gauges (id, delta) 
+		VALUES ($1, $2)
+	ON CONFLICT (id) 
+		DO UPDATE SET delta = $2
 	RETURNING delta
 	`
 
-	rctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	row, err := s.QueryRowContext(rctx, q, key, value)
+	val, err := retryQueryRowFloat64(ctx, tx, q, key, value)
 	if err != nil {
-		s.l.Errorf("query %s \n\n execute error: %w", q, err)
-		return value
+		return 0, fmt.Errorf("query %s \n\n execute error: %w", q, err)
 	}
 
-	var newVal float64
-	if err = row.Scan(&newVal); err != nil {
-		s.l.Errorf("query %s \n\n scan error: %w", q, err)
-		return 0
+	if err = retryCommit(ctx, tx); err != nil {
+		return 0, fmt.Errorf("cannot commit transaction err: %w", err)
 	}
 
-	return newVal
+	return val, nil
 
 }
 
-func (s *SQLStorage) GetAllDataInt64(ctx context.Context) map[string]int64 {
+func (db *DB) BatchSetFloat64Value(ctx context.Context, gauges map[string]float64) (map[string]float64, []error, error) {
+
+	var errs []error
+
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		return nil, errs, fmt.Errorf("cannot begin transaction err: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	batch := &pgx.Batch{}
+
+	sqlStatement := `
+	INSERT 
+		INTO gauges (id, delta) 
+		VALUES ($1, $2)
+	ON CONFLICT (id) 
+		DO UPDATE SET delta = $2
+	RETURNING id, delta
+	`
+	idMap := make(map[int]string)
+	for gauge, delta := range gauges {
+		batch.Queue(sqlStatement, gauge, delta)
+		idMap[batch.Len()-1] = gauge
+	}
+
+	results := tx.SendBatch(ctx, batch)
+	defer results.Close()
+
+	updated := make(map[string]float64)
+	for i := 0; i < len(gauges); i++ {
+
+		id, val, err := retryBatchResultQueryRowFloat64(ctx, results)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("metric %s update error", idMap[i]))
+		}
+
+		updated[id] = val
+
+	}
+	if err = results.Close(); err != nil {
+		return nil, errs, fmt.Errorf("batch update err: %w", err)
+	}
+
+	if err = retryCommit(ctx, tx); err != nil {
+		return nil, errs, fmt.Errorf("cannot commit transaction err: %w", err)
+	}
+
+	return updated, errs, nil
+
+}
+
+func (db *DB) BatchAddInt64Value(ctx context.Context, counters map[string]int64) (map[string]int64, []error, error) {
+
+	var errs []error
+
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		return nil, errs, fmt.Errorf("cannot begin transaction err: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	batch := &pgx.Batch{}
+
+	sqlStatement := `
+	INSERT 
+		INTO counters (id, value) 
+		VALUES ($1, $2)
+	ON CONFLICT (id) 
+		DO UPDATE SET value = $2 + (SELECT value FROM counters WHERE id = $1)
+	RETURNING id, value
+	`
+
+	idMap := make(map[int]string)
+	for counter, value := range counters {
+		batch.Queue(sqlStatement, counter, value)
+		idMap[batch.Len()-1] = counter
+	}
+
+	results := tx.SendBatch(ctx, batch)
+	defer results.Close()
+
+	updated := make(map[string]int64)
+	for i := 0; i < len(counters); i++ {
+
+		id, val, err := retryBatchResultQueryRowInt64(ctx, results)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("metric %s update error", idMap[i]))
+		}
+		updated[id] = val
+
+	}
+	if err = results.Close(); err != nil {
+		return nil, errs, fmt.Errorf("batch update err: %w", err)
+	}
+
+	if err = retryCommit(ctx, tx); err != nil {
+		return nil, errs, fmt.Errorf("cannot commit transaction err: %w", err)
+	}
+
+	return updated, errs, nil
+
+}
+
+func (db *DB) GetAllDataInt64(ctx context.Context) (map[string]int64, error) {
 
 	dataInt64 := make(map[string]int64)
 
-	q := `SELECT id, value FROM counters;`
-
-	rctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	r, err := s.db.QueryContext(rctx, q)
+	tx, err := db.pool.Begin(ctx)
 	if err != nil {
-		s.l.Errorf("query %s \n\n execute error: %w", q, err)
-		return dataInt64
+		return dataInt64, fmt.Errorf("cannot begin transaction err: %w", err)
 	}
+	defer tx.Rollback(ctx)
 
+	q := `SELECT id, value FROM counters;`
+	r, err := retryQuery(ctx, tx, q)
+	if err != nil {
+		return dataInt64, fmt.Errorf("query %s \n\n execute error: %w", q, err)
+	}
 	defer r.Close()
 
 	for r.Next() {
@@ -206,8 +306,7 @@ func (s *SQLStorage) GetAllDataInt64(ctx context.Context) map[string]int64 {
 
 		err = r.Scan(&id, &value)
 		if err != nil {
-			s.l.Errorf("get all int64 data err: %w", err)
-			return dataInt64
+			return dataInt64, fmt.Errorf("get all int64 data err: %w", err)
 		}
 
 		dataInt64[id] = value
@@ -215,27 +314,31 @@ func (s *SQLStorage) GetAllDataInt64(ctx context.Context) map[string]int64 {
 	}
 
 	if r.Err() != nil {
-		s.l.Errorf("get all int64 data iteration err: %w", q, err)
-		return dataInt64
+		return dataInt64, fmt.Errorf("get all int64 data iteration err: %w", err)
 	}
 
-	return dataInt64
+	if err = retryCommit(ctx, tx); err != nil {
+		return dataInt64, fmt.Errorf("cannot commit transaction err: %w", err)
+	}
+
+	return dataInt64, nil
 
 }
 
-func (s *SQLStorage) GetAllDataFloat64(ctx context.Context) map[string]float64 {
+func (db *DB) GetAllDataFloat64(ctx context.Context) (map[string]float64, error) {
 
 	dataFloat64 := make(map[string]float64)
 
-	q := `SELECT id, delta FROM gauges as c;`
-
-	rctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	r, err := s.db.QueryContext(rctx, q)
+	tx, err := db.pool.Begin(ctx)
 	if err != nil {
-		s.l.Errorf("query %s \n\n execute error: %w", q, err)
-		return dataFloat64
+		return dataFloat64, fmt.Errorf("cannot begin transaction err: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	q := `SELECT id, delta FROM gauges;`
+	r, err := retryQuery(ctx, tx, q)
+	if err != nil {
+		return dataFloat64, fmt.Errorf("query %s \n\n execute error: %w", q, err)
 	}
 	defer r.Close()
 
@@ -246,8 +349,7 @@ func (s *SQLStorage) GetAllDataFloat64(ctx context.Context) map[string]float64 {
 
 		err = r.Scan(&id, &value)
 		if err != nil {
-			s.l.Errorf("get all float64 data err: %w", err)
-			return dataFloat64
+			return dataFloat64, fmt.Errorf("get all int64 data err: %w", err)
 		}
 
 		dataFloat64[id] = value
@@ -255,79 +357,218 @@ func (s *SQLStorage) GetAllDataFloat64(ctx context.Context) map[string]float64 {
 	}
 
 	if r.Err() != nil {
-		s.l.Errorf("get all int64 data iteration err: %w", q, err)
-		return dataFloat64
+		return dataFloat64, fmt.Errorf("get all int64 data iteration err: %w", err)
 	}
 
-	return dataFloat64
+	if err = retryCommit(ctx, tx); err != nil {
+		return dataFloat64, fmt.Errorf("cannot commit transaction err: %w", err)
+	}
+
+	return dataFloat64, nil
 
 }
 
-func (s *SQLStorage) GetDataList(ctx context.Context) []string {
+func (db *DB) GetDataList(ctx context.Context) ([]string, error) {
 
 	var list []string
 
-	for k, v := range s.GetAllDataFloat64(ctx) {
+	AllDataFloat64, err := db.GetAllDataFloat64(ctx)
+	if err != nil {
+		return list, err
+	}
+
+	for k, v := range AllDataFloat64 {
 		fv := strconv.FormatFloat(v, 'G', 12, 64)
 		list = append(list, fmt.Sprintf("%s %s", k, fv))
 	}
 
-	for k, v := range s.GetAllDataInt64(ctx) {
+	AllDataInt64, err := db.GetAllDataInt64(ctx)
+	if err != nil {
+		return list, err
+	}
+
+	for k, v := range AllDataInt64 {
 		iv := strconv.FormatInt(v, 10)
 		list = append(list, fmt.Sprintf("%s %s", k, iv))
 	}
 
-	return list
+	return list, nil
 
 }
 
-func (s *SQLStorage) Interrupt() error {
-	return s.db.Close()
-}
+func (db *DB) Interrupt() error {
 
-func (s *SQLStorage) Ping(ctx context.Context) error {
-	return s.db.PingContext(ctx)
-}
-
-type SQLStater interface {
-	SQLState() string
-}
-
-type Sleeper interface {
-	Sleep() bool
-}
-
-func (s *SQLStorage) QueryRowContext(ctx context.Context, query string, args ...any) (*sql.Row, error) {
-
-	ss := sleepstepper.NewSleepStepper(1, 2, 5)
-	return retryQuerryRowContext(s.db.QueryRowContext, ctx, query, ss, args...)
+	db.pool.Close()
+	return nil
 
 }
 
-type QuerryRowContextFunc func(ctx context.Context, query string, args ...any) *sql.Row
+func (db *DB) Ping(ctx context.Context) error {
+	return db.pool.Ping(ctx)
+}
 
-func retryQuerryRowContext(f QuerryRowContextFunc, ctx context.Context, query string, ss Sleeper, args ...any) (*sql.Row, error) {
+func retryExec(ctx context.Context, tx pgx.Tx, sql string, arguments ...any) error {
 
-	row := f(ctx, query, args...)
-	if err := row.Err(); err != nil {
+	return retry.Do(
+		func() error {
+			_, err := tx.Exec(ctx, sql)
+			return err
+		},
+		retry.Context(ctx),
+		retry.Attempts(3),
+		retry.Delay(time.Duration(2*time.Second)),
+		retry.MaxDelay(time.Duration(2*time.Second)),
+		retry.RetryIf(retryIf),
+		retry.LastErrorOnly(true),
+	)
 
-		pgerr, ok := err.(SQLStater)
-		if !ok {
-			return nil, err
+}
+
+func retryCommit(ctx context.Context, tx pgx.Tx) error {
+
+	return retry.Do(
+		func() error {
+			return tx.Commit(ctx)
+		},
+		retry.Context(ctx),
+		retry.Attempts(3),
+		retry.Delay(time.Duration(2*time.Second)),
+		retry.MaxDelay(time.Duration(2*time.Second)),
+		retry.RetryIf(retryIf),
+		retry.LastErrorOnly(true),
+	)
+
+}
+
+func retryQueryRowInt64(ctx context.Context, tx pgx.Tx, sql string, args ...any) (int64, error) {
+
+	var val int64
+	err := retry.Do(
+		func() error {
+			row := tx.QueryRow(ctx, sql, args...)
+			return row.Scan(&val)
+		},
+		retry.Context(ctx),
+		retry.Attempts(3),
+		retry.Delay(time.Duration(2*time.Second)),
+		retry.MaxDelay(time.Duration(2*time.Second)),
+		retry.RetryIf(retryIf),
+		retry.LastErrorOnly(true),
+	)
+
+	return val, err
+
+}
+
+func retryQueryRowFloat64(ctx context.Context, tx pgx.Tx, sql string, args ...any) (float64, error) {
+
+	var val float64
+	err := retry.Do(
+		func() error {
+			row := tx.QueryRow(ctx, sql, args...)
+			return row.Scan(&val)
+		},
+		retry.Context(ctx),
+		retry.Attempts(3),
+		retry.Delay(time.Duration(2*time.Second)),
+		retry.MaxDelay(time.Duration(2*time.Second)),
+		retry.RetryIf(retryIf),
+		retry.LastErrorOnly(true),
+	)
+
+	return val, err
+
+}
+
+func retryBatchResultQueryRowFloat64(ctx context.Context, results pgx.BatchResults) (string, float64, error) {
+
+	var id string
+	var val float64
+
+	err := retry.Do(
+		func() error {
+			err := results.QueryRow().Scan(&id, &val)
+			if err != nil {
+				if err != pgx.ErrNoRows {
+					return fmt.Errorf("getting results gauge err: %w", err)
+				}
+			}
+			return err
+		},
+		retry.Context(ctx),
+		retry.Attempts(3),
+		retry.Delay(time.Duration(2*time.Second)),
+		retry.MaxDelay(time.Duration(2*time.Second)),
+		retry.RetryIf(retryIf),
+		retry.LastErrorOnly(true),
+	)
+
+	return id, val, err
+
+}
+
+func retryBatchResultQueryRowInt64(ctx context.Context, results pgx.BatchResults) (string, int64, error) {
+
+	var id string
+	var val int64
+
+	err := retry.Do(
+		func() error {
+			err := results.QueryRow().Scan(&id, &val)
+			if err != nil {
+				if err != pgx.ErrNoRows {
+					return fmt.Errorf("getting results gauge err: %w", err)
+				}
+			}
+			return err
+		},
+		retry.Context(ctx),
+		retry.Attempts(3),
+		retry.Delay(time.Duration(2*time.Second)),
+		retry.MaxDelay(time.Duration(2*time.Second)),
+		retry.RetryIf(retryIf),
+		retry.LastErrorOnly(true),
+	)
+
+	return id, val, err
+
+}
+
+func retryQuery(ctx context.Context, tx pgx.Tx, sql string, args ...any) (pgx.Rows, error) {
+
+	var rows pgx.Rows
+	var err error
+
+	err = retry.Do(
+		func() error {
+			rows, err = tx.Query(ctx, sql)
+			return err
+		},
+		retry.Context(ctx),
+		retry.Attempts(3),
+		retry.Delay(time.Duration(2*time.Second)),
+		retry.MaxDelay(time.Duration(2*time.Second)),
+		retry.RetryIf(retryIf),
+		retry.LastErrorOnly(true),
+	)
+
+	return rows, err
+
+}
+
+func retryIf(err error) bool {
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if pgerrcode.IsConnectionException(pgErr.Code) {
+			return true
+		} else if errors.Is(err, syscall.ECONNREFUSED) {
+			return true
+		} else {
+			return false
 		}
-
-		if !pgerrcode.IsConnectionException(pgerr.SQLState()) {
-			return nil, err
-		}
-
-		if !ss.Sleep() {
-			return nil, err
-		}
-
-		return retryQuerryRowContext(f, ctx, query, ss, args...)
-
 	}
 
-	return row, nil
+	return false
 
 }

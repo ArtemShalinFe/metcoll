@@ -26,8 +26,7 @@ func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.
 			return
 		}
 
-		rctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+		rctx := r.Context()
 
 		handlers.UpdateMetricFromURL(rctx, w, metricName, metricType, metricValue)
 
@@ -35,8 +34,7 @@ func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.
 
 	router.Post("/update/", func(w http.ResponseWriter, r *http.Request) {
 
-		rctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+		rctx := r.Context()
 
 		handlers.UpdateMetric(rctx, w, r.Body)
 
@@ -52,8 +50,7 @@ func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.
 			return
 		}
 
-		rctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+		rctx := r.Context()
 
 		handlers.ReadMetricFromURL(rctx, w, metricName, metricType)
 
@@ -61,8 +58,7 @@ func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.
 
 	router.Post("/value/", func(w http.ResponseWriter, r *http.Request) {
 
-		rctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+		rctx := r.Context()
 
 		handlers.ReadMetric(rctx, w, r.Body)
 
@@ -70,8 +66,7 @@ func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.
 
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 
-		rctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+		rctx := r.Context()
 
 		handlers.CollectMetricList(rctx, w)
 
@@ -79,8 +74,7 @@ func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.
 
 	router.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 
-		rctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+		rctx := r.Context()
 
 		handlers.Ping(rctx, w)
 
@@ -88,8 +82,7 @@ func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.
 
 	router.Post("/updates/", func(w http.ResponseWriter, r *http.Request) {
 
-		rctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+		rctx := r.Context()
 
 		handlers.BatchUpdate(rctx, w, r.Body)
 
