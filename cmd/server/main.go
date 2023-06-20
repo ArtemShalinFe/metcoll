@@ -66,7 +66,8 @@ func main() {
 	s.Handler = handlers.NewRouter(ctx,
 		handlers.NewHandler(stg, l.SugaredLogger),
 		l.RequestLogger,
-		compress.CompressMiddleware)
+		compress.CompressMiddleware,
+		s.RequestHashChecker)
 
 	i.Run(l.SugaredLogger)
 
