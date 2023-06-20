@@ -56,15 +56,21 @@ func (db *DB) createTables(ctx context.Context) error {
 		commitTransaction(ctx, tx, db.logger)
 	}()
 
-	q := `CREATE TABLE IF NOT EXISTS counters (id character(36) PRIMARY KEY, value bigint);`
-	if err = retryExec(ctx, tx, q); err != nil {
-		return fmt.Errorf("cannot create table for gauges err : %w", err)
-	}
+	err = func() error {
 
-	q = `CREATE TABLE IF NOT EXISTS gauges (id character(36) PRIMARY KEY, delta double precision);`
-	if err = retryExec(ctx, tx, q); err != nil {
-		return fmt.Errorf("cannot create table for couters err : %w", err)
-	}
+		q := `CREATE TABLE IF NOT EXISTS counters (id character(36) PRIMARY KEY, value bigint);`
+		if err = retryExec(ctx, tx, q); err != nil {
+			return fmt.Errorf("cannot create table for gauges err : %w", err)
+		}
+
+		q = `CREATE TABLE IF NOT EXISTS gauges (id character(36) PRIMARY KEY, delta double precision);`
+		if err = retryExec(ctx, tx, q); err != nil {
+			return fmt.Errorf("cannot create table for couters err : %w", err)
+		}
+
+		return nil
+
+	}()
 
 	if err != nil {
 		if err = retryRollback(ctx, tx); err != nil {
@@ -526,7 +532,11 @@ func retryCommit(ctx context.Context, tx pgx.Tx) error {
 
 	return retry.Do(
 		func() error {
-			return tx.Commit(ctx)
+			err := tx.Commit(ctx)
+			if errors.Is(err, pgx.ErrTxClosed) {
+				return nil
+			}
+			return err
 		},
 		retryOptions(ctx)...,
 	)
