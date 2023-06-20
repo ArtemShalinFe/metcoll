@@ -8,14 +8,15 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/ArtemShalinFe/metcoll/internal/logger"
+	"go.uber.org/zap"
+
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
 type Handler struct {
 	storage Storage
-	logger  *logger.AppLogger
+	logger  *zap.SugaredLogger
 }
 
 type Storage interface {
@@ -29,7 +30,7 @@ type Storage interface {
 	Ping(ctx context.Context) error
 }
 
-func NewHandler(s Storage, l *logger.AppLogger) *Handler {
+func NewHandler(s Storage, l *zap.SugaredLogger) *Handler {
 
 	return &Handler{
 		storage: s,
@@ -53,7 +54,7 @@ func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) 
 	ms, err := h.storage.GetDataList(ctx)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("GetMetricList error: %w", err)
+		h.logger.Errorf("GetMetricList error: %w", err)
 	}
 
 	list := ""
@@ -66,7 +67,7 @@ func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) 
 
 	if _, err := w.Write([]byte(fmt.Sprintf(body, list))); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("GetMetricList error: %w", err)
+		h.logger.Errorf("GetMetricList error: %w", err)
 	}
 
 }
@@ -76,15 +77,15 @@ func (h *Handler) UpdateMetricFromURL(ctx context.Context, w http.ResponseWriter
 	m, err := metrics.NewMetric(id, mType, value)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
-		h.logger.Log.Errorf("UpdateMetric error: %w", err)
+		h.logger.Errorf("UpdateMetric error: %w", err)
 		return
 	}
 
-	h.logger.Log.Infof("Trying update %s metric %s with value: %s", m.MType, m.ID, m.String())
+	h.logger.Infof("Trying update %s metric %s with value: %s", m.MType, m.ID, m.String())
 
 	if err := m.Update(ctx, h.storage); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("UpdateMetric error: %w", err)
+		h.logger.Errorf("UpdateMetric error: %w", err)
 		return
 	}
 
@@ -94,11 +95,11 @@ func (h *Handler) UpdateMetricFromURL(ctx context.Context, w http.ResponseWriter
 	resp := fmt.Sprintf("%s %s", m.ID, m.String())
 	if _, err = w.Write([]byte(resp)); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("UpdateMetric error: %w", err)
+		h.logger.Errorf("UpdateMetric error: %w", err)
 		return
 	}
 
-	h.logger.Log.Infof("Metric was updated - %s new value: %s", m.ID, m.String())
+	h.logger.Infof("Metric was updated - %s new value: %s", m.ID, m.String())
 
 }
 
@@ -109,13 +110,13 @@ func (h *Handler) UpdateMetric(ctx context.Context, w http.ResponseWriter, body 
 	b, err := io.ReadAll(body)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("UpdateMetric read body error: %w", err)
+		h.logger.Errorf("UpdateMetric read body error: %w", err)
 		return
 	}
 
 	if err := json.Unmarshal(b, &m); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
-		h.logger.Log.Errorf("UpdateMetric unmarshal error: %w", err)
+		h.logger.Errorf("UpdateMetric unmarshal error: %w", err)
 		return
 	}
 
@@ -129,23 +130,23 @@ func (h *Handler) UpdateMetric(ctx context.Context, w http.ResponseWriter, body 
 		return
 	}
 
-	h.logger.Log.Infof("Trying update %s metric %s with value: %s", m.MType, m.ID, m.String())
-	h.logger.Log.Debugf("UpdateMetric body: %s", string(b))
+	h.logger.Infof("Trying update %s metric %s with value: %s", m.MType, m.ID, m.String())
+	h.logger.Debugf("UpdateMetric body: %s", string(b))
 
 	if err := m.Update(ctx, h.storage); err != nil {
 		if !errors.Is(err, storage.ErrNoRows) {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			h.logger.Log.Errorf("UpdateMetric error: %w", err)
+			h.logger.Errorf("UpdateMetric error: %w", err)
 			return
 		}
 	}
 
-	h.logger.Log.Infof("Metric was updated - %s new value: %s", m.ID, m.String())
+	h.logger.Infof("Metric was updated - %s new value: %s", m.ID, m.String())
 
 	b, err = json.Marshal(&m)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("UpdateMetric marshal to json error: %w", err)
+		h.logger.Errorf("UpdateMetric marshal to json error: %w", err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -153,7 +154,7 @@ func (h *Handler) UpdateMetric(ctx context.Context, w http.ResponseWriter, body 
 
 	if _, err = w.Write(b); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("UpdateMetric error: %w", err)
+		h.logger.Errorf("UpdateMetric error: %w", err)
 		return
 	}
 
@@ -168,29 +169,29 @@ func (h *Handler) BatchUpdate(ctx context.Context, w http.ResponseWriter, body i
 	b, err := io.ReadAll(body)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("BatchUpdate read body error: %w", err)
+		h.logger.Errorf("BatchUpdate read body error: %w", err)
 		return
 	}
 
 	if err := json.Unmarshal(b, &ms); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
-		h.logger.Log.Errorf("BatchUpdate unmarshal error: %w", err)
+		h.logger.Errorf("BatchUpdate unmarshal error: %w", err)
 		return
 	}
 
-	h.logger.Log.Debugf("BatchUpdate body: %s", string(b))
+	h.logger.Debugf("BatchUpdate body: %s", string(b))
 
 	for _, m := range ms {
 
 		if m.MType != metrics.CounterMetric && m.MType != metrics.GaugeMetric {
 			http.Error(w, "Bad request", http.StatusBadRequest)
-			h.logger.Log.Infof("metric %s has unknow type: %s", m.ID, m.MType)
+			h.logger.Infof("metric %s has unknow type: %s", m.ID, m.MType)
 			return
 		}
 
 		if m.Delta == nil && m.Value == nil {
 			http.Error(w, "Bad request", http.StatusBadRequest)
-			h.logger.Log.Infof("metric %s has nil delta and value", m.ID)
+			h.logger.Infof("metric %s has nil delta and value", m.ID)
 			return
 		}
 
@@ -201,18 +202,18 @@ func (h *Handler) BatchUpdate(ctx context.Context, w http.ResponseWriter, body i
 	ums, errs, err := metrics.BatchUpdate(ctx, ms, h.storage)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
-		h.logger.Log.Errorf("BatchUpdate update error: %w", err)
+		h.logger.Errorf("BatchUpdate update error: %w", err)
 		return
 	}
 
 	for _, um := range ums {
-		h.logger.Log.Infof("Metric %s was updated. New value: %s", um.ID, um.String())
+		h.logger.Infof("Metric %s was updated. New value: %s", um.ID, um.String())
 	}
 
 	b, err = json.Marshal(&errs)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("BatchUpdate marshal to json error: %w", err)
+		h.logger.Errorf("BatchUpdate marshal to json error: %w", err)
 		return
 	}
 
@@ -220,7 +221,7 @@ func (h *Handler) BatchUpdate(ctx context.Context, w http.ResponseWriter, body i
 
 	if _, err = w.Write(b); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("BatchUpdate error: %w", err)
+		h.logger.Errorf("BatchUpdate error: %w", err)
 		return
 	}
 
@@ -240,7 +241,7 @@ func (h *Handler) ReadMetricFromURL(ctx context.Context, w http.ResponseWriter, 
 			return
 		} else {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			h.logger.Log.Errorf("UpdateMetric error: %w", err)
+			h.logger.Errorf("UpdateMetric error: %w", err)
 			return
 		}
 	}
@@ -250,7 +251,7 @@ func (h *Handler) ReadMetricFromURL(ctx context.Context, w http.ResponseWriter, 
 
 	if _, err = w.Write([]byte(m.String())); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("GetMetric error: %w", err)
+		h.logger.Errorf("GetMetric error: %w", err)
 		return
 	}
 
@@ -263,13 +264,13 @@ func (h *Handler) ReadMetric(ctx context.Context, w http.ResponseWriter, body io
 	b, err := io.ReadAll(body)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("ReadMetric error: %w", err)
+		h.logger.Errorf("ReadMetric error: %w", err)
 		return
 	}
 
 	if err := json.Unmarshal(b, &m); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
-		h.logger.Log.Errorf("ReadMetric marshal error: %w", err)
+		h.logger.Errorf("ReadMetric marshal error: %w", err)
 		return
 	}
 
@@ -284,7 +285,7 @@ func (h *Handler) ReadMetric(ctx context.Context, w http.ResponseWriter, body io
 			return
 		} else {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			h.logger.Log.Errorf("ReadMetric error: %w", err)
+			h.logger.Errorf("ReadMetric error: %w", err)
 			return
 		}
 	}
@@ -292,7 +293,7 @@ func (h *Handler) ReadMetric(ctx context.Context, w http.ResponseWriter, body io
 	b, err = json.Marshal(m)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("ReadMetric marshal to json error: %w", err)
+		h.logger.Errorf("ReadMetric marshal to json error: %w", err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -300,7 +301,7 @@ func (h *Handler) ReadMetric(ctx context.Context, w http.ResponseWriter, body io
 
 	if _, err = w.Write([]byte(b)); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("GetMetric error: %w", err)
+		h.logger.Errorf("GetMetric error: %w", err)
 		return
 	}
 
@@ -310,7 +311,7 @@ func (h *Handler) Ping(ctx context.Context, w http.ResponseWriter) {
 
 	if err := h.storage.Ping(ctx); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Log.Errorf("Ping error: %w", err)
+		h.logger.Errorf("Ping error: %w", err)
 		return
 	}
 

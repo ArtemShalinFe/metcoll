@@ -10,12 +10,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUpdateMetricFromUrl(t *testing.T) {
@@ -33,7 +34,7 @@ func TestUpdateMetricFromUrl(t *testing.T) {
 		t.Errorf("cannot init storage err: %v", err)
 	}
 
-	h := NewHandler(s, l)
+	h := NewHandler(s, l.SugaredLogger)
 	r := NewRouter(ctx, h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
@@ -89,7 +90,7 @@ func TestUpdateMetric(t *testing.T) {
 		t.Errorf("cannot init logger err: %v", err)
 	}
 
-	h := NewHandler(s, l)
+	h := NewHandler(s, l.SugaredLogger)
 	r := NewRouter(ctx, h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
@@ -272,7 +273,7 @@ func TestHandler_BatchUpdate(t *testing.T) {
 		t.Errorf("cannot init logger err: %v", err)
 	}
 
-	h := NewHandler(s, l)
+	h := NewHandler(s, l.SugaredLogger)
 	r := NewRouter(ctx, h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
@@ -340,7 +341,7 @@ func TestCollectMetricList(t *testing.T) {
 		t.Errorf("cannot init logger err: %v", err)
 	}
 
-	h := NewHandler(s, l)
+	h := NewHandler(s, l.SugaredLogger)
 	r := NewRouter(ctx, h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)

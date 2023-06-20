@@ -13,7 +13,7 @@ go-tests: go-mockgen
 	go tool cover -html=coverage.out -o ./coverage.html 
 
 go-mockgen:
-	mockgen -source=cmd/agent/main.go -destination=cmd/agent/mock/main.go
+	mockgen -source=cmd/agent/main.go -destination=cmd/agent/mock_metcoll_client.go -package main
 
 cur-test: build-agent build-server
 	metricstest-darwin-arm64 -test.v -test.run=^TestIteration13\$$ -source-path=. -agent-binary-path=cmd/agent/agent -binary-path=cmd/server/server -server-port=8081 -database-dsn='postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable'

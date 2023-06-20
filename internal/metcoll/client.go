@@ -13,25 +13,26 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ArtemShalinFe/metcoll/internal/logger"
-	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/hashicorp/go-retryablehttp"
+
+	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 )
 
 type Client struct {
 	host       string
 	httpClient *retryablehttp.Client
-	logger     *logger.AppLogger
+	logger     retryablehttp.LeveledLogger
 }
 
-func NewClient(Host string, logger *logger.AppLogger) *Client {
+func NewClient(Host string, logger retryablehttp.LeveledLogger) *Client {
 
 	retryClient := retryablehttp.NewClient()
-	retryClient.RetryMax = 2
+	retryClient.RetryMax = 3
 	retryClient.CheckRetry = CheckRetry
 	retryClient.RetryWaitMin = time.Duration(3 * time.Second)
 	retryClient.RetryWaitMax = time.Duration(5 * time.Second)
 	retryClient.Logger = logger
+	retryClient.Backoff = Backoff
 
 	return &Client{
 		host:       Host,
@@ -47,6 +48,21 @@ func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 		return true, err
 	} else {
 		return false, err
+	}
+
+}
+
+func Backoff(min, max time.Duration, attemptNum int, resp *http.Response) time.Duration {
+
+	switch attemptNum {
+	case 0:
+		return 1 * time.Second
+	case 1:
+		return 3 * time.Second
+	case 2:
+		return 5 * time.Second
+	default:
+		return 2 * time.Second
 	}
 
 }
@@ -139,10 +155,10 @@ func (c *Client) DoRequest(req *retryablehttp.Request) error {
 	}
 
 	if resp.StatusCode < 300 {
-		c.logger.Log.Infof(`request for update metric has been completed
+		c.logger.Info(`request for update metric has been completed
 	code: %d`, resp.StatusCode)
 	} else {
-		c.logger.Log.Errorf(`request for update metric has failed
+		c.logger.Error(`request for update metric has failed
 	code: %d
 	result: %s`, resp.StatusCode, string(res))
 	}

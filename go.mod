@@ -4,12 +4,12 @@ go 1.20
 
 require (
 	github.com/go-playground/assert v1.2.1
+	github.com/golang/mock v1.6.0
 	github.com/stretchr/testify v1.8.2
 )
 
 require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
-	github.com/golang/mock v1.6.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect

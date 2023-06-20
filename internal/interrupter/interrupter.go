@@ -4,7 +4,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/ArtemShalinFe/metcoll/internal/logger"
+	"go.uber.org/zap"
 )
 
 type Interrupters struct {
@@ -33,7 +33,7 @@ func (i *Interrupters) Do() []error {
 
 }
 
-func (i *Interrupters) Run(l *logger.AppLogger) {
+func (i *Interrupters) Run(l *zap.SugaredLogger) {
 
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, os.Interrupt)
@@ -46,7 +46,7 @@ func (i *Interrupters) Run(l *logger.AppLogger) {
 
 		if len(ers) > 0 {
 			for _, err := range ers {
-				l.Log.Errorf("cannot do interrrupt err: %w", err)
+				l.Errorf("cannot do interrrupt err: %w", err)
 			}
 			os.Exit(1)
 		}

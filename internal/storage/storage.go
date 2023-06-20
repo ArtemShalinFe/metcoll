@@ -38,7 +38,7 @@ func InitStorage(ctx context.Context, cfg *configuration.Config, l *logger.AppLo
 
 	if strings.TrimSpace(cfg.Database) != "" {
 
-		db, err := newSQLStorage(pctx, cfg.Database, l)
+		db, err := newSQLStorage(pctx, cfg.Database, l.SugaredLogger)
 		if err != nil {
 			return nil, fmt.Errorf("cannot init db storage err: %s", err)
 		}
@@ -47,7 +47,7 @@ func InitStorage(ctx context.Context, cfg *configuration.Config, l *logger.AppLo
 
 	} else if strings.TrimSpace(cfg.FileStoragePath) != "" {
 
-		fs, err := newFilestorage(newMemStorage(), l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
+		fs, err := newFilestorage(newMemStorage(), l.SugaredLogger, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
 		if err != nil {
 			return nil, fmt.Errorf("cannot init filestorage err: %s", err)
 		}

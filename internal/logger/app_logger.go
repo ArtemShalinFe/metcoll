@@ -12,7 +12,7 @@ import (
 )
 
 type AppLogger struct {
-	Log *zap.SugaredLogger
+	*zap.SugaredLogger
 }
 
 func NewLogger() (*AppLogger, error) {
@@ -39,7 +39,7 @@ func (l *AppLogger) RequestLogger(h http.Handler) http.Handler {
 		body, err := io.ReadAll(tee)
 		if err != nil {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			l.Log.Errorf("rlogger read body error: %w", err)
+			l.Errorf("rlogger read body error: %w", err)
 			return
 		}
 		r.Body = io.NopCloser(&buf)
@@ -48,7 +48,7 @@ func (l *AppLogger) RequestLogger(h http.Handler) http.Handler {
 		h.ServeHTTP(rw, r)
 		duration := time.Since(start)
 
-		l.Log.Infof("HTTP request method: %s, body: %s, url: %s, duration: %s, statusCode: %d, responseSize: %d",
+		l.Infof("HTTP request method: %s, body: %s, url: %s, duration: %s, statusCode: %d, responseSize: %d",
 			r.Method, string(body), r.RequestURI, duration, rw.responseData.status, rw.responseData.size,
 		)
 	})
@@ -56,7 +56,7 @@ func (l *AppLogger) RequestLogger(h http.Handler) http.Handler {
 
 func (l *AppLogger) Interrupt() error {
 
-	if err := l.Log.Sync(); err != nil {
+	if err := l.Sync(); err != nil {
 
 		if runtime.GOOS == "darwin" {
 			return nil
@@ -68,20 +68,4 @@ func (l *AppLogger) Interrupt() error {
 
 	return nil
 
-}
-
-func (l *AppLogger) Info(template string, args ...interface{}) {
-	l.Log.Infof(template, args)
-}
-
-func (l *AppLogger) Error(template string, args ...interface{}) {
-	l.Log.Errorf(template, args)
-}
-
-func (l *AppLogger) Debug(template string, args ...interface{}) {
-	l.Log.Debugf(template, args)
-}
-
-func (l *AppLogger) Warn(template string, args ...interface{}) {
-	l.Log.Warnf(template, args)
 }

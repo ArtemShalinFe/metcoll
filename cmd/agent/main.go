@@ -26,16 +26,22 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	rl, err := logger.NewRLLogger()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	i.Use(l.Interrupt)
-	i.Run(l)
+	i.Run(l.SugaredLogger)
 
 	cfg, err := configuration.ParseAgent()
 	if err != nil {
-		l.Log.Errorf("cannot parse server config file err: %w", err)
+		l.Errorf("cannot parse server config file err: %w", err)
 		return
 	}
 
-	l.Log.Infof("parsed agent config: %+v", cfg)
+	l.Infof("parsed agent config: %+v", cfg)
 
 	ctx := context.Background()
 
@@ -43,7 +49,7 @@ func main() {
 	s := stats.NewStats()
 	pause := time.Duration(cfg.PollInterval) * time.Second
 	durReportInterval := time.Duration(cfg.ReportInterval) * time.Second
-	conn := metcoll.NewClient(cfg.Server, l)
+	conn := metcoll.NewClient(cfg.Server, rl)
 	for {
 
 		s.Update()
@@ -60,7 +66,7 @@ func main() {
 
 			if len(ms) > 0 {
 				if err := pushReport(ctx, conn, ms); err != nil {
-					l.Log.Infof("cannot push report on server err: %w", err)
+					l.Infof("cannot push report on server err: %w", err)
 				} else {
 					lastReportPush = now
 				}

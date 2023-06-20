@@ -64,7 +64,7 @@ func TestState_SaveLoad(t *testing.T) {
 				path:          tt.fields.path,
 				storeInterval: tt.fields.storeInterval,
 				MemStorage:    tt.fields.stg,
-				logger:        tt.fields.logger,
+				logger:        tt.fields.logger.SugaredLogger,
 			}
 			if err := st.Save(st.MemStorage); (err != nil) != tt.wantErr {
 				t.Errorf("State.Save() error = %v, wantErr %v", err, tt.wantErr)

@@ -9,17 +9,17 @@ import (
 	"os"
 	"time"
 
-	"github.com/ArtemShalinFe/metcoll/internal/logger"
+	"go.uber.org/zap"
 )
 
 type Filestorage struct {
 	*MemStorage
 	path          string
 	storeInterval int
-	logger        *logger.AppLogger
+	logger        *zap.SugaredLogger
 }
 
-func newFilestorage(stg *MemStorage, l *logger.AppLogger, path string, storeInterval int, restore bool) (*Filestorage, error) {
+func newFilestorage(stg *MemStorage, l *zap.SugaredLogger, path string, storeInterval int, restore bool) (*Filestorage, error) {
 
 	fs := &Filestorage{
 		MemStorage:    stg,
@@ -30,7 +30,7 @@ func newFilestorage(stg *MemStorage, l *logger.AppLogger, path string, storeInte
 
 	if restore {
 		if err := fs.Load(fs.MemStorage); err != nil {
-			fs.logger.Log.Infof("cannot restore state storage err: %w", err)
+			fs.logger.Infof("cannot restore state storage err: %w", err)
 			return fs, nil
 		}
 	}
@@ -178,7 +178,7 @@ func (fs *Filestorage) runIntervalStateSaving() {
 	for {
 		time.Sleep(sleepDuration)
 		if err := fs.Save(fs.MemStorage); err != nil {
-			fs.logger.Log.Errorf("cannot save state err: %w", err)
+			fs.logger.Errorf("cannot save state err: %w", err)
 		}
 	}
 

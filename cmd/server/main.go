@@ -55,9 +55,12 @@ func main() {
 
 	})
 
-	s.Handler = handlers.NewRouter(ctx, handlers.NewHandler(stg, l), l.RequestLogger, compress.CompressMiddleware)
+	s.Handler = handlers.NewRouter(ctx,
+		handlers.NewHandler(stg, l.SugaredLogger),
+		l.RequestLogger,
+		compress.CompressMiddleware)
 
-	i.Run(l)
+	i.Run(l.SugaredLogger)
 
 	l.Info("Try running on address: ", cfg.Address)
 	if err := s.ListenAndServe(); err != nil {

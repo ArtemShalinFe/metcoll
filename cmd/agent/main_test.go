@@ -7,7 +7,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 
-	mock_main "github.com/ArtemShalinFe/metcoll/cmd/agent/mock"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
@@ -68,7 +67,7 @@ func Test_pushReport(t *testing.T) {
 	ctl := gomock.NewController(t)
 	defer ctl.Finish()
 
-	mockClient := mock_main.NewMockmetcollClient(ctl)
+	mockClient := NewMockmetcollClient(ctl)
 
 	var ms []*metrics.Metrics
 	for _, data := range stats.NewStats().GetReportData(ctx) {
