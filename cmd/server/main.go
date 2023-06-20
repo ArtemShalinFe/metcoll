@@ -55,7 +55,11 @@ func main() {
 
 	})
 
-	s.Handler = handlers.NewRouter(ctx, handlers.NewHandler(stg, l), l.RequestLogger, compress.CompressMiddleware)
+	s.Handler = handlers.NewRouter(ctx,
+		handlers.NewHandler(stg, l),
+		l.RequestLogger,
+		compress.CompressMiddleware,
+		s.RequestHashChecker)
 
 	i.Run(l)
 

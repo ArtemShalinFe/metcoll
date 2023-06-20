@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -61,10 +63,13 @@ func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) 
 		list += fmt.Sprintf(`<p>%s</p>`, v)
 	}
 
+	resp := []byte(fmt.Sprintf(body, list))
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	addHashHeader(w, []byte(resp))
 	w.WriteHeader(http.StatusOK)
 
-	if _, err := w.Write([]byte(fmt.Sprintf(body, list))); err != nil {
+	if _, err := w.Write(resp); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		h.logger.Log.Errorf("GetMetricList error: %w", err)
 	}
@@ -88,10 +93,12 @@ func (h *Handler) UpdateMetricFromURL(ctx context.Context, w http.ResponseWriter
 		return
 	}
 
+	resp := fmt.Sprintf("%s %s", m.ID, m.String())
+
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	addHashHeader(w, []byte(resp))
 	w.WriteHeader(http.StatusOK)
 
-	resp := fmt.Sprintf("%s %s", m.ID, m.String())
 	if _, err = w.Write([]byte(resp)); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		h.logger.Log.Errorf("UpdateMetric error: %w", err)
@@ -149,6 +156,8 @@ func (h *Handler) UpdateMetric(ctx context.Context, w http.ResponseWriter, body 
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	addHashHeader(w, b)
+
 	w.WriteHeader(http.StatusOK)
 
 	if _, err = w.Write(b); err != nil {
@@ -216,6 +225,7 @@ func (h *Handler) BatchUpdate(ctx context.Context, w http.ResponseWriter, body i
 		return
 	}
 
+	addHashHeader(w, b)
 	w.WriteHeader(http.StatusOK)
 
 	if _, err = w.Write(b); err != nil {
@@ -315,5 +325,13 @@ func (h *Handler) Ping(ctx context.Context, w http.ResponseWriter) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+
+}
+
+func addHashHeader(w http.ResponseWriter, b []byte) {
+
+	hash := hmac.New(sha256.New, []byte("hashkey"))
+	hash.Write(b)
+	w.Header().Set("HashSHA256", fmt.Sprintf("%x", hash.Sum(nil)))
 
 }

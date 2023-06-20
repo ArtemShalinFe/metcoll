@@ -34,6 +34,7 @@ func (l *AppLogger) RequestLogger(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		rw := NewResponseLoggerWriter(w)
+
 		var buf bytes.Buffer
 		tee := io.TeeReader(r.Body, &buf)
 		body, err := io.ReadAll(tee)
@@ -48,8 +49,8 @@ func (l *AppLogger) RequestLogger(h http.Handler) http.Handler {
 		h.ServeHTTP(rw, r)
 		duration := time.Since(start)
 
-		l.Log.Infof("HTTP request method: %s, body: %s, url: %s, duration: %s, statusCode: %d, responseSize: %d",
-			r.Method, string(body), r.RequestURI, duration, rw.responseData.status, rw.responseData.size,
+		l.Log.Infof("HTTP request method: %s, headers: %v, body: %s, url: %s, duration: %s, statusCode: %d, responseSize: %d",
+			r.Method, r.Header, string(body), r.RequestURI, duration, rw.responseData.status, rw.responseData.size,
 		)
 	})
 }

@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"time"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/interrupter"
@@ -14,18 +12,14 @@ import (
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
 )
 
-type metcollClient interface {
-	BatchUpdate(ctx context.Context, ms []*metrics.Metrics) error
-}
-
 func main() {
-
-	i := interrupter.NewInterrupters()
 
 	l, err := logger.NewLogger()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	i := interrupter.NewInterrupters()
 	i.Use(l.Interrupt)
 	i.Run(l)
 
@@ -38,53 +32,53 @@ func main() {
 	l.Log.Infof("parsed agent config: %+v", cfg)
 
 	ctx := context.Background()
+	client := metcoll.NewClient(cfg, l)
+	stats := stats.NewStats()
 
-	var lastReportPush time.Time
-	s := stats.NewStats()
-	pause := time.Duration(cfg.PollInterval) * time.Second
-	durReportInterval := time.Duration(cfg.ReportInterval) * time.Second
-	conn := metcoll.NewClient(cfg.Server, l)
-	for {
+	if cfg.Limit > 0 {
 
-		s.Update()
-		now := time.Now()
+		ms := make(chan *metrics.Metrics, cfg.Limit)
+		defer close(ms)
 
-		if isTimeToPushReport(lastReportPush, now, durReportInterval) {
+		prs := make(chan metcoll.PushResult, cfg.Limit)
+		defer close(prs)
+		stats.RunCollectStats(ctx, cfg, ms)
 
-			var ms []*metrics.Metrics
-			for _, data := range s.GetReportData(ctx) {
-				for _, metric := range data {
-					ms = append(ms, metric)
-				}
+		for i := 0; i < cfg.Limit; i++ {
+			go client.UpdateMetric(ctx, ms, prs)
+		}
+
+		for pr := range prs {
+
+			if pr.Err != nil {
+				l.Log.Errorf("update metric failed err: %w", pr.Err)
 			}
 
-			if len(ms) > 0 {
-				if err := pushReport(ctx, conn, ms); err != nil {
-					l.Log.Infof("cannot push report on server err: %w", err)
-				} else {
-					lastReportPush = now
-				}
-				s.ClearPollCount()
+			if pr.Metric.IsPollCount() {
+				stats.ClearPollCount()
 			}
 
 		}
 
-		time.Sleep(pause)
+	} else {
 
+		mcs := make(chan []*metrics.Metrics, 1)
+		defer close(mcs)
+
+		errs := make(chan error, 1)
+		defer close(errs)
+
+		stats.RunCollectBatchStats(ctx, cfg, mcs)
+
+		go client.BatchUpdateMetric(ctx, mcs, errs)
+
+		for err := range errs {
+			if err != nil {
+				l.Log.Errorf("batch update metrics failed err: %w", err)
+			} else {
+				stats.ClearPollCount()
+			}
+		}
 	}
 
-}
-
-func pushReport(ctx context.Context, conn metcollClient, ms []*metrics.Metrics) error {
-
-	if err := conn.BatchUpdate(ctx, ms); err != nil {
-		return fmt.Errorf("cannot push batch on server err: %w", err)
-	}
-
-	return nil
-
-}
-
-func isTimeToPushReport(lastReportPush time.Time, now time.Time, d time.Duration) bool {
-	return now.After(lastReportPush.Add(d))
 }
