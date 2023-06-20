@@ -52,7 +52,9 @@ func (db *DB) createTables(ctx context.Context) error {
 		return fmt.Errorf("unable to start transaction for creating tables err : %w", err)
 	}
 
-	defer tx.Rollback(ctx)
+	defer func() {
+		commitTransaction(ctx, tx, db.logger)
+	}()
 
 	q := `CREATE TABLE IF NOT EXISTS counters (id character(36) PRIMARY KEY, value bigint);`
 	if err = retryExec(ctx, tx, q); err != nil {
@@ -64,7 +66,14 @@ func (db *DB) createTables(ctx context.Context) error {
 		return fmt.Errorf("cannot create table for couters err : %w", err)
 	}
 
-	return retryCommit(ctx, tx)
+	if err != nil {
+		if err = retryRollback(ctx, tx); err != nil {
+			return fmt.Errorf("transaction cannot be rolled back err: %w", err)
+		}
+		return err
+	}
+
+	return nil
 
 }
 
@@ -96,6 +105,7 @@ func (db *DB) GetInt64Value(ctx context.Context, key string) (int64, error) {
 		if err = retryRollback(ctx, tx); err != nil {
 			return val, fmt.Errorf("transaction cannot be rolled back err: %w", err)
 		}
+		return 0, err
 	}
 
 	return val, err
@@ -125,8 +135,11 @@ func (db *DB) GetFloat64Value(ctx context.Context, key string) (float64, error) 
 		return val, nil
 	}()
 
-	if err = retryRollback(ctx, tx); err != nil {
-		return 0, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+	if err != nil {
+		if err = retryRollback(ctx, tx); err != nil {
+			return 0, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+		}
+		return 0, err
 	}
 
 	return val, err
@@ -161,8 +174,11 @@ func (db *DB) AddInt64Value(ctx context.Context, key string, value int64) (int64
 
 	}()
 
-	if err = retryRollback(ctx, tx); err != nil {
-		return 0, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+	if err != nil {
+		if err = retryRollback(ctx, tx); err != nil {
+			return 0, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+		}
+		return 0, err
 	}
 
 	return val, err
@@ -197,8 +213,11 @@ func (db *DB) SetFloat64Value(ctx context.Context, key string, value float64) (f
 
 	}()
 
-	if err = retryRollback(ctx, tx); err != nil {
-		return 0, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+	if err != nil {
+		if err = retryRollback(ctx, tx); err != nil {
+			return 0, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+		}
+		return 0, err
 	}
 
 	return val, nil
@@ -257,8 +276,11 @@ func (db *DB) BatchSetFloat64Value(ctx context.Context, gauges map[string]float6
 
 	}()
 
-	if err = retryRollback(ctx, tx); err != nil {
-		return nil, nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+	if err != nil {
+		if err = retryRollback(ctx, tx); err != nil {
+			return nil, nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+		}
+		return nil, nil, err
 	}
 
 	return updated, errs, nil
@@ -316,8 +338,11 @@ func (db *DB) BatchAddInt64Value(ctx context.Context, counters map[string]int64)
 
 	}()
 
-	if err = retryRollback(ctx, tx); err != nil {
-		return nil, nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+	if err != nil {
+		if err = retryRollback(ctx, tx); err != nil {
+			return nil, nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+		}
+		return nil, nil, err
 	}
 
 	return updated, errs, nil
@@ -367,8 +392,11 @@ func (db *DB) GetAllDataInt64(ctx context.Context) (map[string]int64, error) {
 
 	}()
 
-	if err = retryRollback(ctx, tx); err != nil {
-		return nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+	if err != nil {
+		if err = retryRollback(ctx, tx); err != nil {
+			return nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+		}
+		return nil, err
 	}
 
 	return dataInt64, nil
@@ -417,8 +445,11 @@ func (db *DB) GetAllDataFloat64(ctx context.Context) (map[string]float64, error)
 
 	}()
 
-	if err = retryRollback(ctx, tx); err != nil {
-		return nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+	if err != nil {
+		if err = retryRollback(ctx, tx); err != nil {
+			return nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+		}
+		return nil, err
 	}
 
 	return dataFloat64, nil
