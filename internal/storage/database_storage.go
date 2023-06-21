@@ -2,12 +2,11 @@ package storage
 
 import (
 	"context"
-	"syscall"
-	"time"
-
 	"errors"
 	"fmt"
 	"strconv"
+	"syscall"
+	"time"
 
 	"github.com/avast/retry-go"
 	"github.com/jackc/pgerrcode"
@@ -169,7 +168,7 @@ func (db *DB) AddInt64Value(ctx context.Context, key string, value int64) (int64
 			INTO counters (id, value) 
 			VALUES ($1, $2)
 		ON CONFLICT (id) 
-			DO UPDATE SET value = $2 + EXCLUDED.value
+			DO UPDATE SET value = EXCLUDED.value + counters.value
 		RETURNING value`
 
 		val, err := retryQueryRowInt64(ctx, tx, q, key, value)
@@ -314,7 +313,7 @@ func (db *DB) BatchAddInt64Value(ctx context.Context, counters map[string]int64)
 			INTO counters (id, value) 
 			VALUES ($1, $2)
 		ON CONFLICT (id) 
-			DO UPDATE SET value = $2 + EXCLUDED.value
+			DO UPDATE SET value = EXCLUDED.value + counters.value
 		RETURNING id, value`
 
 		idMap := make(map[int]string)
