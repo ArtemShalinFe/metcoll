@@ -314,7 +314,7 @@ func (db *DB) BatchAddInt64Value(ctx context.Context, counters map[string]int64)
 			INTO counters (id, value) 
 			VALUES ($1, $2)
 		ON CONFLICT (id) 
-			DO UPDATE SET value = $2 + EXCLUDE.value
+			DO UPDATE SET value = $2 + EXCLUDED.value
 		RETURNING id, value`
 
 		idMap := make(map[int]string)
@@ -345,7 +345,7 @@ func (db *DB) BatchAddInt64Value(ctx context.Context, counters map[string]int64)
 	}()
 
 	if err != nil {
-		if err = retryRollback(ctx, tx); err != nil {
+		if err := retryRollback(ctx, tx); err != nil {
 			return nil, nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
 		}
 		return nil, nil, err
