@@ -7,8 +7,9 @@ import (
 	"strings"
 	"sync"
 
+	"go.uber.org/zap"
+
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
-	"github.com/ArtemShalinFe/metcoll/internal/logger"
 )
 
 type MemStorage struct {
@@ -31,14 +32,14 @@ type Storage interface {
 
 var ErrNoRows = errors.New("no rows in result")
 
-func InitStorage(ctx context.Context, cfg *configuration.Config, l *logger.AppLogger) (Storage, error) {
+func InitStorage(ctx context.Context, cfg *configuration.Config, l *zap.SugaredLogger) (Storage, error) {
 
 	pctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	if strings.TrimSpace(cfg.Database) != "" {
 
-		db, err := newSQLStorage(pctx, cfg.Database, l.SugaredLogger)
+		db, err := newSQLStorage(pctx, cfg.Database, l)
 		if err != nil {
 			return nil, fmt.Errorf("cannot init db storage err: %s", err)
 		}
@@ -47,7 +48,7 @@ func InitStorage(ctx context.Context, cfg *configuration.Config, l *logger.AppLo
 
 	} else if strings.TrimSpace(cfg.FileStoragePath) != "" {
 
-		fs, err := newFilestorage(newMemStorage(), l.SugaredLogger, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
+		fs, err := newFilestorage(newMemStorage(), l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
 		if err != nil {
 			return nil, fmt.Errorf("cannot init filestorage err: %s", err)
 		}

@@ -11,26 +11,19 @@ import (
 	"go.uber.org/zap"
 )
 
-type AppLogger struct {
+type MiddlewareLogger struct {
 	*zap.SugaredLogger
 }
 
-func NewLogger() (*AppLogger, error) {
+func NewMiddlewareLogger(l *zap.SugaredLogger) (*MiddlewareLogger, error) {
 
-	l, err := zap.NewProduction()
-	if err != nil {
-		return nil, fmt.Errorf("cannot init zap-logger err: %w ", err)
-	}
-
-	sl := l.Sugar()
-
-	return &AppLogger{
-		sl,
+	return &MiddlewareLogger{
+		l,
 	}, nil
 
 }
 
-func (l *AppLogger) RequestLogger(h http.Handler) http.Handler {
+func (l *MiddlewareLogger) RequestLogger(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		rw := NewResponseLoggerWriter(w)
@@ -54,7 +47,7 @@ func (l *AppLogger) RequestLogger(h http.Handler) http.Handler {
 	})
 }
 
-func (l *AppLogger) Interrupt() error {
+func (l *MiddlewareLogger) Interrupt() error {
 
 	if err := l.Sync(); err != nil {
 

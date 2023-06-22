@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
@@ -24,17 +25,23 @@ func TestUpdateMetricFromUrl(t *testing.T) {
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
-	l, err := logger.NewLogger()
+	zl, err := zap.NewProduction()
 	if err != nil {
-		t.Errorf("cannot init logger err: %v", err)
+		t.Errorf("cannot init zap-logger err: %v", err)
+	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		t.Errorf("cannot init middleware logger err: %v", err)
 	}
 
-	s, err := storage.InitStorage(ctx, cfg, l)
+	s, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
 		t.Errorf("cannot init storage err: %v", err)
 	}
 
-	h := NewHandler(s, l.SugaredLogger)
+	h := NewHandler(s, sl)
 	r := NewRouter(ctx, h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
@@ -80,17 +87,23 @@ func TestUpdateMetric(t *testing.T) {
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
-	l, err := logger.NewLogger()
+	zl, err := zap.NewProduction()
+	if err != nil {
+		t.Errorf("cannot init zap-logger err: %v", err)
+	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		t.Errorf("cannot init middleware logger err: %v", err)
+	}
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
 		t.Errorf("cannot init logger err: %v", err)
 	}
 
-	s, err := storage.InitStorage(ctx, cfg, l)
-	if err != nil {
-		t.Errorf("cannot init logger err: %v", err)
-	}
-
-	h := NewHandler(s, l.SugaredLogger)
+	h := NewHandler(s, sl)
 	r := NewRouter(ctx, h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
@@ -263,17 +276,23 @@ func TestHandler_BatchUpdate(t *testing.T) {
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
-	l, err := logger.NewLogger()
+	zl, err := zap.NewProduction()
+	if err != nil {
+		t.Errorf("cannot init zap-logger err: %v", err)
+	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		t.Errorf("cannot init middleware logger err: %v", err)
+	}
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
 		t.Errorf("cannot init logger err: %v", err)
 	}
 
-	s, err := storage.InitStorage(ctx, cfg, l)
-	if err != nil {
-		t.Errorf("cannot init logger err: %v", err)
-	}
-
-	h := NewHandler(s, l.SugaredLogger)
+	h := NewHandler(s, sl)
 	r := NewRouter(ctx, h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)
@@ -331,17 +350,23 @@ func TestCollectMetricList(t *testing.T) {
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
-	l, err := logger.NewLogger()
+	zl, err := zap.NewProduction()
+	if err != nil {
+		t.Errorf("cannot init zap-logger err: %v", err)
+	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		t.Errorf("cannot init middleware logger err: %v", err)
+	}
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
 		t.Errorf("cannot init logger err: %v", err)
 	}
 
-	s, err := storage.InitStorage(ctx, cfg, l)
-	if err != nil {
-		t.Errorf("cannot init logger err: %v", err)
-	}
-
-	h := NewHandler(s, l.SugaredLogger)
+	h := NewHandler(s, sl)
 	r := NewRouter(ctx, h, l.RequestLogger)
 
 	ts := httptest.NewServer(r)

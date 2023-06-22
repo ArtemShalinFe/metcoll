@@ -1,8 +1,6 @@
 package logger
 
 import (
-	"fmt"
-
 	"go.uber.org/zap"
 )
 
@@ -10,17 +8,10 @@ type RetryHTTPLogger struct {
 	*zap.SugaredLogger
 }
 
-func NewRLLogger() (*RetryHTTPLogger, error) {
-
-	l, err := zap.NewProduction()
-	if err != nil {
-		return nil, fmt.Errorf("cannot init zap-logger err: %w ", err)
-	}
-
-	sl := l.Sugar()
+func NewRLLogger(l *zap.SugaredLogger) (*RetryHTTPLogger, error) {
 
 	return &RetryHTTPLogger{
-		sl,
+		l,
 	}, nil
 
 }

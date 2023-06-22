@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 
+	"go.uber.org/zap"
+
 	"github.com/ArtemShalinFe/metcoll/internal/compress"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/handlers"
@@ -18,12 +20,18 @@ import (
 
 func main() {
 
-	i := interrupter.NewInterrupters()
-
-	l, err := logger.NewLogger()
+	zl, err := zap.NewProduction()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(fmt.Errorf("cannot init zap-logger err: %w ", err))
 	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		log.Fatal(fmt.Errorf("cannot init middleware logger err: %w ", err))
+	}
+
+	i := interrupter.NewInterrupters()
 	i.Use(l.Interrupt)
 
 	cfg, err := configuration.Parse()
@@ -36,7 +44,7 @@ func main() {
 
 	ctx := context.Background()
 
-	stg, err := storage.InitStorage(ctx, cfg, l)
+	stg, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
 		l.Error("cannot init storage err: ", err)
 		return

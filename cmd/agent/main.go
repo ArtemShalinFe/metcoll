@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/interrupter"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
@@ -22,12 +24,18 @@ func main() {
 
 	i := interrupter.NewInterrupters()
 
-	l, err := logger.NewLogger()
+	zl, err := zap.NewProduction()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(fmt.Errorf("cannot init zap-logger err: %w ", err))
+	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		log.Fatal(fmt.Errorf("cannot init middleware logger err: %w ", err))
 	}
 
-	rl, err := logger.NewRLLogger()
+	rl, err := logger.NewRLLogger(sl)
 	if err != nil {
 		log.Fatal(err)
 	}

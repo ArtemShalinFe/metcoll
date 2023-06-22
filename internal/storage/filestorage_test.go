@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ArtemShalinFe/metcoll/internal/logger"
+	"go.uber.org/zap"
 )
 
 func TestState_SaveLoad(t *testing.T) {
@@ -16,16 +16,18 @@ func TestState_SaveLoad(t *testing.T) {
 	ts.SetFloat64Value(ctx, "test1", 1.2)
 	ts.AddInt64Value(ctx, "test4", 5)
 
-	l, err := logger.NewLogger()
+	zl, err := zap.NewProduction()
 	if err != nil {
-		t.Errorf("TestState_SaveLoad err: %v", err)
+		t.Errorf("cannot init zap-logger err: %v ", err)
 	}
+
+	sl := zl.Sugar()
 
 	type fields struct {
 		path          string
 		storeInterval int
 		stg           *MemStorage
-		logger        *logger.AppLogger
+		logger        *zap.SugaredLogger
 	}
 
 	tests := []struct {
@@ -39,7 +41,7 @@ func TestState_SaveLoad(t *testing.T) {
 				path:          newTempFile(t),
 				storeInterval: 10,
 				stg:           ts,
-				logger:        l,
+				logger:        sl,
 			},
 			wantErr: false,
 		},
@@ -49,7 +51,7 @@ func TestState_SaveLoad(t *testing.T) {
 				path:          newTempFile(t),
 				storeInterval: 10,
 				stg:           ts,
-				logger:        l,
+				logger:        sl,
 			},
 			wantErr: false,
 		},
@@ -64,7 +66,7 @@ func TestState_SaveLoad(t *testing.T) {
 				path:          tt.fields.path,
 				storeInterval: tt.fields.storeInterval,
 				MemStorage:    tt.fields.stg,
-				logger:        tt.fields.logger.SugaredLogger,
+				logger:        tt.fields.logger,
 			}
 			if err := st.Save(st.MemStorage); (err != nil) != tt.wantErr {
 				t.Errorf("State.Save() error = %v, wantErr %v", err, tt.wantErr)
