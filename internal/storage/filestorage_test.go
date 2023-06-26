@@ -1,36 +1,33 @@
 package storage
 
 import (
-	"log"
+	"context"
 	"os"
 	"testing"
+
+	"go.uber.org/zap"
 )
-
-type testLogger struct{}
-
-func (tl *testLogger) Info(args ...any) {
-	log.Println(args...)
-}
-
-func (tl *testLogger) Infof(template string, args ...any) {
-	log.Printf(template, args...)
-}
-
-func (tl *testLogger) Errorf(template string, args ...any) {
-	log.Printf(template, args...)
-}
 
 func TestState_SaveLoad(t *testing.T) {
 
-	ts := NewMemStorage()
-	ts.SetFloat64Value("test1", 1.2)
-	ts.AddInt64Value("test4", 5)
+	ctx := context.Background()
+
+	ts := newMemStorage()
+	ts.SetFloat64Value(ctx, "test1", 1.2)
+	ts.AddInt64Value(ctx, "test4", 5)
+
+	zl, err := zap.NewProduction()
+	if err != nil {
+		t.Errorf("cannot init zap-logger err: %v ", err)
+	}
+
+	sl := zl.Sugar()
 
 	type fields struct {
 		path          string
 		storeInterval int
 		stg           *MemStorage
-		logger        Logger
+		logger        *zap.SugaredLogger
 	}
 
 	tests := []struct {
@@ -44,7 +41,7 @@ func TestState_SaveLoad(t *testing.T) {
 				path:          newTempFile(t),
 				storeInterval: 10,
 				stg:           ts,
-				logger:        &testLogger{},
+				logger:        sl,
 			},
 			wantErr: false,
 		},
@@ -54,7 +51,7 @@ func TestState_SaveLoad(t *testing.T) {
 				path:          newTempFile(t),
 				storeInterval: 10,
 				stg:           ts,
-				logger:        &testLogger{},
+				logger:        sl,
 			},
 			wantErr: false,
 		},

@@ -1,53 +1,44 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
+	"go.uber.org/zap"
+
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
+	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
 type Handler struct {
-	values Storage
-	logger Logger
+	storage Storage
+	logger  *zap.SugaredLogger
 }
 
 type Storage interface {
-	GetInt64Value(key string) (int64, bool)
-	GetFloat64Value(key string) (float64, bool)
-	AddInt64Value(key string, value int64) int64
-	SetFloat64Value(key string, value float64) float64
-	GetDataList() []string
+	GetInt64Value(ctx context.Context, key string) (int64, error)
+	GetFloat64Value(ctx context.Context, key string) (float64, error)
+	AddInt64Value(ctx context.Context, key string, value int64) (int64, error)
+	SetFloat64Value(ctx context.Context, key string, value float64) (float64, error)
+	GetDataList(ctx context.Context) ([]string, error)
+	BatchSetFloat64Value(ctx context.Context, gauges map[string]float64) (map[string]float64, []error, error)
+	BatchAddInt64Value(ctx context.Context, counters map[string]int64) (map[string]int64, []error, error)
+	Ping(ctx context.Context) error
 }
 
-type Logger interface {
-	Infof(template string, args ...interface{})
-	Errorf(template string, args ...interface{})
-}
-
-func NewHandler(s Storage, l Logger) *Handler {
+func NewHandler(s Storage, l *zap.SugaredLogger) *Handler {
 
 	return &Handler{
-		values: s,
-		logger: l,
+		storage: s,
+		logger:  l,
 	}
 }
 
-func (h *Handler) update(m *metrics.Metrics) error {
-
-	return m.Update(h.values)
-
-}
-
-func (h *Handler) get(m *metrics.Metrics) bool {
-
-	return m.Get(h.values)
-
-}
-
-func (h *Handler) CollectMetricList(w http.ResponseWriter) {
+func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) {
 
 	body := `
 	<html>
@@ -60,8 +51,14 @@ func (h *Handler) CollectMetricList(w http.ResponseWriter) {
 	</body>
 	</html>`
 
+	ms, err := h.storage.GetDataList(ctx)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		h.logger.Errorf("GetMetricList error: %w", err)
+	}
+
 	list := ""
-	for _, v := range h.values.GetDataList() {
+	for _, v := range ms {
 		list += fmt.Sprintf(`<p>%s</p>`, v)
 	}
 
@@ -75,7 +72,7 @@ func (h *Handler) CollectMetricList(w http.ResponseWriter) {
 
 }
 
-func (h *Handler) UpdateMetricFromURL(w http.ResponseWriter, id string, mType string, value string) {
+func (h *Handler) UpdateMetricFromURL(ctx context.Context, w http.ResponseWriter, id string, mType string, value string) {
 
 	m, err := metrics.NewMetric(id, mType, value)
 	if err != nil {
@@ -84,7 +81,9 @@ func (h *Handler) UpdateMetricFromURL(w http.ResponseWriter, id string, mType st
 		return
 	}
 
-	if err := h.update(m); err != nil {
+	h.logger.Infof("Trying update %s metric %s with value: %s", m.MType, m.ID, m.String())
+
+	if err := m.Update(ctx, h.storage); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		h.logger.Errorf("UpdateMetric error: %w", err)
 		return
@@ -104,7 +103,7 @@ func (h *Handler) UpdateMetricFromURL(w http.ResponseWriter, id string, mType st
 
 }
 
-func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
+func (h *Handler) UpdateMetric(ctx context.Context, w http.ResponseWriter, body io.ReadCloser) {
 
 	var m metrics.Metrics
 
@@ -131,11 +130,18 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
 		return
 	}
 
-	if err := h.update(&m); err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		h.logger.Errorf("UpdateMetric error: %w", err)
-		return
+	h.logger.Infof("Trying update %s metric %s with value: %s", m.MType, m.ID, m.String())
+	h.logger.Debugf("UpdateMetric body: %s", string(b))
+
+	if err := m.Update(ctx, h.storage); err != nil {
+		if !errors.Is(err, storage.ErrNoRows) {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			h.logger.Errorf("UpdateMetric error: %w", err)
+			return
+		}
 	}
+
+	h.logger.Infof("Metric was updated - %s new value: %s", m.ID, m.String())
 
 	b, err = json.Marshal(&m)
 	if err != nil {
@@ -152,11 +158,76 @@ func (h *Handler) UpdateMetric(w http.ResponseWriter, body io.ReadCloser) {
 		return
 	}
 
-	h.logger.Infof("Metric was updated - %s new value: %s", m.ID, m.String())
+}
+
+func (h *Handler) BatchUpdate(ctx context.Context, w http.ResponseWriter, body io.ReadCloser) {
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var ms []*metrics.Metrics
+
+	b, err := io.ReadAll(body)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		h.logger.Errorf("BatchUpdate read body error: %w", err)
+		return
+	}
+
+	if err := json.Unmarshal(b, &ms); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		h.logger.Errorf("BatchUpdate unmarshal error: %w", err)
+		return
+	}
+
+	h.logger.Debugf("BatchUpdate body: %s", string(b))
+
+	for _, m := range ms {
+
+		if m.MType != metrics.CounterMetric && m.MType != metrics.GaugeMetric {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			h.logger.Infof("metric %s has unknow type: %s", m.ID, m.MType)
+			return
+		}
+
+		if m.Delta == nil && m.Value == nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			h.logger.Infof("metric %s has nil delta and value", m.ID)
+			return
+		}
+
+	}
+
+	// Автотесты хотят, чтобы мы возвращали ошибку изменения каждой метрики
+	// для этого протянул errs
+	ums, errs, err := metrics.BatchUpdate(ctx, ms, h.storage)
+	if err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		h.logger.Errorf("BatchUpdate update error: %w", err)
+		return
+	}
+
+	for _, um := range ums {
+		h.logger.Infof("Metric %s was updated. New value: %s", um.ID, um.String())
+	}
+
+	b, err = json.Marshal(&errs)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		h.logger.Errorf("BatchUpdate marshal to json error: %w", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	if _, err = w.Write(b); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		h.logger.Errorf("BatchUpdate error: %w", err)
+		return
+	}
 
 }
 
-func (h *Handler) ReadMetricFromURL(w http.ResponseWriter, id string, mType string) {
+func (h *Handler) ReadMetricFromURL(ctx context.Context, w http.ResponseWriter, id string, mType string) {
 
 	m, err := metrics.GetMetric(id, mType)
 	if err != nil {
@@ -164,10 +235,15 @@ func (h *Handler) ReadMetricFromURL(w http.ResponseWriter, id string, mType stri
 		return
 	}
 
-	if ok := h.get(m); !ok {
-		http.Error(w, "metric not found", http.StatusNotFound)
-		h.logger.Infof("ReadMetric not found metric: %s", m.ID)
-		return
+	if err := m.Get(ctx, h.storage); err != nil {
+		if errors.Is(err, storage.ErrNoRows) {
+			http.Error(w, "metric not found", http.StatusNotFound)
+			return
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			h.logger.Errorf("UpdateMetric error: %w", err)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -181,7 +257,7 @@ func (h *Handler) ReadMetricFromURL(w http.ResponseWriter, id string, mType stri
 
 }
 
-func (h *Handler) ReadMetric(w http.ResponseWriter, body io.ReadCloser) {
+func (h *Handler) ReadMetric(ctx context.Context, w http.ResponseWriter, body io.ReadCloser) {
 
 	var m metrics.Metrics
 
@@ -203,10 +279,15 @@ func (h *Handler) ReadMetric(w http.ResponseWriter, body io.ReadCloser) {
 		return
 	}
 
-	if ok := h.get(&m); !ok {
-		http.Error(w, "metric not found", http.StatusNotFound)
-		h.logger.Infof("ReadMetric not found metric: %s", m.ID)
-		return
+	if err := m.Get(ctx, h.storage); err != nil {
+		if errors.Is(err, storage.ErrNoRows) {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			h.logger.Errorf("ReadMetric error: %w", err)
+			return
+		}
 	}
 
 	b, err = json.Marshal(m)
@@ -223,5 +304,17 @@ func (h *Handler) ReadMetric(w http.ResponseWriter, body io.ReadCloser) {
 		h.logger.Errorf("GetMetric error: %w", err)
 		return
 	}
+
+}
+
+func (h *Handler) Ping(ctx context.Context, w http.ResponseWriter) {
+
+	if err := h.storage.Ping(ctx); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		h.logger.Errorf("Ping error: %w", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 
 }

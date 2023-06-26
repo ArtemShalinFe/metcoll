@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
+	"net/http"
+
+	"go.uber.org/zap"
 
 	"github.com/ArtemShalinFe/metcoll/internal/compress"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
@@ -15,12 +20,18 @@ import (
 
 func main() {
 
-	i := interrupter.NewInterrupters()
-
-	l, err := logger.NewLogger()
+	zl, err := zap.NewProduction()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(fmt.Errorf("cannot init zap-logger err: %w ", err))
 	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		log.Fatal(fmt.Errorf("cannot init middleware logger err: %w ", err))
+	}
+
+	i := interrupter.NewInterrupters()
 	i.Use(l.Interrupt)
 
 	cfg, err := configuration.Parse()
@@ -31,7 +42,9 @@ func main() {
 
 	l.Info("parsed server config: ", fmt.Sprintf("%+v", cfg))
 
-	stg, err := storage.InitStorage(cfg, storage.NewMemStorage(), l)
+	ctx := context.Background()
+
+	stg, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
 		l.Error("cannot init storage err: ", err)
 		return
@@ -40,15 +53,28 @@ func main() {
 	i.Use(stg.Interrupt)
 
 	s := metcoll.NewServer(cfg)
-	i.Use(s.Interrupt)
+	i.Use(func() error {
 
-	s.Handler = handlers.NewRouter(handlers.NewHandler(stg, l), l.RequestLogger, compress.CompressMiddleware)
+		if err := s.Shutdown(ctx); err != nil {
+			return err
+		}
 
-	i.Run(l)
+		return nil
+
+	})
+
+	s.Handler = handlers.NewRouter(ctx,
+		handlers.NewHandler(stg, l.SugaredLogger),
+		l.RequestLogger,
+		compress.CompressMiddleware)
+
+	i.Run(l.SugaredLogger)
 
 	l.Info("Try running on address: ", cfg.Address)
 	if err := s.ListenAndServe(); err != nil {
-		l.Error("ListenAndServe() err: ", err)
+		if !errors.Is(err, http.ErrServerClosed) {
+			l.Error("ListenAndServe() err: ", err)
+		}
 	}
 
 }

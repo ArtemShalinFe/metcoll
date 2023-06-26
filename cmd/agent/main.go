@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/interrupter"
@@ -14,19 +17,31 @@ import (
 )
 
 type metcollClient interface {
-	Update(m *metrics.Metrics) error
+	BatchUpdate(ctx context.Context, ms []*metrics.Metrics) error
 }
 
 func main() {
 
 	i := interrupter.NewInterrupters()
 
-	l, err := logger.NewLogger()
+	zl, err := zap.NewProduction()
+	if err != nil {
+		log.Fatal(fmt.Errorf("cannot init zap-logger err: %w ", err))
+	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		log.Fatal(fmt.Errorf("cannot init middleware logger err: %w ", err))
+	}
+
+	rl, err := logger.NewRLLogger(sl)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	i.Use(l.Interrupt)
-	i.Run(l)
+	i.Run(l.SugaredLogger)
 
 	cfg, err := configuration.ParseAgent()
 	if err != nil {
@@ -36,12 +51,13 @@ func main() {
 
 	l.Infof("parsed agent config: %+v", cfg)
 
+	ctx := context.Background()
+
 	var lastReportPush time.Time
 	s := stats.NewStats()
 	pause := time.Duration(cfg.PollInterval) * time.Second
 	durReportInterval := time.Duration(cfg.ReportInterval) * time.Second
-	conn := metcoll.NewClient(cfg.Server, l)
-
+	conn := metcoll.NewClient(cfg.Server, rl)
 	for {
 
 		s.Update()
@@ -49,10 +65,20 @@ func main() {
 
 		if isTimeToPushReport(lastReportPush, now, durReportInterval) {
 
-			if err := pushReport(conn, s, cfg); err != nil {
-				l.Info(err)
-			} else {
-				lastReportPush = now
+			var ms []*metrics.Metrics
+			for _, data := range s.GetReportData(ctx) {
+				for _, metric := range data {
+					ms = append(ms, metric)
+				}
+			}
+
+			if len(ms) > 0 {
+				if err := pushReport(ctx, conn, ms); err != nil {
+					l.Infof("cannot push report on server err: %w", err)
+				} else {
+					lastReportPush = now
+				}
+				s.ClearPollCount()
 			}
 
 		}
@@ -63,22 +89,10 @@ func main() {
 
 }
 
-func pushReport(conn metcollClient, s *stats.Stats, cfg *configuration.ConfigAgent) error {
+func pushReport(ctx context.Context, conn metcollClient, ms []*metrics.Metrics) error {
 
-	for mType, data := range s.GetReportData() {
-
-		for name, metric := range data {
-
-			if err := conn.Update(metric); err != nil {
-				return fmt.Errorf("cannot push %s %s with value %v on server err: %w", mType, name, metric, err)
-			}
-
-			if metric.IsPollCount() {
-				s.ClearPollCount()
-			}
-
-		}
-
+	if err := conn.BatchUpdate(ctx, ms); err != nil {
+		return fmt.Errorf("cannot push batch on server err: %w", err)
 	}
 
 	return nil

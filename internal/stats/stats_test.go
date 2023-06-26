@@ -1,14 +1,16 @@
 package stats
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"testing"
 	"time"
 
-	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/go-playground/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 )
 
 func TestStats_Update(t *testing.T) {
@@ -56,6 +58,9 @@ func TestStats_Update(t *testing.T) {
 }
 
 func TestStats_GetReportData(t *testing.T) {
+
+	ctx := context.Background()
+
 	type fields struct {
 		memStats    *runtime.MemStats
 		PollCount   int64
@@ -87,8 +92,8 @@ func TestStats_GetReportData(t *testing.T) {
 			}
 			s.Update()
 
-			gaugeData := s.GetReportData()[metrics.GaugeMetric]
-			counterData := s.GetReportData()[metrics.CounterMetric]
+			gaugeData := s.GetReportData(ctx)[metrics.GaugeMetric]
+			counterData := s.GetReportData(ctx)[metrics.CounterMetric]
 
 			for name := range gaugeData {
 				require.Contains(t, rGm, name, fmt.Sprintf("Tests GetReportData gaugeData not contain required gauge metrics %s", name))

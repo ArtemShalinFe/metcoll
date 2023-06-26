@@ -2,27 +2,24 @@ package storage
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"time"
-)
 
-type Logger interface {
-	Info(args ...interface{})
-	Infof(template string, args ...interface{})
-	Errorf(template string, args ...interface{})
-}
+	"go.uber.org/zap"
+)
 
 type Filestorage struct {
 	*MemStorage
 	path          string
 	storeInterval int
-	logger        Logger
+	logger        *zap.SugaredLogger
 }
 
-func newFilestorage(stg *MemStorage, l Logger, path string, storeInterval int, restore bool) (*Filestorage, error) {
+func newFilestorage(stg *MemStorage, l *zap.SugaredLogger, path string, storeInterval int, restore bool) (*Filestorage, error) {
 
 	fs := &Filestorage{
 		MemStorage:    stg,
@@ -46,33 +43,76 @@ func newFilestorage(stg *MemStorage, l Logger, path string, storeInterval int, r
 
 }
 
-func (fs *Filestorage) AddInt64Value(key string, value int64) int64 {
+func (fs *Filestorage) BatchSetFloat64Value(ctx context.Context, gauges map[string]float64) (map[string]float64, []error, error) {
 
-	newValue := fs.MemStorage.AddInt64Value(key, value)
+	gauges, errs, err := fs.MemStorage.BatchSetFloat64Value(ctx, gauges)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot add int64 value in filestorage err: %w", err)
+	}
+
 	if fs.storeInterval == 0 {
 		if err := fs.Save(fs.MemStorage); err != nil {
-			fs.logger.Errorf("synchronous saving to file storage cannot be performed err: %w", err)
+			return nil, nil, fmt.Errorf("synchronous saving to file storage cannot be performed err: %w", err)
 		}
 	}
-	return newValue
+
+	return gauges, errs, nil
 
 }
 
-func (fs *Filestorage) SetFloat64Value(key string, value float64) float64 {
+func (fs *Filestorage) BatchAddInt64Value(ctx context.Context, counters map[string]int64) (map[string]int64, []error, error) {
 
-	newValue := fs.MemStorage.SetFloat64Value(key, value)
+	counters, errs, err := fs.MemStorage.BatchAddInt64Value(ctx, counters)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot add int64 value in filestorage err: %w", err)
+	}
+
 	if fs.storeInterval == 0 {
 		if err := fs.Save(fs.MemStorage); err != nil {
-			fs.logger.Errorf("synchronous saving to file storage cannot be performed err: %w", err)
+			return nil, nil, fmt.Errorf("synchronous saving to file storage cannot be performed err: %w", err)
 		}
 	}
-	return newValue
+
+	return counters, errs, nil
+
+}
+
+func (fs *Filestorage) AddInt64Value(ctx context.Context, key string, value int64) (int64, error) {
+
+	newValue, err := fs.MemStorage.AddInt64Value(ctx, key, value)
+	if err != nil {
+		return 0, fmt.Errorf("cannot add int64 value in filestorage err: %w", err)
+	}
+
+	if fs.storeInterval == 0 {
+		if err := fs.Save(fs.MemStorage); err != nil {
+			return 0, fmt.Errorf("synchronous saving to file storage cannot be performed err: %w", err)
+		}
+	}
+	return newValue, nil
+
+}
+
+func (fs *Filestorage) SetFloat64Value(ctx context.Context, key string, value float64) (float64, error) {
+
+	newValue, err := fs.MemStorage.SetFloat64Value(ctx, key, value)
+	if err != nil {
+		return 0, fmt.Errorf("cannot set float64 value in filestorage err: %w", err)
+	}
+
+	if fs.storeInterval == 0 {
+		if err := fs.Save(fs.MemStorage); err != nil {
+			return 0, fmt.Errorf("synchronous saving to file storage cannot be performed err: %w", err)
+		}
+	}
+	return newValue, nil
 
 }
 
 func (fs *Filestorage) Save(storage *MemStorage) error {
 
 	file, err := os.OpenFile(fs.path, os.O_WRONLY|os.O_CREATE, 0666)
+
 	if err != nil {
 		return fmt.Errorf("cannot open or creating file for state saving err: %w", err)
 	}
@@ -150,5 +190,9 @@ func (fs *Filestorage) Interrupt() error {
 		return fmt.Errorf("cannot save state err: %w", err)
 	}
 
+	return nil
+}
+
+func (fs *Filestorage) Ping(ctx context.Context) error {
 	return nil
 }

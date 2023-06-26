@@ -1,38 +1,25 @@
 package main
 
 import (
-	"log"
-	"os"
+	"context"
 	"testing"
 	"time"
+
+	"github.com/golang/mock/gomock"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
 )
 
-var cfg *configuration.ConfigAgent
-
-type mockClient struct{}
-
-func (c *mockClient) Update(m *metrics.Metrics) error {
-	return nil
-}
-
-func TestMain(m *testing.M) {
-	c, err := configuration.ParseAgent()
-	if err != nil {
-		log.Print(err)
-	}
-	cfg = c
-
-	os.Exit(m.Run())
-
-}
-
 func Test_isTimeToPushReport(t *testing.T) {
 
 	now := time.Now()
+
+	cfg, err := configuration.ParseAgent()
+	if err != nil {
+		t.Errorf("Test_isTimeToPushReport err %v", err)
+	}
 
 	type args struct {
 		lastReportPush time.Time
@@ -75,10 +62,27 @@ func Test_isTimeToPushReport(t *testing.T) {
 
 func Test_pushReport(t *testing.T) {
 
+	ctx := context.Background()
+
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
+
+	mockClient := NewMockmetcollClient(ctl)
+
+	var ms []*metrics.Metrics
+	for _, data := range stats.NewStats().GetReportData(ctx) {
+		for _, metric := range data {
+			ms = append(ms, metric)
+		}
+	}
+
+	gomock.InOrder(
+		mockClient.EXPECT().BatchUpdate(ctx, ms).Return(nil),
+	)
+
 	type args struct {
 		conn metcollClient
-		s    *stats.Stats
-		cfg  *configuration.ConfigAgent
+		ms   []*metrics.Metrics
 	}
 	tests := []struct {
 		name    string
@@ -88,16 +92,15 @@ func Test_pushReport(t *testing.T) {
 		{
 			name: "test",
 			args: args{
-				conn: &mockClient{},
-				s:    stats.NewStats(),
-				cfg:  cfg,
+				conn: mockClient,
+				ms:   ms,
 			},
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			if err := pushReport(tt.args.conn, tt.args.s, tt.args.cfg); (err != nil) != tt.wantErr {
+			if err := pushReport(ctx, tt.args.conn, tt.args.ms); (err != nil) != tt.wantErr {
 				t.Errorf("pushReport() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
