@@ -2,11 +2,7 @@ module github.com/ArtemShalinFe/metcoll
 
 go 1.20
 
-require (
-	github.com/go-playground/assert v1.2.1
-	github.com/golang/mock v1.6.0
-	github.com/stretchr/testify v1.8.2
-)
+require github.com/stretchr/testify v1.8.2
 
 require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
