@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
-
-	"go.uber.org/zap"
+	"time"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/interrupter"
@@ -17,8 +15,6 @@ import (
 
 func main() {
 
-	i := interrupter.NewInterrupters()
-
 	zl, err := zap.NewProduction()
 	if err != nil {
 		log.Fatal(fmt.Errorf("cannot init zap-logger err: %w ", err))
@@ -29,6 +25,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	i := interrupter.NewInterrupters()
 	i.Use(l.Interrupt)
 	i.Run(l.SugaredLogger)
 
@@ -46,17 +44,16 @@ func main() {
 	}
 
 	ctx := context.Background()
-	client := metcoll.NewClient(cfg, rl)
+	client := metcoll.NewClient(cfg, l)
 	stats := stats.NewStats()
 
 	if cfg.Limit > 0 {
+	if cfg.Limit > 0 {
 
-		ms := make(chan *metrics.Metrics, cfg.Limit)
-		defer close(ms)
+		s.Update()
+		now := time.Now()
 
-		prs := make(chan metcoll.PushResult, cfg.Limit)
-		defer close(prs)
-		stats.RunCollectStats(ctx, cfg, ms)
+		if isTimeToPushReport(lastReportPush, now, durReportInterval) {
 
 		for i := 0; i < cfg.Limit; i++ {
 			go client.UpdateMetric(ctx, ms, prs)
@@ -65,7 +62,7 @@ func main() {
 		for pr := range prs {
 
 			if pr.Err != nil {
-				l.Errorf("update metric failed err: %w", pr.Err)
+				l.Log.Errorf("update metric failed err: %w", pr.Err)
 			}
 
 			if pr.Metric.IsPollCount() {
@@ -74,21 +71,11 @@ func main() {
 
 		}
 
-	} else {
-
-		mcs := make(chan []*metrics.Metrics, 1)
-		defer close(mcs)
-
-		errs := make(chan error, 1)
-		defer close(errs)
-
-		stats.RunCollectBatchStats(ctx, cfg, mcs)
-
-		go client.BatchUpdateMetric(ctx, mcs, errs)
+		time.Sleep(pause)
 
 		for err := range errs {
 			if err != nil {
-				l.Errorf("batch update metrics failed err: %w", err)
+				l.Log.Errorf("batch update metrics failed err: %w", err)
 			} else {
 				stats.ClearPollCount()
 			}
