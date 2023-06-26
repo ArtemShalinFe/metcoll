@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -48,9 +49,10 @@ func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
 
 		hash := hmac.New(sha256.New, []byte(s.hashkey))
 		hash.Write(body)
+
 		sign := hash.Sum(nil)
 
-		if hmac.Equal(sign, []byte(bodyHash)) {
+		if fmt.Sprintf("%x", sign) == bodyHash {
 			h.ServeHTTP(w, r)
 		} else {
 			http.Error(w, "incorrect hash", http.StatusBadRequest)

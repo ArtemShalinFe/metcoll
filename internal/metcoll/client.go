@@ -26,7 +26,6 @@ type Client struct {
 	httpClient *retryablehttp.Client
 	logger     retryablehttp.LeveledLogger
 	hashkey    string
-	limit      int
 }
 
 func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogger) *Client {
@@ -96,15 +95,16 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 	req.Header.Set("Content-Encoding", "gzip")
 	if c.hashkey != "" {
 
-		key := []byte(c.hashkey)
 		data, err := req.BodyBytes()
 		if err != nil {
 			return nil, fmt.Errorf("cannot calculate hash err: %w", err)
 		}
-		h := hmac.New(sha256.New, key)
+
+		h := hmac.New(sha256.New, []byte(c.hashkey))
+
 		h.Write(data)
-		hash := fmt.Sprintf("%x", h.Sum(nil))
-		req.Header.Set("HashSHA256", hash)
+
+		req.Header.Set("HashSHA256", fmt.Sprintf("%x", h.Sum(nil)))
 
 	}
 
