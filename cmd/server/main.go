@@ -67,6 +67,7 @@ func main() {
 		handlers.NewHandler(stg, l.SugaredLogger),
 		l.RequestLogger,
 		s.RequestHashChecker,
+		s.ResponceHashSetter,
 		compress.CompressMiddleware)
 
 	i.Run(l.SugaredLogger)

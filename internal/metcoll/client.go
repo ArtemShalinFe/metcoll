@@ -170,7 +170,7 @@ func (c *Client) doRequest(req *retryablehttp.Request) error {
 
 	if resp.StatusCode < 300 {
 		c.logger.Info(`request for update metric has been completed
-	code: %d`, resp.StatusCode)
+	code: %d, hash: %s`, resp.StatusCode, resp.Header.Get("HashSha256"))
 	} else {
 		c.logger.Error(`request for update metric has failed
 	code: %d

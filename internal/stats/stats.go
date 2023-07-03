@@ -57,22 +57,22 @@ func (s *Stats) update(pause time.Duration) {
 		pause = 2 * time.Second
 	}
 
-	for {
+	go func() {
 
-		go func() {
+		for {
 
 			s.mux.Lock()
-			defer s.mux.Unlock()
 
 			runtime.ReadMemStats(s.memStats)
 			s.randomValue = time.Now().Unix()
 			s.pollCount = s.pollCount + 1
+			s.mux.Unlock()
 
-		}()
+			time.Sleep(pause)
 
-		time.Sleep(pause)
+		}
 
-	}
+	}()
 
 }
 
@@ -81,9 +81,10 @@ func (s *Stats) collect(ctx context.Context, pause time.Duration, ms chan<- *met
 	if pause == 0 {
 		pause = 10 * time.Second
 	}
-	for {
 
-		go func() {
+	go func() {
+
+		for {
 			for _, data := range s.GetReportData(ctx) {
 				for _, metric := range data {
 					select {
@@ -93,10 +94,10 @@ func (s *Stats) collect(ctx context.Context, pause time.Duration, ms chan<- *met
 					}
 				}
 			}
-		}()
+			time.Sleep(pause)
+		}
 
-		time.Sleep(pause)
-	}
+	}()
 
 }
 
@@ -105,9 +106,8 @@ func (s *Stats) batchCollect(ctx context.Context, pause time.Duration, ms chan<-
 	if pause == 0 {
 		pause = 10 * time.Second
 	}
-	for {
-
-		go func() {
+	go func() {
+		for {
 
 			var mcs []*metrics.Metrics
 			for _, data := range s.GetReportData(ctx) {
@@ -122,10 +122,11 @@ func (s *Stats) batchCollect(ctx context.Context, pause time.Duration, ms chan<-
 			case ms <- mcs:
 			}
 
-		}()
+			time.Sleep(pause)
 
-		time.Sleep(pause)
-	}
+		}
+
+	}()
 
 }
 

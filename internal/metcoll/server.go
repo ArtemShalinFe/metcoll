@@ -58,5 +58,45 @@ func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
 			http.Error(w, "incorrect hash", http.StatusBadRequest)
 			return
 		}
+
 	})
+
+}
+
+func (s *Server) ResponceHashSetter(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		if s.hashkey == "" {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		hsw := NewResponseHashSetter(w, s.hashkey)
+
+		h.ServeHTTP(hsw, r)
+
+	})
+}
+
+type ResponseHashWriter struct {
+	http.ResponseWriter
+	hashkey string
+}
+
+func NewResponseHashSetter(w http.ResponseWriter, hashkey string) *ResponseHashWriter {
+	return &ResponseHashWriter{
+		ResponseWriter: w,
+		hashkey:        hashkey,
+	}
+}
+
+func (r *ResponseHashWriter) Write(b []byte) (int, error) {
+
+	hash := hmac.New(sha256.New, []byte(r.hashkey))
+	hash.Write(b)
+
+	r.ResponseWriter.Header().Set("HashSHA256", fmt.Sprintf("%x", hash.Sum(nil)))
+
+	return r.ResponseWriter.Write(b)
+
 }

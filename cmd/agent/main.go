@@ -76,6 +76,7 @@ func main() {
 		}
 
 	} else {
+
 		mcs := make(chan []*metrics.Metrics, 1)
 		defer close(mcs)
 
@@ -93,6 +94,7 @@ func main() {
 				stats.ClearPollCount()
 			}
 		}
+
 	}
 
 }

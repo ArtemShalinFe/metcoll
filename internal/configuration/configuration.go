@@ -2,6 +2,8 @@ package configuration
 
 import (
 	"flag"
+	"strings"
+	"unicode"
 
 	"github.com/caarlos0/env"
 )
@@ -31,6 +33,14 @@ func Parse() (*Config, error) {
 	if err := env.Parse(&c); err != nil {
 		return nil, err
 	}
+
+	// Удалить непечатные символы
+	c.Key = strings.Map(func(r rune) rune {
+		if unicode.IsPrint(r) {
+			return r
+		}
+		return -1
+	}, c.Key)
 
 	return &c, nil
 
