@@ -4,97 +4,148 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
-	"github.com/ArtemShalinFe/metcoll/internal/interrupter"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metcoll"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
 )
 
+const (
+	timeoutShutdown = time.Second * 60
+)
+
 func main() {
+
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+
+}
+
+func run() error {
+
+	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancelCtx()
 
 	zl, err := zap.NewProduction()
 	if err != nil {
-		log.Fatal(fmt.Errorf("cannot init zap-logger err: %w ", err))
+		return fmt.Errorf("cannot init zap-logger err: %w ", err)
 	}
 	sl := zl.Sugar()
 
 	l, err := logger.NewMiddlewareLogger(sl)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("cannot init middleware logger err: %w", err)
 	}
-
-	i := interrupter.NewInterrupters()
-	i.Use(l.Interrupt)
-	i.Run(l.SugaredLogger)
 
 	cfg, err := configuration.ParseAgent()
 	if err != nil {
-		l.Errorf("cannot parse server config file err: %w", err)
-		return
+		return fmt.Errorf("cannot parse server config file err: %w", err)
 	}
-
 	l.Infof("parsed agent config: %+v", cfg)
+
+	componentsErrs := make(chan error, 1)
+	wg := &sync.WaitGroup{}
+	defer func() {
+		wg.Wait()
+	}()
+
+	wg.Add(1)
+	go func(errs chan<- error) {
+		defer wg.Done()
+		<-ctx.Done()
+
+		if err := l.Interrupt(); err != nil {
+			componentsErrs <- fmt.Errorf("cannot flush buffered log entries err: %w", err)
+		}
+	}(componentsErrs)
 
 	rl, err := logger.NewRLLogger(sl)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("cannot init retry logger err: %w", err)
 	}
 
-	ctx := context.Background()
 	client := metcoll.NewClient(cfg, rl)
 	stats := stats.NewStats()
 
-	if cfg.Limit > 0 {
+	go func() {
 
-		ms := make(chan *metrics.Metrics, cfg.Limit)
-		defer close(ms)
+		if cfg.Limit > 0 {
 
-		prs := make(chan metcoll.PushResult, cfg.Limit)
-		defer close(prs)
+			ms := make(chan *metrics.Metrics, cfg.Limit)
+			defer close(ms)
 
-		stats.RunCollectStats(ctx, cfg, ms)
+			prs := make(chan metcoll.PushResult, cfg.Limit)
+			defer close(prs)
 
-		for i := 0; i < cfg.Limit; i++ {
-			go client.UpdateMetric(ctx, ms, prs)
-		}
+			stats.RunCollectStats(ctx, cfg, ms)
 
-		for pr := range prs {
-
-			if pr.Err != nil {
-				l.Errorf("update metric failed err: %w", pr.Err)
+			for i := 0; i < cfg.Limit; i++ {
+				go client.UpdateMetric(ctx, ms, prs)
 			}
 
-			if pr.Metric.IsPollCount() {
-				stats.ClearPollCount()
+			for pr := range prs {
+
+				if pr.Err != nil {
+					l.Errorf("update metric failed err: %w", pr.Err)
+					continue
+				}
+
+				if pr.Metric.IsPollCount() {
+					stats.ClearPollCount()
+				}
+
+			}
+
+		} else {
+
+			mcs := make(chan []*metrics.Metrics, 1)
+			defer close(mcs)
+
+			errs := make(chan error, 1)
+			defer close(errs)
+
+			stats.RunCollectBatchStats(ctx, cfg, mcs)
+
+			go client.BatchUpdateMetric(ctx, mcs, errs)
+
+			for err := range errs {
+				if err != nil {
+					l.Errorf("batch update metrics failed err: %w", err)
+				} else {
+					stats.ClearPollCount()
+				}
 			}
 
 		}
 
-	} else {
+	}()
 
-		mcs := make(chan []*metrics.Metrics, 1)
-		defer close(mcs)
+	l.Info("metcoll client starting")
 
-		errs := make(chan error, 1)
-		defer close(errs)
-
-		stats.RunCollectBatchStats(ctx, cfg, mcs)
-
-		go client.BatchUpdateMetric(ctx, mcs, errs)
-
-		for err := range errs {
-			if err != nil {
-				l.Errorf("batch update metrics failed err: %w", err)
-			} else {
-				stats.ClearPollCount()
-			}
-		}
-
+	select {
+	case <-ctx.Done():
+	case err := <-componentsErrs:
+		l.Error(err)
+		cancelCtx()
 	}
+
+	go func() {
+		ctx, cancelCtx := context.WithTimeout(context.Background(), timeoutShutdown)
+		defer cancelCtx()
+
+		<-ctx.Done()
+		l.Fatal("gracefull shutdown was failed")
+	}()
+
+	return nil
 
 }
