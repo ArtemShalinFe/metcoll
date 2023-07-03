@@ -120,6 +120,7 @@ func (s *Stats) batchCollect(ctx context.Context, pause time.Duration, ms chan<-
 			case <-ctx.Done():
 				return
 			case ms <- mcs:
+			default:
 			}
 
 			time.Sleep(pause)
