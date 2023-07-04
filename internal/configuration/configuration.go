@@ -2,8 +2,6 @@ package configuration
 
 import (
 	"flag"
-	"strings"
-	"unicode"
 
 	"github.com/caarlos0/env"
 )
@@ -15,6 +13,7 @@ type Config struct {
 	Restore         bool   `env:"RESTORE"`
 	Database        string `env:"DATABASE_DSN"`
 	Key             string `env:"KEY"`
+	HashKey         []byte
 }
 
 func Parse() (*Config, error) {
@@ -34,13 +33,7 @@ func Parse() (*Config, error) {
 		return nil, err
 	}
 
-	// Удалить непечатные символы
-	c.Key = strings.Map(func(r rune) rune {
-		if unicode.IsPrint(r) {
-			return r
-		}
-		return -1
-	}, c.Key)
+	c.HashKey = []byte(c.Key)
 
 	return &c, nil
 

@@ -13,20 +13,20 @@ import (
 
 type Server struct {
 	*http.Server
-	hashkey string
+	hashkey []byte
 }
 
 func NewServer(cfg *configuration.Config) *Server {
 	s := http.Server{
 		Addr: cfg.Address,
 	}
-	return &Server{&s, cfg.Key}
+	return &Server{&s, cfg.HashKey}
 }
 
 func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		if s.hashkey == "" {
+		if len(s.hashkey) == 0 {
 			h.ServeHTTP(w, r)
 			return
 		}
@@ -66,7 +66,7 @@ func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
 func (s *Server) ResponceHashSetter(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		if s.hashkey == "" {
+		if len(s.hashkey) == 0 {
 			h.ServeHTTP(w, r)
 			return
 		}
@@ -80,10 +80,10 @@ func (s *Server) ResponceHashSetter(h http.Handler) http.Handler {
 
 type ResponseHashWriter struct {
 	http.ResponseWriter
-	hashkey string
+	hashkey []byte
 }
 
-func NewResponseHashSetter(w http.ResponseWriter, hashkey string) *ResponseHashWriter {
+func NewResponseHashSetter(w http.ResponseWriter, hashkey []byte) *ResponseHashWriter {
 	return &ResponseHashWriter{
 		ResponseWriter: w,
 		hashkey:        hashkey,
@@ -92,7 +92,7 @@ func NewResponseHashSetter(w http.ResponseWriter, hashkey string) *ResponseHashW
 
 func (r *ResponseHashWriter) Write(b []byte) (int, error) {
 
-	hash := hmac.New(sha256.New, []byte(r.hashkey))
+	hash := hmac.New(sha256.New, r.hashkey)
 	hash.Write(b)
 
 	r.ResponseWriter.Header().Set("HashSHA256", fmt.Sprintf("%x", hash.Sum(nil)))

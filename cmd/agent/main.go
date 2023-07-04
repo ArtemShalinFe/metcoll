@@ -78,53 +78,23 @@ func run() error {
 
 	go func() {
 
-		if cfg.Limit > 0 {
+		mcs := make(chan []*metrics.Metrics, cfg.Limit)
+		defer close(mcs)
 
-			ms := make(chan *metrics.Metrics, cfg.Limit)
-			defer close(ms)
+		errs := make(chan error, cfg.Limit)
+		defer close(errs)
 
-			prs := make(chan metcoll.PushResult, cfg.Limit)
-			defer close(prs)
-
-			stats.RunCollectStats(ctx, cfg, ms)
-
-			for i := 0; i < cfg.Limit; i++ {
-				go client.UpdateMetric(ctx, ms, prs)
-			}
-
-			for pr := range prs {
-
-				if pr.Err != nil {
-					l.Errorf("update metric failed err: %w", pr.Err)
-					continue
-				}
-
-				if pr.Metric.IsPollCount() {
-					stats.ClearPollCount()
-				}
-
-			}
-
-		} else {
-
-			mcs := make(chan []*metrics.Metrics, 1)
-			defer close(mcs)
-
-			errs := make(chan error, 1)
-			defer close(errs)
-
-			stats.RunCollectBatchStats(ctx, cfg, mcs)
-
+		stats.RunCollectBatchStats(ctx, cfg, mcs)
+		for i := 0; i < cfg.Limit; i++ {
 			go client.BatchUpdateMetric(ctx, mcs, errs)
+		}
 
-			for err := range errs {
-				if err != nil {
-					l.Errorf("batch update metrics failed err: %w", err)
-				} else {
-					stats.ClearPollCount()
-				}
+		for err := range errs {
+			if err != nil {
+				l.Errorf("batch update metrics failed err: %w", err)
+			} else {
+				stats.ClearPollCount()
 			}
-
 		}
 
 	}()

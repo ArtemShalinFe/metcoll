@@ -31,16 +31,6 @@ func NewStats() *Stats {
 	}
 }
 
-func (s *Stats) RunCollectStats(ctx context.Context, cfg *configuration.ConfigAgent, ms chan<- *metrics.Metrics) {
-
-	pauseUpdate := time.Duration(cfg.PollInterval) * time.Second
-	pauseCollect := time.Duration(cfg.ReportInterval) * time.Second
-
-	go s.update(pauseUpdate)
-	go s.collect(ctx, pauseCollect, ms)
-
-}
-
 func (s *Stats) RunCollectBatchStats(ctx context.Context, cfg *configuration.ConfigAgent, ms chan<- []*metrics.Metrics) {
 
 	pauseUpdate := time.Duration(cfg.PollInterval) * time.Second
@@ -70,31 +60,6 @@ func (s *Stats) update(pause time.Duration) {
 
 			time.Sleep(pause)
 
-		}
-
-	}()
-
-}
-
-func (s *Stats) collect(ctx context.Context, pause time.Duration, ms chan<- *metrics.Metrics) {
-
-	if pause == 0 {
-		pause = 10 * time.Second
-	}
-
-	go func() {
-
-		for {
-			for _, data := range s.GetReportData(ctx) {
-				for _, metric := range data {
-					select {
-					case <-ctx.Done():
-						return
-					case ms <- metric:
-					}
-				}
-			}
-			time.Sleep(pause)
 		}
 
 	}()

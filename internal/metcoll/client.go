@@ -25,7 +25,7 @@ type Client struct {
 	host       string
 	httpClient *retryablehttp.Client
 	logger     retryablehttp.LeveledLogger
-	hashkey    string
+	hashkey    []byte
 }
 
 func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogger) *Client {
@@ -42,7 +42,7 @@ func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogge
 		host:       cfg.Server,
 		httpClient: retryClient,
 		logger:     logger,
-		hashkey:    cfg.Key,
+		hashkey:    cfg.HashKey,
 	}
 
 }
@@ -93,7 +93,7 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
-	if c.hashkey != "" {
+	if len(c.hashkey) != 0 {
 
 		data, err := req.BodyBytes()
 		if err != nil {
@@ -109,27 +109,6 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 	}
 
 	return req, nil
-
-}
-
-func (c *Client) Update(ctx context.Context, metric *metrics.Metrics) error {
-
-	body, err := json.Marshal(metric)
-	if err != nil {
-		return fmt.Errorf("cannot marshal metric err: %w", err)
-	}
-
-	url, err := url.JoinPath("http://", c.host, "/update/")
-	if err != nil {
-		return fmt.Errorf("cannot join elements in path err: %w", err)
-	}
-
-	req, err := c.prepareRequest(ctx, body, url)
-	if err != nil {
-		return fmt.Errorf("cannot prepare request err: %w", err)
-	}
-
-	return c.doRequest(req)
 
 }
 
@@ -184,29 +163,6 @@ func (c *Client) doRequest(req *retryablehttp.Request) error {
 type PushResult struct {
 	Metric *metrics.Metrics
 	Err    error
-}
-
-func (c *Client) UpdateMetric(ctx context.Context, ms <-chan *metrics.Metrics, results chan<- PushResult) {
-
-	for m := range ms {
-
-		pr := &PushResult{
-			Metric: m,
-			Err:    nil,
-		}
-
-		if err := c.Update(ctx, m); err != nil {
-			pr.Err = fmt.Errorf("push metric %s on server err: %w", m.ID, err)
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case results <- *pr:
-		}
-
-	}
-
 }
 
 func (c *Client) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Metrics, result chan<- error) {
