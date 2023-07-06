@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 )
 
@@ -22,9 +25,10 @@ type Client struct {
 	host       string
 	httpClient *retryablehttp.Client
 	logger     retryablehttp.LeveledLogger
+	hashkey    []byte
 }
 
-func NewClient(Host string, logger retryablehttp.LeveledLogger) *Client {
+func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogger) *Client {
 
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 3
@@ -35,9 +39,10 @@ func NewClient(Host string, logger retryablehttp.LeveledLogger) *Client {
 	retryClient.Backoff = Backoff
 
 	return &Client{
-		host:       Host,
+		host:       cfg.Server,
 		httpClient: retryClient,
 		logger:     logger,
+		hashkey:    cfg.Key,
 	}
 
 }
@@ -88,35 +93,26 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
+	if len(c.hashkey) != 0 {
+
+		data, err := req.BodyBytes()
+		if err != nil {
+			return nil, fmt.Errorf("cannot calculate hash err: %w", err)
+		}
+
+		h := hmac.New(sha256.New, []byte(c.hashkey))
+
+		h.Write(data)
+
+		req.Header.Set("HashSHA256", fmt.Sprintf("%x", h.Sum(nil)))
+
+	}
 
 	return req, nil
-}
-
-func (c *Client) Update(ctx context.Context, metric *metrics.Metrics) error {
-
-	body, err := json.Marshal(metric)
-	if err != nil {
-		return fmt.Errorf("cannot marshal metric err: %w", err)
-	}
-
-	url, err := url.JoinPath("http://", c.host, "/update/")
-	if err != nil {
-		return fmt.Errorf("cannot join elements in path err: %w", err)
-	}
-
-	rctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	req, err := c.prepareRequest(rctx, body, url)
-	if err != nil {
-		return fmt.Errorf("cannot prepare request err: %w", err)
-	}
-
-	return c.DoRequest(req)
 
 }
 
-func (c *Client) BatchUpdate(ctx context.Context, metrics []*metrics.Metrics) error {
+func (c *Client) batchUpdate(ctx context.Context, metrics []*metrics.Metrics) error {
 
 	body, err := json.Marshal(metrics)
 	if err != nil {
@@ -128,19 +124,16 @@ func (c *Client) BatchUpdate(ctx context.Context, metrics []*metrics.Metrics) er
 		return fmt.Errorf("cannot join elements in path err: %w", err)
 	}
 
-	rctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	req, err := c.prepareRequest(rctx, body, url)
+	req, err := c.prepareRequest(ctx, body, url)
 	if err != nil {
 		return fmt.Errorf("cannot prepare request err: %w", err)
 	}
 
-	return c.DoRequest(req)
+	return c.doRequest(req)
 
 }
 
-func (c *Client) DoRequest(req *retryablehttp.Request) error {
+func (c *Client) doRequest(req *retryablehttp.Request) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -156,7 +149,7 @@ func (c *Client) DoRequest(req *retryablehttp.Request) error {
 
 	if resp.StatusCode < 300 {
 		c.logger.Info(`request for update metric has been completed
-	code: %d`, resp.StatusCode)
+	code: %d, hash: %s`, resp.StatusCode, resp.Header.Get("HashSha256"))
 	} else {
 		c.logger.Error(`request for update metric has failed
 	code: %d
@@ -164,5 +157,26 @@ func (c *Client) DoRequest(req *retryablehttp.Request) error {
 	}
 
 	return nil
+
+}
+
+type PushResult struct {
+	Metric *metrics.Metrics
+	Err    error
+}
+
+func (c *Client) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Metrics, result chan<- error) {
+
+	for m := range mcs {
+
+		err := c.batchUpdate(ctx, m)
+
+		select {
+		case <-ctx.Done():
+			return
+		case result <- err:
+		}
+
+	}
 
 }

@@ -3,16 +3,19 @@ package stats
 import (
 	"context"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/mem"
 
+	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
 type Stats struct {
+	mux         *sync.RWMutex
 	memStats    *runtime.MemStats
 	pollCount   int64
 	randomValue int64 // timestamp
@@ -21,17 +24,75 @@ type Stats struct {
 func NewStats() *Stats {
 
 	return &Stats{
+		mux:         &sync.RWMutex{},
 		memStats:    &runtime.MemStats{},
 		pollCount:   0,
 		randomValue: time.Now().Unix(),
 	}
 }
 
-func (s *Stats) Update() {
+func (s *Stats) RunCollectBatchStats(ctx context.Context, cfg *configuration.ConfigAgent, ms chan<- []*metrics.Metrics) {
 
-	runtime.ReadMemStats(s.memStats)
-	s.randomValue = time.Now().Unix()
-	s.pollCount = s.pollCount + 1
+	pauseUpdate := time.Duration(cfg.PollInterval) * time.Second
+	pauseCollect := time.Duration(cfg.ReportInterval) * time.Second
+
+	go s.update(pauseUpdate)
+	go s.batchCollect(ctx, pauseCollect, ms)
+
+}
+
+func (s *Stats) update(pause time.Duration) {
+
+	if pause == 0 {
+		pause = 2 * time.Second
+	}
+
+	go func() {
+
+		for {
+
+			s.mux.Lock()
+
+			runtime.ReadMemStats(s.memStats)
+			s.randomValue = time.Now().Unix()
+			s.pollCount = s.pollCount + 1
+			s.mux.Unlock()
+
+			time.Sleep(pause)
+
+		}
+
+	}()
+
+}
+
+func (s *Stats) batchCollect(ctx context.Context, pause time.Duration, ms chan<- []*metrics.Metrics) {
+
+	if pause == 0 {
+		pause = 10 * time.Second
+	}
+	go func() {
+		for {
+
+			var mcs []*metrics.Metrics
+			for _, data := range s.GetReportData(ctx) {
+				for _, metric := range data {
+					mcs = append(mcs, metric)
+				}
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case ms <- mcs:
+			default:
+			}
+
+			time.Sleep(pause)
+
+		}
+
+	}()
 
 }
 
@@ -64,6 +125,9 @@ func (s *Stats) GetReportData(ctx context.Context) map[string]map[string]*metric
 }
 
 func (s *Stats) GetFloat64Value(ctx context.Context, id string) (float64, error) {
+
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 
 	switch id {
 	case "Alloc":
@@ -156,6 +220,9 @@ func (s *Stats) GetFloat64Value(ctx context.Context, id string) (float64, error)
 }
 
 func (s *Stats) GetInt64Value(ctx context.Context, id string) (int64, error) {
+
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 
 	switch id {
 	case metrics.PollCount:
