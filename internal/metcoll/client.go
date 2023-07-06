@@ -42,7 +42,7 @@ func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogge
 		host:       cfg.Server,
 		httpClient: retryClient,
 		logger:     logger,
-		hashkey:    cfg.HashKey,
+		hashkey:    cfg.Key,
 	}
 
 }
