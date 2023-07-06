@@ -20,7 +20,7 @@ func NewServer(cfg *configuration.Config) *Server {
 	s := http.Server{
 		Addr: cfg.Address,
 	}
-	return &Server{&s, cfg.HashKey}
+	return &Server{&s, cfg.Key}
 }
 
 func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
