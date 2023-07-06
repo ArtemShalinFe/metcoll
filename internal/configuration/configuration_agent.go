@@ -32,9 +32,11 @@ func ParseAgent() (*ConfigAgent, error) {
 		return nil, err
 	}
 
-	if hashkey == "" {
-		hashkey = os.Getenv("KEY")
+	envkey := os.Getenv("KEY")
+	if envkey != "" {
+		hashkey = envkey
 	}
+
 	c.Key = []byte(hashkey)
 
 	return &c, nil
