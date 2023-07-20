@@ -41,8 +41,8 @@ func (l *MiddlewareLogger) RequestLogger(h http.Handler) http.Handler {
 		h.ServeHTTP(rw, r)
 		duration := time.Since(start)
 
-		l.Infof("HTTP request method: %s, body: %s, url: %s, duration: %s, statusCode: %d, responseSize: %d",
-			r.Method, string(body), r.RequestURI, duration, rw.responseData.status, rw.responseData.size,
+		l.Infof("HTTP request method: %s, header: %v, body: %s, url: %s, duration: %s, statusCode: %d, responseSize: %d",
+			r.Method, r.Header, string(body), r.RequestURI, duration, rw.responseData.status, rw.responseData.size,
 		)
 	})
 }
