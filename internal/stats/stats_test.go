@@ -7,6 +7,7 @@ import (
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
+	"github.com/go-playground/assert"
 )
 
 func BenchmarkGetReportData(b *testing.B) {
@@ -35,8 +36,8 @@ func TestStats_RunCollectBatchStats(t *testing.T) {
 	conf := &configuration.ConfigAgent{}
 	conf.Key = []byte("")
 	conf.Limit = 1
-	conf.PollInterval = 1
-	conf.ReportInterval = 2
+	conf.PollInterval = 0
+	conf.ReportInterval = 0
 
 	mcs := make(chan []*metrics.Metrics, conf.Limit)
 
@@ -73,6 +74,29 @@ func TestStats_RunCollectBatchStats(t *testing.T) {
 				return
 			case <-tt.args.ms:
 			}
+		})
+	}
+}
+
+func TestStats_ClearPollCount(t *testing.T) {
+	s := NewStats()
+	s.pollCount = 10
+
+	tests := []struct {
+		name  string
+		stats *Stats
+	}{
+		{
+			name:  "cleanup",
+			stats: s,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			tt.stats.ClearPollCount()
+
+			assert.Equal(t, tt.stats.pollCount, int64(0))
 		})
 	}
 }

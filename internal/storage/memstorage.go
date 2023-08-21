@@ -202,12 +202,7 @@ func (ms *MemStorage) BatchSetFloat64Value(_ context.Context,
 	defer ms.mutex.Unlock()
 
 	for key, value := range gauges {
-		v, ok := ms.dataFloat64[key]
-		if !ok {
-			v = 0
-		}
-		newValue := v + value
-		ms.dataFloat64[key] = newValue
+		ms.dataFloat64[key] = value
 	}
 	var errs []error
 	return gauges, errs, nil

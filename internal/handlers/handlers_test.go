@@ -83,6 +83,51 @@ func TestHandler_UpdateMetricFromURL(t *testing.T) {
 	}
 }
 
+func TestHandler_Ping(t *testing.T) {
+
+	ctx := context.Background()
+	cfg := &configuration.Config{}
+
+	zl, err := zap.NewProduction()
+	if err != nil {
+		t.Errorf("cannot init zap-logger err: %v", err)
+	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		t.Errorf("cannot init middleware logger err: %v", err)
+	}
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
+	if err != nil {
+		t.Errorf("cannot init storage err: %v", err)
+	}
+
+	h := NewHandler(s, sl)
+	r := NewRouter(ctx, h, l.RequestLogger)
+
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	var tests = []struct {
+		url    string
+		want   string
+		method string
+		status int
+	}{
+		{"/ping", "", http.MethodGet, http.StatusOK},
+	}
+	for _, v := range tests {
+		resp, get := testRequest(t, ts, v.method, v.url, nil)
+		defer resp.Body.Close()
+		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf("URL: %s", v.url))
+		if v.want != "" {
+			assert.Equal(t, v.want, string(get), fmt.Sprintf("URL: %s", v.url))
+		}
+	}
+}
+
 func ExampleHandler_UpdateMetricFromURL() {
 	ctx := context.Background()
 	cfg := &configuration.Config{}
