@@ -28,6 +28,7 @@ require (
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-chi/chi v1.5.4
+	github.com/go-playground/assert v1.2.1
 	github.com/hashicorp/go-retryablehttp v0.7.4
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 	github.com/jackc/pgx/v5 v5.4.0

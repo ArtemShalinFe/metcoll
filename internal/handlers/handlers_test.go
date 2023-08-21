@@ -117,6 +117,11 @@ func ExampleHandler_UpdateMetricFromURL() {
 		fmt.Printf("http request err: %v", err)
 		return
 	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			fmt.Printf("body close err: %v", err)
+		}
+	}()
 
 	fmt.Println(res.StatusCode)
 
@@ -349,6 +354,11 @@ func ExampleHandler_UpdateMetric() {
 		fmt.Printf("http request err: %v", err)
 		return
 	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			fmt.Printf("body close err: %v", err)
+		}
+	}()
 
 	fmt.Println(res.StatusCode)
 
@@ -484,6 +494,11 @@ func ExampleHandler_BatchUpdate() {
 		fmt.Printf("http request err: %v", err)
 		return
 	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			fmt.Printf("body close err: %v", err)
+		}
+	}()
 
 	fmt.Println(res.StatusCode)
 
@@ -572,29 +587,34 @@ func ExampleHandler_CollectMetricList() {
 
 	defer ts.Close()
 
-	_, err = ts.Client().Post(ts.URL+"/update/gauge/metric/1.2", "plain/text", nil)
+	res, err := ts.Client().Post(ts.URL+"/update/gauge/metric/1.2", "plain/text", nil)
 	if err != nil {
 		fmt.Printf("http request err: %v", err)
 		return
 	}
 
-	_, err = ts.Client().Post(ts.URL+"/update/counter/metric/1", "plain/text", nil)
+	res, err = ts.Client().Post(ts.URL+"/update/counter/metric/1", "plain/text", nil)
 	if err != nil {
 		fmt.Printf("http request err: %v", err)
 		return
 	}
 
-	_, err = ts.Client().Post(ts.URL+"/update/counter/metric/1", "plain/text", nil)
+	res, err = ts.Client().Post(ts.URL+"/update/counter/metric/1", "plain/text", nil)
 	if err != nil {
 		fmt.Printf("http request err: %v", err)
 		return
 	}
 
-	res, err := ts.Client().Get(ts.URL + "/")
+	res, err = ts.Client().Get(ts.URL + "/")
 	if err != nil {
 		fmt.Printf("http request err: %v", err)
 		return
 	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			fmt.Printf("body close err: %v", err)
+		}
+	}()
 
 	fmt.Println(res.StatusCode)
 
