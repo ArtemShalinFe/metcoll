@@ -28,5 +28,8 @@ vendor/
 *debug*bin
 .DS_Store
 
+# lint
+.cache
+
 # coverage test
 coverage.html

@@ -16,6 +16,7 @@ type Server struct {
 	hashkey []byte
 }
 
+// NewServer - Object Constructor.
 func NewServer(cfg *configuration.Config) *Server {
 	s := http.Server{
 		Addr: cfg.Address,
@@ -23,15 +24,15 @@ func NewServer(cfg *configuration.Config) *Server {
 	return &Server{&s, cfg.Key}
 }
 
+// RequestHashChecker - middleware checks the hash in the incoming request.
 func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		if len(s.hashkey) == 0 {
 			h.ServeHTTP(w, r)
 			return
 		}
 
-		// Тесты не прочитали ТЗ и присылают запросы без ключа ¯\_(ツ)_/¯ и еще сильно на тебя ругаются когда им 400 показываешь.
+		// for ya-autotests.
 		bodyHash := r.Header.Get("HashSHA256")
 		if bodyHash == "" {
 			h.ServeHTTP(w, r)
@@ -58,14 +59,12 @@ func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
 			http.Error(w, "incorrect hash", http.StatusBadRequest)
 			return
 		}
-
 	})
-
 }
 
+// ResponceHashSetter - middleware sets the hash in the server response.
 func (s *Server) ResponceHashSetter(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		if len(s.hashkey) == 0 {
 			h.ServeHTTP(w, r)
 			return
@@ -74,7 +73,6 @@ func (s *Server) ResponceHashSetter(h http.Handler) http.Handler {
 		hsw := NewResponseHashSetter(w, s.hashkey)
 
 		h.ServeHTTP(hsw, r)
-
 	})
 }
 
@@ -83,6 +81,7 @@ type ResponseHashWriter struct {
 	hashkey []byte
 }
 
+// NewResponseHashSetter - Object Constructor.
 func NewResponseHashSetter(w http.ResponseWriter, hashkey []byte) *ResponseHashWriter {
 	return &ResponseHashWriter{
 		ResponseWriter: w,
@@ -91,12 +90,10 @@ func NewResponseHashSetter(w http.ResponseWriter, hashkey []byte) *ResponseHashW
 }
 
 func (r *ResponseHashWriter) Write(b []byte) (int, error) {
-
 	hash := hmac.New(sha256.New, r.hashkey)
 	hash.Write(b)
 
 	r.ResponseWriter.Header().Set("HashSHA256", fmt.Sprintf("%x", hash.Sum(nil)))
 
 	return r.ResponseWriter.Write(b)
-
 }

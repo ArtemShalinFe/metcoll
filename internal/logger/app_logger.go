@@ -15,14 +15,14 @@ type MiddlewareLogger struct {
 	*zap.SugaredLogger
 }
 
+// NewMiddlewareLogger - Object Constructor.
 func NewMiddlewareLogger(l *zap.SugaredLogger) (*MiddlewareLogger, error) {
-
 	return &MiddlewareLogger{
 		l,
 	}, nil
-
 }
 
+// RequestLogger - middleware for saving incoming requests and responses to them.
 func (l *MiddlewareLogger) RequestLogger(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -47,18 +47,14 @@ func (l *MiddlewareLogger) RequestLogger(h http.Handler) http.Handler {
 	})
 }
 
+// Interrupt - function for gracefull shutdown.
 func (l *MiddlewareLogger) Interrupt() error {
-
 	if err := l.Sync(); err != nil {
-
 		if runtime.GOOS == "darwin" {
 			return nil
 		} else {
 			return fmt.Errorf("cannot flush buffered log entries err: %w", err)
 		}
-
 	}
-
 	return nil
-
 }

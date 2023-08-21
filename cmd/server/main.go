@@ -1,3 +1,4 @@
+// Package is used to store indicators of their aggregation and return on request.
 package main
 
 import (
@@ -22,20 +23,20 @@ import (
 )
 
 const (
+	// TimeoutServerShutdown is waiting time until the server gorutins are completed.
 	timeoutServerShutdown = time.Second * 30
-	timeoutShutdown       = time.Second * 60
+
+	// TimeoutShutdown is waiting time until the rest of the gorutins are completed.
+	timeoutShutdown = time.Second * 60
 )
 
 func main() {
-
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
-
 }
 
 func run() error {
-
 	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelCtx()
 
@@ -62,14 +63,14 @@ func run() error {
 		wg.Wait()
 	}()
 
-	// GS logger
+	// GS logger.
 	wg.Add(1)
 	go func(errs chan<- error) {
 		defer wg.Done()
 		<-ctx.Done()
 
 		if err := l.Interrupt(); err != nil {
-			componentsErrs <- fmt.Errorf("cannot flush buffered log entries err: %w", err)
+			errs <- fmt.Errorf("cannot flush buffered log entries err: %w", err)
 		}
 	}(componentsErrs)
 
@@ -78,14 +79,14 @@ func run() error {
 		return fmt.Errorf("storage init err: %w ", err)
 	}
 
-	// GS storage
+	// GS storage.
 	wg.Add(1)
 	go func(errs chan<- error) {
 		defer wg.Done()
 		<-ctx.Done()
 
 		if err := stg.Interrupt(); err != nil {
-			componentsErrs <- fmt.Errorf("close storage failed err: %w", err)
+			errs <- fmt.Errorf("close storage failed err: %w", err)
 		}
 	}(componentsErrs)
 
@@ -98,7 +99,7 @@ func run() error {
 		s.ResponceHashSetter,
 		compress.CompressMiddleware)
 
-	// GS server
+	// GS server.
 	go func(errs chan<- error) {
 		if err := s.ListenAndServe(); err != nil {
 			if !errors.Is(err, http.ErrServerClosed) {

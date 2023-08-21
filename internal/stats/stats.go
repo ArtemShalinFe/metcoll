@@ -22,7 +22,6 @@ type Stats struct {
 }
 
 func NewStats() *Stats {
-
 	return &Stats{
 		mux:         &sync.RWMutex{},
 		memStats:    &runtime.MemStats{},
@@ -32,68 +31,53 @@ func NewStats() *Stats {
 }
 
 func (s *Stats) RunCollectBatchStats(ctx context.Context, cfg *configuration.ConfigAgent, ms chan<- []*metrics.Metrics) {
-
 	pauseUpdate := time.Duration(cfg.PollInterval) * time.Second
 	pauseCollect := time.Duration(cfg.ReportInterval) * time.Second
 
 	go s.update(pauseUpdate)
 	go s.batchCollect(ctx, pauseCollect, ms)
-
 }
 
 func (s *Stats) update(pause time.Duration) {
-
 	if pause == 0 {
 		pause = 2 * time.Second
 	}
 
-	go func() {
+	for {
+		s.mux.Lock()
 
-		for {
+		runtime.ReadMemStats(s.memStats)
+		s.randomValue = time.Now().Unix()
+		s.pollCount = s.pollCount + 1
 
-			s.mux.Lock()
+		s.mux.Unlock()
 
-			runtime.ReadMemStats(s.memStats)
-			s.randomValue = time.Now().Unix()
-			s.pollCount = s.pollCount + 1
-			s.mux.Unlock()
-
-			time.Sleep(pause)
-
-		}
-
-	}()
-
+		time.Sleep(pause)
+	}
 }
 
 func (s *Stats) batchCollect(ctx context.Context, pause time.Duration, ms chan<- []*metrics.Metrics) {
-
 	if pause == 0 {
 		pause = 10 * time.Second
 	}
-	go func() {
-		for {
 
-			var mcs []*metrics.Metrics
-			for _, data := range s.GetReportData(ctx) {
-				for _, metric := range data {
-					mcs = append(mcs, metric)
-				}
+	for {
+		var mcs []*metrics.Metrics
+		for _, data := range s.GetReportData(ctx) {
+			for _, metric := range data {
+				mcs = append(mcs, metric)
 			}
-
-			select {
-			case <-ctx.Done():
-				return
-			case ms <- mcs:
-			default:
-			}
-
-			time.Sleep(pause)
-
 		}
 
-	}()
+		select {
+		case <-ctx.Done():
+			return
+		case ms <- mcs:
+		default:
+		}
 
+		time.Sleep(pause)
+	}
 }
 
 func (s *Stats) ClearPollCount() {
@@ -101,7 +85,6 @@ func (s *Stats) ClearPollCount() {
 }
 
 func (s *Stats) GetReportData(ctx context.Context) map[string]map[string]*metrics.Metrics {
-
 	gm := make(map[string]*metrics.Metrics)
 	for _, id := range gaugeMetrics() {
 		m := metrics.NewGaugeMetric(id, 0)
@@ -121,11 +104,9 @@ func (s *Stats) GetReportData(ctx context.Context) map[string]map[string]*metric
 	reportData[metrics.CounterMetric] = cm
 
 	return reportData
-
 }
 
 func (s *Stats) GetFloat64Value(ctx context.Context, id string) (float64, error) {
-
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 
@@ -185,23 +166,18 @@ func (s *Stats) GetFloat64Value(ctx context.Context, id string) (float64, error)
 	case "RandomValue":
 		return float64(s.randomValue), nil
 	case "TotalMemory":
-
 		vm, err := mem.VirtualMemory()
 		if err != nil {
 			return 0, storage.ErrNoRows
 		}
 		return float64(vm.Total), nil
-
 	case "FreeMemory":
-
 		vm, err := mem.VirtualMemory()
 		if err != nil {
 			return 0, nil
 		}
 		return float64(vm.Free), nil
-
 	case "CPUutilization1":
-
 		c, err := cpu.Info()
 		if err != nil {
 			return 0, nil
@@ -212,15 +188,12 @@ func (s *Stats) GetFloat64Value(ctx context.Context, id string) (float64, error)
 		} else {
 			return 0, nil
 		}
-
 	default:
 		return 0, nil
 	}
-
 }
 
 func (s *Stats) GetInt64Value(ctx context.Context, id string) (int64, error) {
-
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 
@@ -230,7 +203,6 @@ func (s *Stats) GetInt64Value(ctx context.Context, id string) (int64, error) {
 	default:
 		return 0, storage.ErrNoRows
 	}
-
 }
 
 func (s *Stats) SetFloat64Value(ctx context.Context, key string, value float64) (float64, error) {
@@ -250,7 +222,6 @@ func (s *Stats) BatchSetFloat64Value(ctx context.Context, counters map[string]fl
 }
 
 func gaugeMetrics() []string {
-
 	var gauges []string
 	gauges = append(gauges, "Alloc")
 	gauges = append(gauges, "BuckHashSys")
@@ -285,14 +256,11 @@ func gaugeMetrics() []string {
 	gauges = append(gauges, "CPUutilization1")
 
 	return gauges
-
 }
 
 func counterMetrics() []string {
-
 	var counters []string
 	counters = append(counters, "PollCount")
 
 	return counters
-
 }

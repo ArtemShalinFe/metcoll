@@ -9,12 +9,15 @@ import (
 )
 
 func TestState_SaveLoad(t *testing.T) {
-
 	ctx := context.Background()
 
 	ts := newMemStorage()
-	ts.SetFloat64Value(ctx, "test1", 1.2)
-	ts.AddInt64Value(ctx, "test4", 5)
+	if _, err := ts.SetFloat64Value(ctx, "test12", 1.2); err != nil {
+		t.Error(err)
+	}
+	if _, err := ts.AddInt64Value(ctx, "test5", 5); err != nil {
+		t.Error(err)
+	}
 
 	zl, err := zap.NewProduction()
 	if err != nil {
@@ -24,10 +27,10 @@ func TestState_SaveLoad(t *testing.T) {
 	sl := zl.Sugar()
 
 	type fields struct {
-		path          string
-		storeInterval int
 		stg           *MemStorage
 		logger        *zap.SugaredLogger
+		path          string
+		storeInterval int
 	}
 
 	tests := []struct {
@@ -59,8 +62,11 @@ func TestState_SaveLoad(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-
-			defer os.Remove(tt.fields.path)
+			defer func() {
+				if err := os.Remove(tt.fields.path); err != nil {
+					t.Errorf("cannot remove temp file for filestorage tests: %v", err)
+				}
+			}()
 
 			st := &Filestorage{
 				path:          tt.fields.path,
@@ -75,21 +81,23 @@ func TestState_SaveLoad(t *testing.T) {
 			if err := st.Load(st.MemStorage); (err != nil) != tt.wantErr {
 				t.Errorf("State.Load() error = %v, wantErr %v", err, tt.wantErr)
 			}
-
 		})
 	}
 }
 
 func newTempFile(t *testing.T) string {
-
+	t.Helper()
 	td := os.TempDir()
 
 	f, err := os.CreateTemp(td, "*")
 	if err != nil {
 		t.Errorf("cannot create new temp file for filestorage tests: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Errorf("cannot close temp file for filestorage tests: %v", err)
+		}
+	}()
 
 	return f.Name()
-
 }

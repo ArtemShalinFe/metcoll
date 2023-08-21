@@ -2,18 +2,21 @@ package compress
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io"
 )
 
+// gzipReader the type is used to read compressed queries.
 type gzipReader struct {
 	r    io.ReadCloser
 	zipR *gzip.Reader
 }
 
+// NewGzipReader - Object Constructor.
 func NewGzipReader(r io.ReadCloser) (*gzipReader, error) {
 	zipR, err := gzip.NewReader(r)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gzip new reader err: %w", err)
 	}
 
 	return &gzipReader{
@@ -28,7 +31,11 @@ func (c gzipReader) Read(p []byte) (n int, err error) {
 
 func (c *gzipReader) Close() error {
 	if err := c.r.Close(); err != nil {
-		return err
+		return fmt.Errorf("gzip reader parrent reader close err: %w", err)
 	}
-	return c.zipR.Close()
+	if err := c.zipR.Close(); err != nil {
+		return fmt.Errorf("gzip reader close err: %w", err)
+	}
+
+	return nil
 }

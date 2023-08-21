@@ -10,84 +10,61 @@ import (
 )
 
 func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.Handler) http.Handler) *chi.Mux {
-
 	router := chi.NewRouter()
-	router.Use(middlewares...)
-	router.Use(middleware.Recoverer)
 
-	router.Post("/update/{metricType}/{metricName}/{metricValue}", func(w http.ResponseWriter, r *http.Request) {
+	router.Group(func(r chi.Router) {
+		r.Use(middlewares...)
+		r.Use(middleware.Recoverer)
 
-		metricName := chi.URLParam(r, "metricName")
-		metricValue := chi.URLParam(r, "metricValue")
-		metricType := chi.URLParam(r, "metricType")
+		r.Post("/update/{metricType}/{metricName}/{metricValue}", func(w http.ResponseWriter, r *http.Request) {
+			metricName := chi.URLParam(r, "metricName")
+			metricValue := chi.URLParam(r, "metricValue")
+			metricType := chi.URLParam(r, "metricType")
 
-		if strings.TrimSpace(metricName) == "" {
-			http.Error(w, "name metric is empty", http.StatusBadRequest)
-			return
-		}
+			if strings.TrimSpace(metricName) == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 
-		rctx := r.Context()
+			handlers.UpdateMetricFromURL(r.Context(), w, metricName, metricType, metricValue)
+		})
 
-		handlers.UpdateMetricFromURL(rctx, w, metricName, metricType, metricValue)
+		r.Post("/update/", func(w http.ResponseWriter, r *http.Request) {
+			handlers.UpdateMetric(r.Context(), w, r.Body)
+		})
 
+		r.Get("/value/{metricType}/{metricName}", func(w http.ResponseWriter, r *http.Request) {
+			metricName := chi.URLParam(r, "metricName")
+			metricType := chi.URLParam(r, "metricType")
+
+			if strings.TrimSpace(metricName) == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			handlers.ReadMetricFromURL(r.Context(), w, metricName, metricType)
+		})
+
+		r.Post("/value/", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ReadMetric(r.Context(), w, r.Body)
+		})
+
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			handlers.CollectMetricList(r.Context(), w)
+		})
+
+		r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
+			handlers.Ping(r.Context(), w)
+		})
+
+		r.Post("/updates/", func(w http.ResponseWriter, r *http.Request) {
+			handlers.BatchUpdate(r.Context(), w, r.Body)
+		})
 	})
 
-	router.Post("/update/", func(w http.ResponseWriter, r *http.Request) {
-
-		rctx := r.Context()
-
-		handlers.UpdateMetric(rctx, w, r.Body)
-
-	})
-
-	router.Get("/value/{metricType}/{metricName}", func(w http.ResponseWriter, r *http.Request) {
-
-		metricName := chi.URLParam(r, "metricName")
-		metricType := chi.URLParam(r, "metricType")
-
-		if strings.TrimSpace(metricName) == "" {
-			http.Error(w, "name metric is empty", http.StatusBadRequest)
-			return
-		}
-
-		rctx := r.Context()
-
-		handlers.ReadMetricFromURL(rctx, w, metricName, metricType)
-
-	})
-
-	router.Post("/value/", func(w http.ResponseWriter, r *http.Request) {
-
-		rctx := r.Context()
-
-		handlers.ReadMetric(rctx, w, r.Body)
-
-	})
-
-	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
-
-		rctx := r.Context()
-
-		handlers.CollectMetricList(rctx, w)
-
-	})
-
-	router.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-
-		rctx := r.Context()
-
-		handlers.Ping(rctx, w)
-
-	})
-
-	router.Post("/updates/", func(w http.ResponseWriter, r *http.Request) {
-
-		rctx := r.Context()
-
-		handlers.BatchUpdate(rctx, w, r.Body)
-
+	router.Group(func(r chi.Router) {
+		r.Mount("/debug", middleware.Profiler())
 	})
 
 	return router
-
 }

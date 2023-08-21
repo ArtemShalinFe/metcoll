@@ -8,8 +8,13 @@ import (
 	"strings"
 )
 
+// GaugeMetric - name of gauge metric.
 const GaugeMetric = "gauge"
+
+// CounterMetric - name of counter metric.
 const CounterMetric = "counter"
+
+// PollCount - count of successful report submissions.
 const PollCount = "PollCount"
 
 type Storage interface {
@@ -21,17 +26,19 @@ type Storage interface {
 	BatchAddInt64Value(ctx context.Context, counters map[string]int64) (map[string]int64, []error, error)
 }
 
+// Metrics - an indicator that reflects a particular characteristic.
 type Metrics struct {
-	ID    string   `json:"id"`              // имя метрики
-	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
-	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
-	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
+	Delta *int64   `json:"delta,omitempty"`
+	Value *float64 `json:"value,omitempty"`
+	ID    string   `json:"id"`
+	MType string   `json:"type"`
 }
 
+// errUnknowMetricType - error occurs when a metric other than gauge or counter is passed.
 var errUnknowMetricType = errors.New("unknow metric type")
 
+// GetMetric - Constructor for creating Metric-objects.
 func GetMetric(id string, mType string) (*Metrics, error) {
-
 	var m Metrics
 	m.ID = id
 
@@ -45,36 +52,29 @@ func GetMetric(id string, mType string) (*Metrics, error) {
 	}
 
 	return &m, nil
-
 }
 
+// NewMetric - Object constructor.
 func NewMetric(id string, mType string, value string) (*Metrics, error) {
-
 	switch strings.ToLower(mType) {
 	case GaugeMetric:
-
 		parsedValue, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			return nil, err
 		}
 		return NewGaugeMetric(id, parsedValue), nil
-
 	case CounterMetric:
-
 		parsedValue, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
 			return nil, err
 		}
 		return NewCounterMetric(id, parsedValue), nil
-
 	default:
-
 		return nil, errUnknowMetricType
-
 	}
-
 }
 
+// NewGaugeMetric - Object constructor.
 func NewGaugeMetric(id string, value float64) *Metrics {
 	return &Metrics{
 		ID:    id,
@@ -83,6 +83,7 @@ func NewGaugeMetric(id string, value float64) *Metrics {
 	}
 }
 
+// NewCounterMetric - Object constructor.
 func NewCounterMetric(id string, delta int64) *Metrics {
 	return &Metrics{
 		ID:    id,
@@ -91,14 +92,12 @@ func NewCounterMetric(id string, delta int64) *Metrics {
 	}
 }
 
+// IsPollCount - checks ID and MType. Returned true if it is "PollCount" and "counter".
 func (m *Metrics) IsPollCount() bool {
-
 	return m.MType == CounterMetric && m.ID == PollCount
-
 }
 
 func (m *Metrics) String() string {
-
 	switch m.MType {
 	case GaugeMetric:
 		return strconv.FormatFloat(*m.Value, 'G', 10, 64)
@@ -107,44 +106,37 @@ func (m *Metrics) String() string {
 	default:
 		return errUnknowMetricType.Error()
 	}
-
 }
 
+// Update - updates the metric value in the storage.
 func (m *Metrics) Update(ctx context.Context, storage Storage) error {
-
 	rctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	switch m.MType {
 	case GaugeMetric:
-
 		newValue, err := storage.SetFloat64Value(rctx, m.ID, *m.Value)
 		if err != nil {
 			return fmt.Errorf("cannot update gauge metric err: %w", err)
 		}
+
 		m.Value = &newValue
-
 	case CounterMetric:
-
 		newValue, err := storage.AddInt64Value(rctx, m.ID, *m.Delta)
 		if err != nil {
 			return fmt.Errorf("cannot update counter metric err: %w", err)
 		}
 
 		m.Delta = &newValue
-
 	default:
-
 		return errUnknowMetricType
-
 	}
 
 	return nil
-
 }
 
+// BatchUpdate - batch update of metric values in the repository.
 func BatchUpdate(ctx context.Context, ms []*Metrics, storage Storage) ([]*Metrics, []error, error) {
-
 	gauges := make(map[string]float64)
 	counters := make(map[string]int64)
 
@@ -180,37 +172,31 @@ func BatchUpdate(ctx context.Context, ms []*Metrics, storage Storage) ([]*Metric
 	errs = append(errs, uerrs...)
 
 	return ums, errs, nil
-
 }
 
+// Get - retrieves the current metric value from storage.
 func (m *Metrics) Get(ctx context.Context, storage Storage) error {
-
 	rctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	switch m.MType {
 	case GaugeMetric:
-
 		newValue, err := storage.GetFloat64Value(rctx, m.ID)
 		if err != nil {
 			return fmt.Errorf("cannot get gauge metric %s err: %w", m.ID, err)
 		}
 		m.Value = &newValue
+
 		return nil
-
 	case CounterMetric:
-
 		newValue, err := storage.GetInt64Value(rctx, m.ID)
 		if err != nil {
 			return fmt.Errorf("cannot get counter metric %s err: %w", m.ID, err)
 		}
 		m.Delta = &newValue
-		return nil
 
+		return nil
 	default:
-
 		return nil
-
 	}
-
 }

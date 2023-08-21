@@ -4,17 +4,18 @@ import (
 	"go.uber.org/zap"
 )
 
+// RetryHTTPLogger - for use in the library "github.com/hashicorp/go-retryablehttp" to maintain a uniform state of logs.
 type RetryHTTPLogger struct {
 	*zap.SugaredLogger
 }
 
+// NewRLLogger - Object Constructor.
 func NewRLLogger(l *zap.SugaredLogger) (*RetryHTTPLogger, error) {
-
 	return &RetryHTTPLogger{
 		l,
 	}, nil
-
 }
+
 func (rl *RetryHTTPLogger) Error(msg string, keysAndValues ...interface{}) {
 	rl.Errorf(msg, keysAndValues...)
 }
