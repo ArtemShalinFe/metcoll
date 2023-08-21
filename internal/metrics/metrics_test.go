@@ -1,9 +1,11 @@
 package metrics
 
 import (
+	"context"
 	"testing"
 
 	"github.com/go-playground/assert"
+	gomock "go.uber.org/mock/gomock"
 )
 
 func TestMetrics_IsPollCount(t *testing.T) {
@@ -95,7 +97,6 @@ func TestGetMetric(t *testing.T) {
 }
 
 func TestMetrics_String(t *testing.T) {
-
 	tests := []struct {
 		name    string
 		metrics *Metrics
@@ -122,6 +123,72 @@ func TestMetrics_String(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.metrics.String(); got != tt.want {
 				t.Errorf("Metrics.String() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMetrics_Get(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+	db.EXPECT().GetInt64Value(gomock.Any(), "counter").AnyTimes().Return(int64(1), nil)
+	db.EXPECT().GetFloat64Value(gomock.Any(), "gauge").AnyTimes().Return(float64(1.1), nil)
+
+	type fields struct {
+		ID    string
+		MType string
+		Value string
+	}
+	type args struct {
+		ctx     context.Context
+		storage Storage
+	}
+
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+		want    *Metrics
+	}{
+		{
+			name: "#1 case",
+			fields: fields{
+				ID:    "counter",
+				MType: CounterMetric,
+				Value: "1",
+			},
+			args: args{
+				ctx:     context.Background(),
+				storage: db,
+			},
+			want: NewCounterMetric("counter", 1),
+		},
+		{
+			name: "#2 case",
+			fields: fields{
+				ID:    "gauge",
+				MType: GaugeMetric,
+				Value: "1.1",
+			},
+			args: args{
+				ctx:     context.Background(),
+				storage: db,
+			},
+			want: NewGaugeMetric("gauge", 1.1),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			m, err := NewMetric(tt.fields.ID, tt.fields.MType, tt.fields.Value)
+			if err != nil {
+				t.Error(err)
+			}
+			if err := m.Get(tt.args.ctx, tt.args.storage); (err != nil) != tt.wantErr {
+				t.Errorf("Metrics.Get() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

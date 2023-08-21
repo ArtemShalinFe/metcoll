@@ -2,7 +2,10 @@ module github.com/ArtemShalinFe/metcoll
 
 go 1.20
 
-require github.com/stretchr/testify v1.8.2
+require (
+	github.com/stretchr/testify v1.8.2
+	go.uber.org/mock v0.2.0
+)
 
 require (
 	github.com/go-ole/go-ole v1.2.6 // indirect

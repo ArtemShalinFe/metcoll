@@ -40,6 +40,11 @@ ya-tests:
 	metricstest-darwin-arm64 -test.v -test.run=^TestIteration14\$$ -source-path=. -agent-binary-path=cmd/agent/agent -binary-path=cmd/server/server -server-port=8081 -key="olala/poslednieTesti" -database-dsn='postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable'
 	rm /tmp/test-db.json
 
+# MOCKS
+.PHONY: mocks
+mocks:
+	mockgen -source=internal/metrics/metrics.go -destination=internal/metrics/mock_metrics.go -package metrics
+
 .PHONY: lint
 lint:
 	[ -d $(ROOT_DIR)/golangci-lint ] || mkdir -p $(ROOT_DIR)/golangci-lint

@@ -110,19 +110,16 @@ func (m *Metrics) String() string {
 
 // Update - updates the metric value in the storage.
 func (m *Metrics) Update(ctx context.Context, storage Storage) error {
-	rctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	switch m.MType {
 	case GaugeMetric:
-		newValue, err := storage.SetFloat64Value(rctx, m.ID, *m.Value)
+		newValue, err := storage.SetFloat64Value(ctx, m.ID, *m.Value)
 		if err != nil {
 			return fmt.Errorf("cannot update gauge metric err: %w", err)
 		}
 
 		m.Value = &newValue
 	case CounterMetric:
-		newValue, err := storage.AddInt64Value(rctx, m.ID, *m.Delta)
+		newValue, err := storage.AddInt64Value(ctx, m.ID, *m.Delta)
 		if err != nil {
 			return fmt.Errorf("cannot update counter metric err: %w", err)
 		}
@@ -176,12 +173,9 @@ func BatchUpdate(ctx context.Context, ms []*Metrics, storage Storage) ([]*Metric
 
 // Get - retrieves the current metric value from storage.
 func (m *Metrics) Get(ctx context.Context, storage Storage) error {
-	rctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	switch m.MType {
 	case GaugeMetric:
-		newValue, err := storage.GetFloat64Value(rctx, m.ID)
+		newValue, err := storage.GetFloat64Value(ctx, m.ID)
 		if err != nil {
 			return fmt.Errorf("cannot get gauge metric %s err: %w", m.ID, err)
 		}
@@ -189,7 +183,7 @@ func (m *Metrics) Get(ctx context.Context, storage Storage) error {
 
 		return nil
 	case CounterMetric:
-		newValue, err := storage.GetInt64Value(rctx, m.ID)
+		newValue, err := storage.GetInt64Value(ctx, m.ID)
 		if err != nil {
 			return fmt.Errorf("cannot get counter metric %s err: %w", m.ID, err)
 		}
