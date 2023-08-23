@@ -16,9 +16,15 @@ import (
 	"go.uber.org/zap"
 )
 
+type PgxIface interface {
+	Begin(context.Context) (pgx.Tx, error)
+	Ping(context.Context) error
+	Close()
+}
+
 // DB - implementation of a database for storing metrics.
 type DB struct {
-	pool   *pgxpool.Pool
+	pool   PgxIface
 	logger *zap.SugaredLogger
 }
 
@@ -36,7 +42,7 @@ func newSQLStorage(ctx context.Context, dataSourceName string, logger *zap.Sugar
 	}
 
 	if err := db.createTables(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create the tables: %w", err)
 	}
 
 	logger.Infof("successfully created tables in database")
@@ -518,7 +524,7 @@ func retryQueryRowInt64(ctx context.Context, tx pgx.Tx, sql string, args ...any)
 		},
 		retryOptions(ctx)...,
 	); err != nil {
-		return 0, fmt.Errorf("retry int64 querry err: %w", err)
+		return val, fmt.Errorf("retry int64 querry err: %w", err)
 	}
 
 	return val, nil
