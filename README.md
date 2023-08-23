@@ -11,6 +11,9 @@
 
 - [go](https://go.dev/doc/install)
 - [make](https://www.gnu.org/software/make/manual/make.html)
+- [godoc](https://pkg.go.dev/golang.org/x/tools/cmd/godoc)
+- [graphviz](https://graphviz.org)
+- [PostgreSQL](https://www.postgresql.org)
 
 ## Как собрать
 
@@ -41,3 +44,67 @@ make build-server
 ```sh
 go test ./... -v -race
 ```
+
+## Профилирование
+
+Для профилирования должен быть развернут PostgreSQL с базой "praktikum" и установлена утилита `graphviz`.
+
+1. Перейдите в корневую директорию проекта и соберите бинарные файлы сервера и агента, возспользовавшись командой:
+
+```sh
+make build-agent && make build-server
+```
+
+1. Запустите сервер командой:
+
+```sh
+./cmd/server/server -d "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable" -a localhost:32323 -k nope   
+```
+
+1. В отдельном окне терминала запустите агент командой:
+
+```sh
+./cmd/agent/agent -a localhost:32323 -l 5 -k nope -p 1 -r 2
+```
+
+> Агент начнет собирать метрики и отправлять их на сервер, таким образом будет генерироваться нагрузка.
+
+1. Чтобы собрать профиль приложения по СPU выполните команду, не закрывая окон с сервером и агентом:
+
+```sh
+curl -s -v http://localhost:32323/debug/pprof/profile > profiles/cpu.pprof
+```
+
+1. Посмотреть собраный профиль можно утилитой pprof:
+
+```sh
+go tool pprof -http=":9090" -seconds=60 profiles/cpu.pprof
+```
+
+1. Чтобы собрать профиль приложения по выделяемой памяти выполните команду, не закрывая окон с сервером и агентом:
+
+```sh
+curl -s -v http://localhost:32323/debug/pprof/heap > profiles/heap.pprof
+```
+
+1. Посмотреть собраный профиль можно утилитой pprof:
+
+```sh
+go tool pprof -http=":9090" -seconds=60 profiles/heap.pprof
+```
+
+## Локальное отображения godoc-документации
+
+1. Установите пакет `godoc`
+
+```sh
+go install -v golang.org/x/tools/cmd/godoc@latest
+```
+
+1. Перейдите в корневую директорию проекта и выполнить команду
+
+```sh
+godoc -http=:8080 -play   
+```
+
+1. Для просмотра откройте в браузере `http://localhost:8080`
