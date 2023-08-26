@@ -16,13 +16,19 @@ import (
 	"go.uber.org/zap"
 )
 
+type PgxIface interface {
+	Begin(context.Context) (pgx.Tx, error)
+	Ping(context.Context) error
+	Close()
+}
+
+// DB - implementation of a database for storing metrics.
 type DB struct {
-	pool   *pgxpool.Pool
+	pool   PgxIface
 	logger *zap.SugaredLogger
 }
 
 func newSQLStorage(ctx context.Context, dataSourceName string, logger *zap.SugaredLogger) (*DB, error) {
-
 	pool, err := pgxpool.New(ctx, dataSourceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create a connection pool: %w", err)
@@ -36,7 +42,7 @@ func newSQLStorage(ctx context.Context, dataSourceName string, logger *zap.Sugar
 	}
 
 	if err := db.createTables(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create the tables: %w", err)
 	}
 
 	logger.Infof("successfully created tables in database")
@@ -45,7 +51,6 @@ func newSQLStorage(ctx context.Context, dataSourceName string, logger *zap.Sugar
 }
 
 func (db *DB) createTables(ctx context.Context) error {
-
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to start transaction for creating tables err : %w", err)
@@ -56,7 +61,6 @@ func (db *DB) createTables(ctx context.Context) error {
 	}()
 
 	err = func() error {
-
 		q := `CREATE TABLE IF NOT EXISTS counters (id character(36) PRIMARY KEY, value bigint);`
 		if err = retryExec(ctx, tx, q); err != nil {
 			return fmt.Errorf("cannot create table for gauges err : %w", err)
@@ -68,7 +72,6 @@ func (db *DB) createTables(ctx context.Context) error {
 		}
 
 		return nil
-
 	}()
 
 	if err != nil {
@@ -79,11 +82,9 @@ func (db *DB) createTables(ctx context.Context) error {
 	}
 
 	return nil
-
 }
 
 func (db *DB) GetInt64Value(ctx context.Context, key string) (int64, error) {
-
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("unable to start transaction err: %w", err)
@@ -114,11 +115,9 @@ func (db *DB) GetInt64Value(ctx context.Context, key string) (int64, error) {
 	}
 
 	return val, err
-
 }
 
 func (db *DB) GetFloat64Value(ctx context.Context, key string) (float64, error) {
-
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("unable to start transaction err: %w", err)
@@ -148,11 +147,9 @@ func (db *DB) GetFloat64Value(ctx context.Context, key string) (float64, error) 
 	}
 
 	return val, err
-
 }
 
 func (db *DB) AddInt64Value(ctx context.Context, key string, value int64) (int64, error) {
-
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("unable to start transaction err: %w", err)
@@ -162,7 +159,6 @@ func (db *DB) AddInt64Value(ctx context.Context, key string, value int64) (int64
 	}()
 
 	val, err := func() (int64, error) {
-
 		q := `
 		INSERT 
 			INTO counters (id, value) 
@@ -176,7 +172,6 @@ func (db *DB) AddInt64Value(ctx context.Context, key string, value int64) (int64
 			return 0, fmt.Errorf("query %s \n\n execute error: %w", q, err)
 		}
 		return val, nil
-
 	}()
 
 	if err != nil {
@@ -187,11 +182,9 @@ func (db *DB) AddInt64Value(ctx context.Context, key string, value int64) (int64
 	}
 
 	return val, err
-
 }
 
 func (db *DB) SetFloat64Value(ctx context.Context, key string, value float64) (float64, error) {
-
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("unable to start transaction err: %w", err)
@@ -201,7 +194,6 @@ func (db *DB) SetFloat64Value(ctx context.Context, key string, value float64) (f
 	}()
 
 	val, err := func() (float64, error) {
-
 		q := `
 		INSERT 
 			INTO gauges (id, delta) 
@@ -215,7 +207,6 @@ func (db *DB) SetFloat64Value(ctx context.Context, key string, value float64) (f
 			return 0, fmt.Errorf("query %s \n\n execute error: %w", q, err)
 		}
 		return val, nil
-
 	}()
 
 	if err != nil {
@@ -226,11 +217,10 @@ func (db *DB) SetFloat64Value(ctx context.Context, key string, value float64) (f
 	}
 
 	return val, nil
-
 }
 
-func (db *DB) BatchSetFloat64Value(ctx context.Context, gauges map[string]float64) (map[string]float64, []error, error) {
-
+func (db *DB) BatchSetFloat64Value(ctx context.Context,
+	gauges map[string]float64) (map[string]float64, []error, error) {
 	var errs []error
 
 	tx, err := db.pool.Begin(ctx)
@@ -242,7 +232,6 @@ func (db *DB) BatchSetFloat64Value(ctx context.Context, gauges map[string]float6
 	}()
 
 	updated, errs, err := func() (map[string]float64, []error, error) {
-
 		batch := &pgx.Batch{}
 
 		sqlStatement := `
@@ -263,14 +252,12 @@ func (db *DB) BatchSetFloat64Value(ctx context.Context, gauges map[string]float6
 
 		updated := make(map[string]float64)
 		for i := 0; i < len(gauges); i++ {
-
 			id, val, err := retryBatchResultQueryRowFloat64(ctx, results)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("metric %s update error", idMap[i]))
 			}
 
 			updated[id] = val
-
 		}
 
 		if err = results.Close(); err != nil {
@@ -278,7 +265,6 @@ func (db *DB) BatchSetFloat64Value(ctx context.Context, gauges map[string]float6
 		}
 
 		return updated, errs, err
-
 	}()
 
 	if err != nil {
@@ -289,11 +275,10 @@ func (db *DB) BatchSetFloat64Value(ctx context.Context, gauges map[string]float6
 	}
 
 	return updated, errs, nil
-
 }
 
-func (db *DB) BatchAddInt64Value(ctx context.Context, counters map[string]int64) (map[string]int64, []error, error) {
-
+func (db *DB) BatchAddInt64Value(ctx context.Context,
+	counters map[string]int64) (map[string]int64, []error, error) {
 	var errs []error
 
 	tx, err := db.pool.Begin(ctx)
@@ -305,7 +290,6 @@ func (db *DB) BatchAddInt64Value(ctx context.Context, counters map[string]int64)
 	}()
 
 	updated, errs, err := func() (map[string]int64, []error, error) {
-
 		batch := &pgx.Batch{}
 
 		sqlStatement := `
@@ -326,21 +310,18 @@ func (db *DB) BatchAddInt64Value(ctx context.Context, counters map[string]int64)
 
 		updated := make(map[string]int64)
 		for i := 0; i < len(counters); i++ {
-
 			id, val, err := retryBatchResultQueryRowInt64(ctx, results)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("metric %s update error", idMap[i]))
 			}
 
 			updated[id] = val
-
 		}
 		if err = results.Close(); err != nil {
 			return nil, errs, fmt.Errorf("batch update err: %w", err)
 		}
 
 		return updated, errs, nil
-
 	}()
 
 	if err != nil {
@@ -351,11 +332,9 @@ func (db *DB) BatchAddInt64Value(ctx context.Context, counters map[string]int64)
 	}
 
 	return updated, errs, nil
-
 }
 
-func (db *DB) GetAllDataInt64(ctx context.Context) (map[string]int64, error) {
-
+func (db *DB) getAllDataInt64(ctx context.Context) (map[string]int64, error) {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to start transaction err: %w", err)
@@ -365,7 +344,6 @@ func (db *DB) GetAllDataInt64(ctx context.Context) (map[string]int64, error) {
 	}()
 
 	dataInt64, err := func() (map[string]int64, error) {
-
 		q := `SELECT id, value FROM counters;`
 		r, err := retryQuery(ctx, tx, q)
 		if err != nil {
@@ -376,7 +354,6 @@ func (db *DB) GetAllDataInt64(ctx context.Context) (map[string]int64, error) {
 
 		dataInt64 := make(map[string]int64)
 		for r.Next() {
-
 			var id string
 			var value int64
 
@@ -386,7 +363,6 @@ func (db *DB) GetAllDataInt64(ctx context.Context) (map[string]int64, error) {
 			}
 
 			dataInt64[id] = value
-
 		}
 
 		if r.Err() != nil {
@@ -394,7 +370,6 @@ func (db *DB) GetAllDataInt64(ctx context.Context) (map[string]int64, error) {
 		}
 
 		return dataInt64, nil
-
 	}()
 
 	if err != nil {
@@ -405,11 +380,9 @@ func (db *DB) GetAllDataInt64(ctx context.Context) (map[string]int64, error) {
 	}
 
 	return dataInt64, nil
-
 }
 
-func (db *DB) GetAllDataFloat64(ctx context.Context) (map[string]float64, error) {
-
+func (db *DB) getAllDataFloat64(ctx context.Context) (map[string]float64, error) {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to start transaction err: %w", err)
@@ -419,7 +392,6 @@ func (db *DB) GetAllDataFloat64(ctx context.Context) (map[string]float64, error)
 	}()
 
 	dataFloat64, err := func() (map[string]float64, error) {
-
 		q := `SELECT id, delta FROM gauges;`
 		r, err := retryQuery(ctx, tx, q)
 		if err != nil {
@@ -429,7 +401,6 @@ func (db *DB) GetAllDataFloat64(ctx context.Context) (map[string]float64, error)
 
 		dataFloat64 := make(map[string]float64)
 		for r.Next() {
-
 			var id string
 			var value float64
 
@@ -439,7 +410,6 @@ func (db *DB) GetAllDataFloat64(ctx context.Context) (map[string]float64, error)
 			}
 
 			dataFloat64[id] = value
-
 		}
 
 		if r.Err() != nil {
@@ -447,7 +417,6 @@ func (db *DB) GetAllDataFloat64(ctx context.Context) (map[string]float64, error)
 		}
 
 		return dataFloat64, nil
-
 	}()
 
 	if err != nil {
@@ -458,14 +427,12 @@ func (db *DB) GetAllDataFloat64(ctx context.Context) (map[string]float64, error)
 	}
 
 	return dataFloat64, nil
-
 }
 
 func (db *DB) GetDataList(ctx context.Context) ([]string, error) {
-
 	var list []string
 
-	AllDataFloat64, err := db.GetAllDataFloat64(ctx)
+	AllDataFloat64, err := db.getAllDataFloat64(ctx)
 	if err != nil {
 		return list, err
 	}
@@ -475,7 +442,7 @@ func (db *DB) GetDataList(ctx context.Context) ([]string, error) {
 		list = append(list, fmt.Sprintf("%s %s", k, fv))
 	}
 
-	AllDataInt64, err := db.GetAllDataInt64(ctx)
+	AllDataInt64, err := db.getAllDataInt64(ctx)
 	if err != nil {
 		return list, err
 	}
@@ -486,35 +453,36 @@ func (db *DB) GetDataList(ctx context.Context) ([]string, error) {
 	}
 
 	return list, nil
-
 }
 
 func (db *DB) Interrupt() error {
-
 	db.pool.Close()
 	return nil
-
 }
 
 func (db *DB) Ping(ctx context.Context) error {
-	return db.pool.Ping(ctx)
+	if err := db.pool.Ping(ctx); err != nil {
+		return fmt.Errorf("db ping err: %w", err)
+	}
+	return nil
 }
 
 func retryExec(ctx context.Context, tx pgx.Tx, sql string, arguments ...any) error {
-
-	return retry.Do(
+	if err := retry.Do(
 		func() error {
 			_, err := tx.Exec(ctx, sql)
 			return err
 		},
 		retryOptions(ctx)...,
-	)
+	); err != nil {
+		return fmt.Errorf("retry exex tx-querry err: %w", err)
+	}
 
+	return nil
 }
 
 func retryRollback(ctx context.Context, tx pgx.Tx) error {
-
-	return retry.Do(
+	if err := retry.Do(
 		func() error {
 			err := tx.Rollback(ctx)
 			if errors.Is(err, pgx.ErrTxClosed) {
@@ -523,13 +491,15 @@ func retryRollback(ctx context.Context, tx pgx.Tx) error {
 			return err
 		},
 		retryOptions(ctx)...,
-	)
+	); err != nil {
+		return fmt.Errorf("retry rollback tx err: %w", err)
+	}
 
+	return nil
 }
 
 func retryCommit(ctx context.Context, tx pgx.Tx) error {
-
-	return retry.Do(
+	if err := retry.Do(
 		func() error {
 			err := tx.Commit(ctx)
 			if errors.Is(err, pgx.ErrTxClosed) {
@@ -538,46 +508,48 @@ func retryCommit(ctx context.Context, tx pgx.Tx) error {
 			return err
 		},
 		retryOptions(ctx)...,
-	)
+	); err != nil {
+		return fmt.Errorf("retry commit tx err: %w", err)
+	}
 
+	return nil
 }
 
 func retryQueryRowInt64(ctx context.Context, tx pgx.Tx, sql string, args ...any) (int64, error) {
-
 	var val int64
-	err := retry.Do(
+	if err := retry.Do(
 		func() error {
 			row := tx.QueryRow(ctx, sql, args...)
 			return row.Scan(&val)
 		},
 		retryOptions(ctx)...,
-	)
+	); err != nil {
+		return val, fmt.Errorf("retry int64 querry err: %w", err)
+	}
 
-	return val, err
-
+	return val, nil
 }
 
 func retryQueryRowFloat64(ctx context.Context, tx pgx.Tx, sql string, args ...any) (float64, error) {
-
 	var val float64
-	err := retry.Do(
+	if err := retry.Do(
 		func() error {
 			row := tx.QueryRow(ctx, sql, args...)
 			return row.Scan(&val)
 		},
 		retryOptions(ctx)...,
-	)
+	); err != nil {
+		return 0, fmt.Errorf("retry float64 querry err: %w", err)
+	}
 
-	return val, err
-
+	return val, nil
 }
 
 func retryBatchResultQueryRowFloat64(ctx context.Context, results pgx.BatchResults) (string, float64, error) {
-
 	var id string
 	var val float64
 
-	err := retry.Do(
+	if err := retry.Do(
 		func() error {
 			err := results.QueryRow().Scan(&id, &val)
 			if err != nil {
@@ -588,18 +560,18 @@ func retryBatchResultQueryRowFloat64(ctx context.Context, results pgx.BatchResul
 			return err
 		},
 		retryOptions(ctx)...,
-	)
+	); err != nil {
+		return "", 0, fmt.Errorf("retry batch float64 querry err: %w", err)
+	}
 
-	return id, val, err
-
+	return id, val, nil
 }
 
 func retryBatchResultQueryRowInt64(ctx context.Context, results pgx.BatchResults) (string, int64, error) {
-
 	var id string
 	var val int64
 
-	err := retry.Do(
+	if err := retry.Do(
 		func() error {
 			err := results.QueryRow().Scan(&id, &val)
 			if err != nil {
@@ -610,31 +582,31 @@ func retryBatchResultQueryRowInt64(ctx context.Context, results pgx.BatchResults
 			return err
 		},
 		retryOptions(ctx)...,
-	)
+	); err != nil {
+		return "", 0, fmt.Errorf("retry batch int64 querry err: %w", err)
+	}
 
-	return id, val, err
-
+	return id, val, nil
 }
 
 func retryQuery(ctx context.Context, tx pgx.Tx, sql string, args ...any) (pgx.Rows, error) {
-
 	var rows pgx.Rows
 	var err error
 
-	err = retry.Do(
+	if err = retry.Do(
 		func() error {
 			rows, err = tx.Query(ctx, sql)
 			return err
 		},
 		retryOptions(ctx)...,
-	)
+	); err != nil {
+		return nil, fmt.Errorf("retry query err: %w", err)
+	}
 
-	return rows, err
-
+	return rows, nil
 }
 
 func retryIf(err error) bool {
-
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		if pgerrcode.IsConnectionException(pgErr.Code) {
@@ -647,26 +619,25 @@ func retryIf(err error) bool {
 	}
 
 	return false
-
 }
 
 func retryOptions(ctx context.Context) []retry.Option {
+	const defaultAttempts = 3
 
 	var opts []retry.Option
-	opts = append(opts, retry.Context(ctx))
-	opts = append(opts, retry.Attempts(3))
-	opts = append(opts, retry.Delay(time.Duration(1*time.Second)))
-	opts = append(opts, retry.MaxDelay(time.Duration(5*time.Second)))
-	opts = append(opts, retry.RetryIf(retryIf))
-	opts = append(opts, retry.LastErrorOnly(true))
-	opts = append(opts, retry.DelayType(BackOff))
+	opts = append(opts,
+		retry.Context(ctx),
+		retry.Attempts(defaultAttempts),
+		retry.Delay(1*time.Second),
+		retry.MaxDelay(5*time.Second),
+		retry.RetryIf(retryIf),
+		retry.LastErrorOnly(true),
+		retry.DelayType(backOff))
 
 	return opts
-
 }
 
-func BackOff(n uint, err error, config *retry.Config) time.Duration {
-
+func backOff(n uint, err error, config *retry.Config) time.Duration {
 	switch n {
 	case 0:
 		return 1 * time.Second
@@ -677,7 +648,6 @@ func BackOff(n uint, err error, config *retry.Config) time.Duration {
 	default:
 		return 2 * time.Second
 	}
-
 }
 
 func commitTransaction(ctx context.Context, tx pgx.Tx, logger *zap.SugaredLogger) {

@@ -8,8 +8,14 @@ import (
 	"sync"
 )
 
-func newMemStorage() *MemStorage {
+// MemStorage - implementation of a in-memory database for storing metrics.
+type MemStorage struct {
+	mutex       *sync.Mutex
+	dataInt64   map[string]int64
+	dataFloat64 map[string]float64
+}
 
+func newMemStorage() *MemStorage {
 	ms := &MemStorage{
 		mutex:       &sync.Mutex{},
 		dataInt64:   make(map[string]int64),
@@ -17,11 +23,9 @@ func newMemStorage() *MemStorage {
 	}
 
 	return ms
-
 }
 
 func (ms *MemStorage) GetInt64Value(_ context.Context, key string) (int64, error) {
-
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 
@@ -31,11 +35,9 @@ func (ms *MemStorage) GetInt64Value(_ context.Context, key string) (int64, error
 	}
 
 	return v, nil
-
 }
 
 func (ms *MemStorage) GetFloat64Value(_ context.Context, key string) (float64, error) {
-
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 
@@ -44,11 +46,9 @@ func (ms *MemStorage) GetFloat64Value(_ context.Context, key string) (float64, e
 		return 0, ErrNoRows
 	}
 	return v, nil
-
 }
 
 func (ms *MemStorage) AddInt64Value(_ context.Context, key string, value int64) (int64, error) {
-
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 
@@ -60,55 +60,46 @@ func (ms *MemStorage) AddInt64Value(_ context.Context, key string, value int64) 
 	ms.dataInt64[key] = newValue
 
 	return newValue, nil
-
 }
 
 func (ms *MemStorage) SetFloat64Value(_ context.Context, key string, value float64) (float64, error) {
-
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 
 	ms.dataFloat64[key] = value
 
 	return value, nil
-
 }
 
-func (ms *MemStorage) GetAllDataInt64(_ context.Context) (map[string]int64, error) {
-
+func (ms *MemStorage) getAllDataInt64(_ context.Context) (map[string]int64, error) {
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 
 	return ms.dataInt64, nil
-
 }
 
-func (ms *MemStorage) GetAllDataFloat64(_ context.Context) (map[string]float64, error) {
-
+func (ms *MemStorage) getAllDataFloat64(_ context.Context) (map[string]float64, error) {
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 
 	return ms.dataFloat64, nil
-
 }
 
 func (ms *MemStorage) GetDataList(ctx context.Context) ([]string, error) {
-
 	var list []string
 
-	AllDataFloat64, err := ms.GetAllDataFloat64(ctx)
+	AllDataFloat64, err := ms.getAllDataFloat64(ctx)
 	if err != nil {
-		return list, err
+		return nil, err
 	}
-
 	for k, v := range AllDataFloat64 {
 		fv := strconv.FormatFloat(v, 'G', 12, 64)
 		list = append(list, fmt.Sprintf("%s %s", k, fv))
 	}
 
-	AllDataInt64, err := ms.GetAllDataInt64(ctx)
+	AllDataInt64, err := ms.getAllDataInt64(ctx)
 	if err != nil {
-		return list, err
+		return nil, err
 	}
 
 	for k, v := range AllDataInt64 {
@@ -117,27 +108,28 @@ func (ms *MemStorage) GetDataList(ctx context.Context) ([]string, error) {
 	}
 
 	return list, nil
-
 }
 
 func (ms *MemStorage) GetState() ([]byte, error) {
-
-	return json.Marshal(&ms)
-
+	b, err := json.Marshal(&ms)
+	if err != nil {
+		return nil, fmt.Errorf("memory storage get state err: %w", err)
+	}
+	return b, nil
 }
 
 func (ms *MemStorage) SetState(data []byte) error {
-
-	return json.Unmarshal(data, &ms)
-
+	if err := json.Unmarshal(data, &ms); err != nil {
+		return fmt.Errorf("memory storage set state err: %w", err)
+	}
+	return nil
 }
 
 func (ms *MemStorage) UnmarshalJSON(b []byte) error {
-
 	state := make(map[string]map[string]string)
 
 	if err := json.Unmarshal(b, &state); err != nil {
-		return err
+		return fmt.Errorf("memory storage unmarshal state err: %w", err)
 	}
 
 	ctx := context.Background()
@@ -146,29 +138,32 @@ func (ms *MemStorage) UnmarshalJSON(b []byte) error {
 	for k, v := range stateFloat64 {
 		pv, err := strconv.ParseFloat(v, 64)
 		if err != nil {
-			return err
+			return fmt.Errorf("parse float memory storage err: %w", err)
 		}
-		ms.SetFloat64Value(ctx, k, pv)
+		if _, err := ms.SetFloat64Value(ctx, k, pv); err != nil {
+			return fmt.Errorf("memory storage set float err: %w", err)
+		}
 	}
 
 	stateInt64 := state["int64"]
 	for k, v := range stateInt64 {
 		pv, err := strconv.ParseInt(v, 10, 64)
 		if err != nil {
-			return err
+			return fmt.Errorf("parse int memory storage err: %w", err)
 		}
-		ms.AddInt64Value(ctx, k, pv)
+
+		if _, err := ms.AddInt64Value(ctx, k, pv); err != nil {
+			return fmt.Errorf("memory storage set int err: %w", err)
+		}
 	}
 
 	return nil
-
 }
 
 func (ms *MemStorage) MarshalJSON() ([]byte, error) {
-
 	ctx := context.Background()
 
-	AllDataFloat64, err := ms.GetAllDataFloat64(ctx)
+	AllDataFloat64, err := ms.getAllDataFloat64(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +174,7 @@ func (ms *MemStorage) MarshalJSON() ([]byte, error) {
 		float64map[k] = fv
 	}
 
-	AllDataInt64, err := ms.GetAllDataInt64(ctx)
+	AllDataInt64, err := ms.getAllDataInt64(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -193,28 +188,28 @@ func (ms *MemStorage) MarshalJSON() ([]byte, error) {
 	state["float64"] = float64map
 	state["int64"] = int64map
 
-	return json.Marshal(state)
+	b, err := json.Marshal(state)
+	if err != nil {
+		return nil, fmt.Errorf("memory storage marshal err: %w", err)
+	}
 
+	return b, nil
 }
 
-func (ms *MemStorage) BatchSetFloat64Value(_ context.Context, gauges map[string]float64) (map[string]float64, []error, error) {
-
+func (ms *MemStorage) BatchSetFloat64Value(_ context.Context,
+	gauges map[string]float64) (map[string]float64, []error, error) {
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 
 	for key, value := range gauges {
-		v, ok := ms.dataFloat64[key]
-		if !ok {
-			v = 0
-		}
-		newValue := v + value
-		ms.dataFloat64[key] = newValue
+		ms.dataFloat64[key] = value
 	}
 	var errs []error
 	return gauges, errs, nil
 }
-func (ms *MemStorage) BatchAddInt64Value(_ context.Context, counters map[string]int64) (map[string]int64, []error, error) {
 
+func (ms *MemStorage) BatchAddInt64Value(_ context.Context,
+	counters map[string]int64) (map[string]int64, []error, error) {
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 
@@ -229,7 +224,6 @@ func (ms *MemStorage) BatchAddInt64Value(_ context.Context, counters map[string]
 
 	var errs []error
 	return counters, errs, nil
-
 }
 
 func (ms *MemStorage) Interrupt() error {

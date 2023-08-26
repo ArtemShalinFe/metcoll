@@ -21,6 +21,7 @@ import (
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 )
 
+// Client - sends requests for metric updates to the server.
 type Client struct {
 	host       string
 	httpClient *retryablehttp.Client
@@ -28,15 +29,15 @@ type Client struct {
 	hashkey    []byte
 }
 
+// NewClient - Object constructor.
 func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogger) *Client {
-
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 3
-	retryClient.CheckRetry = CheckRetry
+	retryClient.CheckRetry = checkRetry
 	retryClient.RetryWaitMin = time.Duration(3 * time.Second)
 	retryClient.RetryWaitMax = time.Duration(5 * time.Second)
 	retryClient.Logger = logger
-	retryClient.Backoff = Backoff
+	retryClient.Backoff = backoff
 
 	return &Client{
 		host:       cfg.Server,
@@ -44,21 +45,17 @@ func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogge
 		logger:     logger,
 		hashkey:    cfg.Key,
 	}
-
 }
 
-func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
-
+func checkRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	if errors.Is(err, syscall.ECONNREFUSED) {
 		return true, err
 	} else {
 		return false, err
 	}
-
 }
 
-func Backoff(min, max time.Duration, attemptNum int, resp *http.Response) time.Duration {
-
+func backoff(min, max time.Duration, attemptNum int, resp *http.Response) time.Duration {
 	switch attemptNum {
 	case 0:
 		return 1 * time.Second
@@ -69,11 +66,9 @@ func Backoff(min, max time.Duration, attemptNum int, resp *http.Response) time.D
 	default:
 		return 2 * time.Second
 	}
-
 }
 
 func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*retryablehttp.Request, error) {
-
 	var zBuf bytes.Buffer
 	zw := gzip.NewWriter(&zBuf)
 
@@ -94,7 +89,6 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
 	if len(c.hashkey) != 0 {
-
 		data, err := req.BodyBytes()
 		if err != nil {
 			return nil, fmt.Errorf("cannot calculate hash err: %w", err)
@@ -105,15 +99,12 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 		h.Write(data)
 
 		req.Header.Set("HashSHA256", fmt.Sprintf("%x", h.Sum(nil)))
-
 	}
 
 	return req, nil
-
 }
 
 func (c *Client) batchUpdate(ctx context.Context, metrics []*metrics.Metrics) error {
-
 	body, err := json.Marshal(metrics)
 	if err != nil {
 		return fmt.Errorf("cannot marshal metric err: %w", err)
@@ -130,11 +121,9 @@ func (c *Client) batchUpdate(ctx context.Context, metrics []*metrics.Metrics) er
 	}
 
 	return c.doRequest(req)
-
 }
 
 func (c *Client) doRequest(req *retryablehttp.Request) error {
-
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("request execute err: %w", err)
@@ -147,7 +136,7 @@ func (c *Client) doRequest(req *retryablehttp.Request) error {
 		return fmt.Errorf("reading response body err: %w", err)
 	}
 
-	if resp.StatusCode < 300 {
+	if resp.StatusCode < http.StatusMultipleChoices {
 		c.logger.Info(`request for update metric has been completed
 	code: %d, hash: %s`, resp.StatusCode, resp.Header.Get("HashSha256"))
 	} else {
@@ -157,18 +146,17 @@ func (c *Client) doRequest(req *retryablehttp.Request) error {
 	}
 
 	return nil
-
 }
 
+// PushResult - Consolidates the result of sending the metric and the error.
 type PushResult struct {
 	Metric *metrics.Metrics
 	Err    error
 }
 
+// BatchUpdateMetric - Sends updated metrics received from the channel `mcs` to the server.
 func (c *Client) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Metrics, result chan<- error) {
-
 	for m := range mcs {
-
 		err := c.batchUpdate(ctx, m)
 
 		select {
@@ -176,7 +164,5 @@ func (c *Client) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Me
 			return
 		case result <- err:
 		}
-
 	}
-
 }

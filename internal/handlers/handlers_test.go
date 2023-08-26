@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,7 @@ import (
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
-func TestUpdateMetricFromUrl(t *testing.T) {
+func TestHandler_UpdateMetricFromURL(t *testing.T) {
 
 	ctx := context.Background()
 	cfg := &configuration.Config{}
@@ -50,27 +51,27 @@ func TestUpdateMetricFromUrl(t *testing.T) {
 	var tests = []struct {
 		url    string
 		want   string
-		status int
 		method string
+		status int
 	}{
-		{"/update/gauge/metricg/1.2", "metricg 1.2", http.StatusOK, http.MethodPost},
-		{"/update/counter/metricc/1", "metricc 1", http.StatusOK, http.MethodPost},
-		{"/update/counter/ /1", "name metric is empty\n", http.StatusBadRequest, http.MethodPost},
-		{"/update/gauge/", "404 page not found\n", http.StatusNotFound, http.MethodPost},
-		{"/update/counter/", "404 page not found\n", http.StatusNotFound, http.MethodPost},
-		{"/update/gauge/metric/novalue", "Bad request\n", http.StatusBadRequest, http.MethodPost},
-		{"/update/counter/metric/novalue", "Bad request\n", http.StatusBadRequest, http.MethodPost},
-		{"/update/summary/metric/1", "Bad request\n", http.StatusBadRequest, http.MethodPost},
-		{"/update/gauge/metricg/1.0", "", http.StatusMethodNotAllowed, http.MethodGet},
-		{"/value/gauge/metricg", "1.2", http.StatusOK, http.MethodGet},
-		{"/value/counter/metricc", "1", http.StatusOK, http.MethodGet},
-		{"/value/counter/ ", "name metric is empty\n", http.StatusBadRequest, http.MethodGet},
-		{"/value/gauge/", "404 page not found\n", http.StatusNotFound, http.MethodGet},
-		{"/value/counter/", "404 page not found\n", http.StatusNotFound, http.MethodGet},
-		{"/value/summary/metric", "Bad request\n", http.StatusBadRequest, http.MethodGet},
-		{"/value/gauge/metricq", "", http.StatusMethodNotAllowed, http.MethodPost},
-		{"/value/gauge/metricq", "metric not found\n", http.StatusNotFound, http.MethodGet},
-		{"/value/counter/metricq", "metric not found\n", http.StatusNotFound, http.MethodGet},
+		{"/update/gauge/metricg/1.2", "metricg 1.2", http.MethodPost, http.StatusOK},
+		{"/update/counter/metricc/1", "metricc 1", http.MethodPost, http.StatusOK},
+		{"/update/counter/ /1", "", http.MethodPost, http.StatusBadRequest},
+		{"/update/gauge/", "", http.MethodPost, http.StatusNotFound},
+		{"/update/counter/", "", http.MethodPost, http.StatusNotFound},
+		{"/update/gauge/metric/novalue", "", http.MethodPost, http.StatusBadRequest},
+		{"/update/counter/metric/novalue", "", http.MethodPost, http.StatusBadRequest},
+		{"/update/summary/metric/1", "", http.MethodPost, http.StatusBadRequest},
+		{"/update/gauge/metricg/1.0", "", http.MethodGet, http.StatusMethodNotAllowed},
+		{"/value/gauge/metricg", "1.2", http.MethodGet, http.StatusOK},
+		{"/value/counter/metricc", "1", http.MethodGet, http.StatusOK},
+		{"/value/counter/ ", "", http.MethodGet, http.StatusBadRequest},
+		{"/value/gauge/", "", http.MethodGet, http.StatusNotFound},
+		{"/value/counter/", "", http.MethodGet, http.StatusNotFound},
+		{"/value/summary/metric", "", http.MethodGet, http.StatusBadRequest},
+		{"/value/gauge/metricq", "", http.MethodPost, http.StatusMethodNotAllowed},
+		{"/value/gauge/metricq", "", http.MethodGet, http.StatusNotFound},
+		{"/value/counter/metricq", "", http.MethodGet, http.StatusNotFound},
 	}
 	for _, v := range tests {
 		resp, get := testRequest(t, ts, v.method, v.url, nil)
@@ -82,8 +83,98 @@ func TestUpdateMetricFromUrl(t *testing.T) {
 	}
 }
 
-func TestUpdateMetric(t *testing.T) {
+func TestHandler_Ping(t *testing.T) {
 
+	ctx := context.Background()
+	cfg := &configuration.Config{}
+
+	zl, err := zap.NewProduction()
+	if err != nil {
+		t.Errorf("cannot init zap-logger err: %v", err)
+	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		t.Errorf("cannot init middleware logger err: %v", err)
+	}
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
+	if err != nil {
+		t.Errorf("cannot init storage err: %v", err)
+	}
+
+	h := NewHandler(s, sl)
+	r := NewRouter(ctx, h, l.RequestLogger)
+
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	var tests = []struct {
+		url    string
+		want   string
+		method string
+		status int
+	}{
+		{"/ping", "", http.MethodGet, http.StatusOK},
+	}
+	for _, v := range tests {
+		resp, get := testRequest(t, ts, v.method, v.url, nil)
+		defer resp.Body.Close()
+		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf("URL: %s", v.url))
+		if v.want != "" {
+			assert.Equal(t, v.want, string(get), fmt.Sprintf("URL: %s", v.url))
+		}
+	}
+}
+
+func ExampleHandler_UpdateMetricFromURL() {
+	ctx := context.Background()
+	cfg := &configuration.Config{}
+
+	zl, err := zap.NewProduction()
+	if err != nil {
+		fmt.Printf("cannot init zap-logger err: %v", err)
+		return
+	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		fmt.Printf("cannot init middleware logger err: %v", err)
+		return
+	}
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
+	if err != nil {
+		fmt.Printf("cannot init storage err: %v", err)
+		return
+	}
+
+	h := NewHandler(s, sl)
+	r := NewRouter(ctx, h, l.RequestLogger)
+
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	res, err := ts.Client().Post(ts.URL+"/update/gauge/metricg/1.2", "plain/text", nil)
+	if err != nil {
+		fmt.Printf("http request err: %v", err)
+		return
+	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			fmt.Printf("body close err: %v", err)
+		}
+	}()
+
+	fmt.Println(res.StatusCode)
+
+	// Output:
+	// 200
+}
+
+func TestHandler_UpdateMetric(t *testing.T) {
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
@@ -110,12 +201,12 @@ func TestUpdateMetric(t *testing.T) {
 	defer ts.Close()
 
 	var tests = []struct {
-		name        string
-		url         string
-		status      int
-		method      string
 		bodyMetrics *metrics.Metrics
 		want        *metrics.Metrics
+		name        string
+		url         string
+		method      string
+		status      int
 	}{
 		{
 			name:        "#1",
@@ -271,6 +362,64 @@ func TestUpdateMetric(t *testing.T) {
 	}
 }
 
+func ExampleHandler_UpdateMetric() {
+	ctx := context.Background()
+	cfg := &configuration.Config{}
+
+	zl, err := zap.NewProduction()
+	if err != nil {
+		fmt.Printf("cannot init zap-logger err: %v", err)
+	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		fmt.Printf("cannot init middleware logger err: %v", err)
+	}
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
+	if err != nil {
+		fmt.Printf("cannot init logger err: %v", err)
+	}
+
+	h := NewHandler(s, sl)
+	r := NewRouter(ctx, h, l.RequestLogger)
+
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	m := metrics.NewGaugeMetric("metricg", 1.2)
+	b, err := json.Marshal(m)
+	if err != nil {
+		fmt.Println("marshal err : %w", err)
+	}
+
+	res, err := ts.Client().Post(ts.URL+"/update/", "aplication/json", bytes.NewBuffer(b))
+	if err != nil {
+		fmt.Printf("http request err: %v", err)
+		return
+	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			fmt.Printf("body close err: %v", err)
+		}
+	}()
+
+	fmt.Println(res.StatusCode)
+
+	bytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		fmt.Printf("example UpdateMetric read body error: %v", err)
+		return
+	}
+
+	fmt.Println(string(bytes))
+
+	// Output:
+	// 200
+	// {"value":1.2,"id":"metricg","type":"gauge"}
+}
+
 func TestHandler_BatchUpdate(t *testing.T) {
 
 	ctx := context.Background()
@@ -309,10 +458,10 @@ func TestHandler_BatchUpdate(t *testing.T) {
 	var tests = []struct {
 		name        string
 		url         string
-		status      int
 		method      string
 		bodyMetrics []*metrics.Metrics
 		want        []string
+		status      int
 	}{
 		{
 			name:        "BatchUpdate #1",
@@ -345,8 +494,64 @@ func TestHandler_BatchUpdate(t *testing.T) {
 	}
 }
 
-func TestCollectMetricList(t *testing.T) {
+func ExampleHandler_BatchUpdate() {
+	ctx := context.Background()
+	cfg := &configuration.Config{}
 
+	zl, err := zap.NewProduction()
+	if err != nil {
+		fmt.Printf("cannot init zap-logger err: %v", err)
+		return
+	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		fmt.Printf("cannot init middleware logger err: %v", err)
+		return
+	}
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
+	if err != nil {
+		fmt.Printf("cannot init logger err: %v", err)
+		return
+	}
+
+	h := NewHandler(s, sl)
+	r := NewRouter(ctx, h, l.RequestLogger)
+
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	var bodyMetrics []*metrics.Metrics
+	bodyMetrics = append(bodyMetrics, metrics.NewCounterMetric("one", 1))
+	bodyMetrics = append(bodyMetrics, metrics.NewCounterMetric("two", 2))
+	bodyMetrics = append(bodyMetrics, metrics.NewGaugeMetric("three dot one", 3.1))
+	bodyMetrics = append(bodyMetrics, metrics.NewGaugeMetric("four dot two", 4.2))
+
+	b, err := json.Marshal(bodyMetrics)
+	if err != nil {
+		fmt.Println("marshal err : %w", err)
+	}
+
+	res, err := ts.Client().Post(ts.URL+"/updates/", "aplication/json", bytes.NewBuffer(b))
+	if err != nil {
+		fmt.Printf("http request err: %v", err)
+		return
+	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			fmt.Printf("body close err: %v", err)
+		}
+	}()
+
+	fmt.Println(res.StatusCode)
+
+	// Output:
+	// 200
+}
+
+func TestHandler_CollectMetricList(t *testing.T) {
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
@@ -375,12 +580,12 @@ func TestCollectMetricList(t *testing.T) {
 	var tests = []struct {
 		url    string
 		want   string
-		status int
 		method string
+		status int
 	}{
-		{"/update/gauge/metricg/1.2", "metricg 1.2", http.StatusOK, http.MethodPost},
-		{"/update/counter/metricc/1", "metricc 1", http.StatusOK, http.MethodPost},
-		{"/", "", http.StatusOK, http.MethodGet},
+		{"/update/gauge/metricg/1.2", "metricg 1.2", http.MethodPost, http.StatusOK},
+		{"/update/counter/metricc/1", "metricc 1", http.MethodPost, http.StatusOK},
+		{"/", "", http.MethodGet, http.StatusOK},
 	}
 	for _, v := range tests {
 		resp, get := testRequest(t, ts, v.method, v.url, nil)
@@ -397,6 +602,89 @@ func TestCollectMetricList(t *testing.T) {
 	}
 }
 
+func ExampleHandler_CollectMetricList() {
+
+	ctx := context.Background()
+	cfg := &configuration.Config{}
+
+	zl, err := zap.NewProduction()
+	if err != nil {
+		fmt.Printf("cannot init zap-logger err: %v", err)
+	}
+	sl := zl.Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		fmt.Printf("cannot init middleware logger err: %v", err)
+	}
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
+	if err != nil {
+		fmt.Printf("cannot init logger err: %v", err)
+	}
+
+	h := NewHandler(s, sl)
+	r := NewRouter(ctx, h, l.RequestLogger)
+
+	ts := httptest.NewServer(r)
+
+	h.CollectMetricList(ctx, httptest.NewRecorder())
+
+	defer ts.Close()
+
+	res, err := ts.Client().Post(ts.URL+"/update/gauge/metric/1.2", "plain/text", nil)
+	if err != nil {
+		fmt.Printf("http request err: %v", err)
+		return
+	}
+
+	res, err = ts.Client().Post(ts.URL+"/update/counter/metric/1", "plain/text", nil)
+	if err != nil {
+		fmt.Printf("http request err: %v", err)
+		return
+	}
+
+	res, err = ts.Client().Post(ts.URL+"/update/counter/metric/1", "plain/text", nil)
+	if err != nil {
+		fmt.Printf("http request err: %v", err)
+		return
+	}
+
+	res, err = ts.Client().Get(ts.URL + "/")
+	if err != nil {
+		fmt.Printf("http request err: %v", err)
+		return
+	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			fmt.Printf("body close err: %v", err)
+		}
+	}()
+
+	fmt.Println(res.StatusCode)
+
+	bytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		fmt.Printf("example metric list read body error: %v", err)
+		return
+	}
+
+	fmt.Println(string(bytes))
+
+	// Output:
+	// 200
+	//
+	//	<html>
+	//	<head>
+	//		<title>Metric list</title>
+	//	</head>
+	//	<body>
+	//		<h1>Metric list</h1>
+	//		<p>metric 1.2</p><p>metric 2</p>
+	//	</body>
+	//	</html>
+}
+
 func testRequest(t *testing.T, ts *httptest.Server, method string, path string, body io.Reader) (*http.Response, []byte) {
 
 	req, err := http.NewRequest(method, ts.URL+path, body)
@@ -410,4 +698,116 @@ func testRequest(t *testing.T, ts *httptest.Server, method string, path string, 
 	require.NoError(t, err)
 
 	return resp, respBody
+}
+
+func BenchmarkUpdateMetricFromURL(b *testing.B) {
+	ctx := context.Background()
+	cfg := &configuration.Config{}
+
+	zl, err := zap.NewProduction()
+	if err != nil {
+		fmt.Printf("cannot init zap-logger err: %v", err)
+		return
+	}
+	sl := zl.Sugar()
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
+	if err != nil {
+		fmt.Printf("cannot init logger err: %v", err)
+		return
+	}
+
+	h := NewHandler(s, sl)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		id := strconv.Itoa(i)
+		value := id
+
+		b.StartTimer()
+		h.UpdateMetricFromURL(ctx, httptest.NewRecorder(), id, metrics.CounterMetric, value)
+	}
+}
+
+func BenchmarkUpdateMetric(b *testing.B) {
+	ctx := context.Background()
+	cfg := &configuration.Config{}
+
+	zl, err := zap.NewProduction()
+	if err != nil {
+		fmt.Printf("cannot init zap-logger err: %v", err)
+		return
+	}
+	sl := zl.Sugar()
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
+	if err != nil {
+		fmt.Printf("cannot init logger err: %v", err)
+		return
+	}
+
+	h := NewHandler(s, sl)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		id := strconv.Itoa(i)
+
+		gm := metrics.NewCounterMetric(id, int64(i))
+		bs, err := json.Marshal(gm)
+		if err != nil {
+			fmt.Printf("marashal err: %v", err)
+			return
+		}
+		body := io.NopCloser(bytes.NewReader(bs))
+
+		b.StartTimer()
+		h.UpdateMetric(ctx, httptest.NewRecorder(), body)
+	}
+}
+
+func BenchmarkBatchUpdate(b *testing.B) {
+	ctx := context.Background()
+	cfg := &configuration.Config{}
+
+	zl, err := zap.NewProduction()
+	if err != nil {
+		fmt.Printf("cannot init zap-logger err: %v", err)
+		return
+	}
+	sl := zl.Sugar()
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
+	if err != nil {
+		fmt.Printf("cannot init logger err: %v", err)
+		return
+	}
+
+	h := NewHandler(s, sl)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		id := strconv.Itoa(i)
+		cm := metrics.NewCounterMetric(id, int64(i))
+
+		var ms []*metrics.Metrics
+		ms = append(ms, cm)
+		for j := 0; j < 10; j++ {
+			id := i + j
+			gm := metrics.NewGaugeMetric(strconv.Itoa(id), float64(i+j))
+			ms = append(ms, gm)
+		}
+
+		bs, err := json.Marshal(ms)
+		if err != nil {
+			fmt.Printf("marashal err: %v", err)
+			return
+		}
+		body := io.NopCloser(bytes.NewReader(bs))
+
+		b.StartTimer()
+		h.BatchUpdate(ctx, httptest.NewRecorder(), body)
+	}
 }

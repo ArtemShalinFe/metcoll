@@ -5,11 +5,16 @@ import (
 	"strings"
 )
 
+// CompressedTypes is types that support compression.
 const compressedTypes = "application/json,text/html"
 
+const gzipEncoding = "gzip"
+const contentEncoding = "Content-Encoding"
+
+// CompressMiddleware - the middleware compresses outgoing requests,
+// if compression is supported by the client, also decompresses incoming requests.
 func CompressMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		contentType := r.Header.Get("Content-Type")
 		if !strings.Contains(compressedTypes, contentType) {
 			h.ServeHTTP(w, r)
@@ -19,17 +24,17 @@ func CompressMiddleware(h http.Handler) http.Handler {
 
 		acceptEncodings := r.Header.Values("Accept-Encoding")
 		for _, acceptEncoding := range acceptEncodings {
-			if strings.Contains(acceptEncoding, "gzip") {
+			if strings.Contains(acceptEncoding, gzipEncoding) {
 				gzipWriter := NewGzipWriter(w)
 				origWriter = gzipWriter
 				defer gzipWriter.Close()
 			}
 		}
 
-		contentEncodings := r.Header.Values("Content-Encoding")
+		contentEncodings := r.Header.Values(contentEncoding)
 
 		for _, contentEncoding := range contentEncodings {
-			if strings.Contains(contentEncoding, "gzip") {
+			if strings.Contains(contentEncoding, gzipEncoding) {
 				compressReader, err := NewGzipReader(r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -41,6 +46,5 @@ func CompressMiddleware(h http.Handler) http.Handler {
 		}
 
 		h.ServeHTTP(origWriter, r)
-
 	})
 }

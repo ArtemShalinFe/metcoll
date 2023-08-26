@@ -1,3 +1,4 @@
+// Package is used to collect metrics and send them to the server.
 package main
 
 import (
@@ -18,20 +19,16 @@ import (
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
 )
 
-const (
-	timeoutShutdown = time.Second * 60
-)
+// timeoutShutdown is waiting time until the rest of the gorutins are completed.
+const timeoutShutdown = time.Second * 60
 
 func main() {
-
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
-
 }
 
 func run() error {
-
 	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelCtx()
 
@@ -64,7 +61,7 @@ func run() error {
 		<-ctx.Done()
 
 		if err := l.Interrupt(); err != nil {
-			componentsErrs <- fmt.Errorf("cannot flush buffered log entries err: %w", err)
+			errs <- fmt.Errorf("cannot flush buffered log entries err: %w", err)
 		}
 	}(componentsErrs)
 
@@ -77,7 +74,6 @@ func run() error {
 	stats := stats.NewStats()
 
 	go func() {
-
 		mcs := make(chan []*metrics.Metrics, cfg.Limit)
 		defer close(mcs)
 
@@ -96,7 +92,6 @@ func run() error {
 				stats.ClearPollCount()
 			}
 		}
-
 	}()
 
 	l.Info("metcoll client starting")
@@ -117,5 +112,4 @@ func run() error {
 	}()
 
 	return nil
-
 }
