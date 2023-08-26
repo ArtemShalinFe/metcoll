@@ -63,12 +63,12 @@ func (db *DB) createTables(ctx context.Context) error {
 	err = func() error {
 		q := `CREATE TABLE IF NOT EXISTS counters (id character(36) PRIMARY KEY, value bigint);`
 		if err = retryExec(ctx, tx, q); err != nil {
-			return fmt.Errorf("cannot create table for gauges err : %w", err)
+			return fmt.Errorf("cannot create table for couters metric err : %w", err)
 		}
 
 		q = `CREATE TABLE IF NOT EXISTS gauges (id character(36) PRIMARY KEY, delta double precision);`
 		if err = retryExec(ctx, tx, q); err != nil {
-			return fmt.Errorf("cannot create table for couters err : %w", err)
+			return fmt.Errorf("cannot create table for gauges metric err : %w", err)
 		}
 
 		return nil
@@ -78,7 +78,7 @@ func (db *DB) createTables(ctx context.Context) error {
 		if err = retryRollback(ctx, tx); err != nil {
 			return fmt.Errorf("transaction cannot be rolled back err: %w", err)
 		}
-		return err
+		return nil
 	}
 
 	return nil
@@ -607,11 +607,13 @@ func retryQuery(ctx context.Context, tx pgx.Tx, sql string, args ...any) (pgx.Ro
 }
 
 func retryIf(err error) bool {
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return true
+	}
+
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		if pgerrcode.IsConnectionException(pgErr.Code) {
-			return true
-		} else if errors.Is(err, syscall.ECONNREFUSED) {
 			return true
 		} else {
 			return false
