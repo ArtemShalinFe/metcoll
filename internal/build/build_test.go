@@ -19,14 +19,14 @@ func TestInfo(t *testing.T) {
 	}{
 		{
 			name: "case #1",
-			want: "Build version: N/A;\nBuild date: N/A;\nBuild commit: N/A;",
+			want: "Build version: N/A; Build date: N/A; Build commit: N/A;",
 		},
 		{
 			name:         "case #2",
 			buildVersion: "1.0",
 			buildDate:    date,
 			buildCommit:  "test",
-			want:         fmt.Sprintf("Build version: %s;\nBuild date: %s;\nBuild commit: %s;", "1.0", date, "test"),
+			want:         fmt.Sprintf(infoTemplate, "1.0", date, "test"),
 		},
 	}
 	for _, tt := range tests {

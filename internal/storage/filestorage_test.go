@@ -9,23 +9,21 @@ import (
 	"go.uber.org/zap"
 )
 
+const test5 = "test5"
+const test12 = "test12"
+
 func TestState_SaveLoad(t *testing.T) {
 	ctx := context.Background()
 
 	ts := newMemStorage()
-	if _, err := ts.SetFloat64Value(ctx, "test12", 1.2); err != nil {
+	if _, err := ts.SetFloat64Value(ctx, test12, 1.2); err != nil {
 		t.Error(err)
 	}
-	if _, err := ts.AddInt64Value(ctx, "test5", 5); err != nil {
+	if _, err := ts.AddInt64Value(ctx, test5, 5); err != nil {
 		t.Error(err)
 	}
 
-	zl, err := zap.NewProduction()
-	if err != nil {
-		t.Errorf("cannot init zap-logger err: %v ", err)
-	}
-
-	sl := zl.Sugar()
+	sl := zap.L().Sugar()
 
 	type fields struct {
 		stg           *MemStorage
@@ -107,19 +105,14 @@ func TestFilestorage_Interrupt(t *testing.T) {
 	ctx := context.Background()
 
 	ts := newMemStorage()
-	if _, err := ts.SetFloat64Value(ctx, "test12", 1.2); err != nil {
+	if _, err := ts.SetFloat64Value(ctx, test12, 1.2); err != nil {
 		t.Error(err)
 	}
-	if _, err := ts.AddInt64Value(ctx, "test5", 5); err != nil {
+	if _, err := ts.AddInt64Value(ctx, test5, 5); err != nil {
 		t.Error(err)
 	}
 
-	zl, err := zap.NewProduction()
-	if err != nil {
-		t.Errorf("cannot init zap-logger err: %v ", err)
-	}
-
-	sl := zl.Sugar()
+	sl := zap.L().Sugar()
 
 	type fields struct {
 		MemStorage    *MemStorage
@@ -172,7 +165,7 @@ func TestFilestorage_SetFloat64Value(t *testing.T) {
 	ctx := context.Background()
 
 	ts := newMemStorage()
-	if _, err := ts.SetFloat64Value(ctx, "test12", 1.2); err != nil {
+	if _, err := ts.SetFloat64Value(ctx, test12, 1.2); err != nil {
 		t.Error(err)
 	}
 
@@ -182,7 +175,6 @@ func TestFilestorage_SetFloat64Value(t *testing.T) {
 	}
 
 	type args struct {
-		ctx   context.Context
 		key   string
 		value float64
 	}
@@ -197,8 +189,7 @@ func TestFilestorage_SetFloat64Value(t *testing.T) {
 			name: "#1 positive case",
 			fs:   fs,
 			args: args{
-				ctx:   ctx,
-				key:   "test12",
+				key:   test12,
 				value: 1.3,
 			},
 			want:    1.3,
@@ -208,8 +199,7 @@ func TestFilestorage_SetFloat64Value(t *testing.T) {
 			name: "#2 positive case",
 			fs:   fs,
 			args: args{
-				ctx:   ctx,
-				key:   "test5",
+				key:   test5,
 				value: 6,
 			},
 			want:    6,
@@ -219,7 +209,7 @@ func TestFilestorage_SetFloat64Value(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := fs.SetFloat64Value(tt.args.ctx, tt.args.key, tt.args.value)
+			got, err := fs.SetFloat64Value(ctx, tt.args.key, tt.args.value)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Filestorage.SetFloat64Value() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -234,8 +224,10 @@ func TestFilestorage_SetFloat64Value(t *testing.T) {
 func TestFilestorage_AddInt64Value(t *testing.T) {
 	ctx := context.Background()
 
+	const test1 = "test1"
+
 	ts := newMemStorage()
-	if _, err := ts.AddInt64Value(ctx, "test1", 1); err != nil {
+	if _, err := ts.AddInt64Value(ctx, test1, 1); err != nil {
 		t.Error(err)
 	}
 
@@ -261,7 +253,7 @@ func TestFilestorage_AddInt64Value(t *testing.T) {
 			fs:   fs,
 			args: args{
 				ctx:   ctx,
-				key:   "test1",
+				key:   test1,
 				value: 1,
 			},
 			want:    2,
@@ -316,7 +308,6 @@ func TestFilestorage_BatchAddInt64Value(t *testing.T) {
 	wantC["test8"] = 8
 
 	type args struct {
-		ctx      context.Context
 		counters map[string]int64
 	}
 	tests := []struct {
@@ -330,7 +321,6 @@ func TestFilestorage_BatchAddInt64Value(t *testing.T) {
 			name: "#1 case",
 			fs:   fs,
 			args: args{
-				ctx:      ctx,
 				counters: c,
 			},
 			want:    wantC,
@@ -340,7 +330,7 @@ func TestFilestorage_BatchAddInt64Value(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := tt.fs.BatchAddInt64Value(tt.args.ctx, tt.args.counters)
+			_, _, err := tt.fs.BatchAddInt64Value(ctx, tt.args.counters)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Filestorage.BatchAddInt64Value() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -401,7 +391,7 @@ func TestFilestorage_BatchSetFloat64Value(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, _, err := tt.fs.BatchSetFloat64Value(tt.args.ctx, tt.args.gauges)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Filestorage.BatchAddInt64Value() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Filestorage.BatchSetFloat64Value() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 		})

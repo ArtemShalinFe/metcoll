@@ -22,7 +22,7 @@ func TestConfig_String(t *testing.T) {
 			name: "check print hashkey",
 			fields: fields{
 				Address:         "nope",
-				Key:             []byte("testKey"),
+				Key:             []byte("testHashKey"),
 				FileStoragePath: "test",
 				Database:        "somedsn",
 				StoreInterval:   1,

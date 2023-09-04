@@ -8,7 +8,12 @@ import (
 	"github.com/caarlos0/env"
 )
 
-const defaultStoreInterval = 300
+const (
+	defaultStoreInterval  = 300
+	storeIntervalFlagName = "i"
+
+	envHashKey = "KEY"
+)
 
 // Config contains configuration for server.
 type Config struct {
@@ -25,12 +30,12 @@ func Parse() (*Config, error) {
 
 	var hashkey string
 
-	flag.StringVar(&c.Address, "a", defaultMetcollAddress, "server end point")
-	flag.IntVar(&c.StoreInterval, "i", defaultStoreInterval, "storage saving interval")
+	flag.StringVar(&c.Address, metcollAddressFlagName, defaultMetcollAddress, "server end point")
+	flag.IntVar(&c.StoreInterval, storeIntervalFlagName, defaultStoreInterval, "storage saving interval")
 	flag.StringVar(&c.FileStoragePath, "f", "/tmp/metrics-db.json", "path to metric file-storage")
 	flag.BoolVar(&c.Restore, "r", true, "restore metrics from a file at server startup")
 	flag.StringVar(&c.Database, "d", "", "database connection")
-	flag.StringVar(&hashkey, "k", "", "hash key")
+	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key")
 
 	flag.Parse()
 
@@ -38,7 +43,7 @@ func Parse() (*Config, error) {
 		return nil, fmt.Errorf("env parse server config err: %w", err)
 	}
 
-	envkey := os.Getenv("KEY")
+	envkey := os.Getenv(envHashKey)
 	if envkey != "" {
 		hashkey = envkey
 	}

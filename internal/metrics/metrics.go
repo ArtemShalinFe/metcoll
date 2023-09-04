@@ -142,7 +142,7 @@ func BatchUpdate(ctx context.Context, ms []*Metrics, storage Storage) ([]*Metric
 		case GaugeMetric:
 			gauges[m.ID] = *m.Value
 		case CounterMetric:
-			counters[m.ID] = counters[m.ID] + *m.Delta
+			counters[m.ID] += *m.Delta
 		default:
 			continue
 		}

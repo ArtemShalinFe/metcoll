@@ -6,9 +6,11 @@
 //   - atomic (defines an Analyzer that checks for common mistakes using the sync/atomic package)
 //   - bools (defines an Analyzer that detects common mistakes involving boolean operators)
 //   - defers (defines an Analyzer that checks for common mistakes in defer statements)
-//   - errorsas (defines an Analyzer that checks that the second argument to errors.As is a pointer to a type implementing error)
+//   - errorsas (defines an Analyzer that checks that the second argument to errors.As is a pointer
+//     to a type implementing error)
 //   - fieldalignment (defines an Analyzer that detects structs that would use less memory if their fields were sorted)
-//   - loopclosure (defines an Analyzer that checks for references to enclosing loop variables from within nested functions)
+//   - loopclosure (defines an Analyzer that checks for references to enclosing loop variables
+//     from within nested functions)
 //   - printf (defines an Analyzer that checks consistency of Printf format strings and arguments)
 //   - stringintconv (defines an Analyzer that flags type conversions from integers to strings)
 //   - structtag (defines an Analyzer that checks struct field tags are well formed)
@@ -20,7 +22,9 @@
 //
 // The package includes analyzer from the package "github.com/tommy-muehle/go-mnd/v2", that detect "magic numbers".
 //
-// The package includes analyzer "exitchecker", that checks a direct call to `os.Exit` in the main function of the main package.
+// The package includes analyzer "exitchecker",
+//
+//	that checks a direct call to `os.Exit` in the main function of the main package.
 package main
 
 import (
@@ -83,10 +87,9 @@ func main() {
 		loopclosure.Analyzer,
 		stringintconv.Analyzer,
 		printf.Analyzer,
-		structtag.Analyzer)
-
-	checks = append(checks, mnd.Analyzer)
-	checks = append(checks, exitchecker.NewAnalyzer())
+		structtag.Analyzer,
+		mnd.Analyzer,
+		exitchecker.NewAnalyzer())
 
 	multichecker.Main(
 		checks...,

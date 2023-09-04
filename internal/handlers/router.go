@@ -10,6 +10,12 @@ import (
 	"github.com/go-chi/chi/middleware"
 )
 
+const (
+	metricNameParam  = "metricName"
+	metricTypeParam  = "metricType"
+	metricValueParam = "metricValue"
+)
+
 func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.Handler) http.Handler) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -18,9 +24,9 @@ func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.
 		r.Use(middleware.Recoverer)
 
 		r.Post("/update/{metricType}/{metricName}/{metricValue}", func(w http.ResponseWriter, r *http.Request) {
-			metricName := chi.URLParam(r, "metricName")
-			metricValue := chi.URLParam(r, "metricValue")
-			metricType := chi.URLParam(r, "metricType")
+			metricName := chi.URLParam(r, metricNameParam)
+			metricValue := chi.URLParam(r, metricValueParam)
+			metricType := chi.URLParam(r, metricTypeParam)
 
 			if strings.TrimSpace(metricName) == "" {
 				w.WriteHeader(http.StatusBadRequest)
@@ -35,8 +41,8 @@ func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.
 		})
 
 		r.Get("/value/{metricType}/{metricName}", func(w http.ResponseWriter, r *http.Request) {
-			metricName := chi.URLParam(r, "metricName")
-			metricType := chi.URLParam(r, "metricType")
+			metricName := chi.URLParam(r, metricNameParam)
+			metricType := chi.URLParam(r, metricTypeParam)
 
 			if strings.TrimSpace(metricName) == "" {
 				w.WriteHeader(http.StatusBadRequest)

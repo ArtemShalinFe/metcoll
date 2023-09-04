@@ -9,23 +9,26 @@ var buildVersion string
 var buildDate string
 var buildCommit string
 
+const infoTemplate = "Build version: %s; Build date: %s; Build commit: %s;"
+
 // Info returns data about the assembly.
-// Output format: "Build version: %s;\nBuild date: %s;\nBuild commit: %s;"
 func Info() string {
-	v := "N/A"
+	const NotAvailable = "N/A"
+
+	v := NotAvailable
 	if buildVersion != "" {
 		v = buildVersion
 	}
 
-	d := "N/A"
+	d := NotAvailable
 	if buildDate != "" {
 		d = buildDate
 	}
 
-	c := "N/A"
+	c := NotAvailable
 	if buildCommit != "" {
 		c = buildCommit
 	}
 
-	return fmt.Sprintf("Build version: %s;\nBuild date: %s;\nBuild commit: %s;", v, d, c)
+	return fmt.Sprintf(infoTemplate, v, d, c)
 }

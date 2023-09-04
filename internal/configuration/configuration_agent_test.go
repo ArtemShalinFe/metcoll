@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,21 +13,22 @@ func TestCheckConfigPriority(t *testing.T) {
 	var c ConfigAgent
 
 	const a = "localhost:8090"
+	const envAddressName = "ADDRESS"
 
 	serverFS := flag.NewFlagSet("a", flag.ContinueOnError)
-	serverFS.StringVar(&c.Server, "a", a, "server end point")
+	serverFS.StringVar(&c.Server, "a", a, "metcollserver  end point")
 
 	limitFS := flag.NewFlagSet("l", flag.ContinueOnError)
 	limitFS.IntVar(&c.Limit, "l", 1, "limit")
 
-	if err := os.Setenv("ADDRESS", a); err != nil {
+	if err := os.Setenv(envAddressName, a); err != nil {
 		fmt.Printf("set env ADDRESS err: %v", err)
 		return
 	}
 
 	defer func() {
-		if err := os.Unsetenv("ADDRESS"); err != nil {
-			fmt.Printf("set env ADDRESS err: %v", err)
+		if err := os.Unsetenv(envAddressName); err != nil {
+			fmt.Printf("unset env ADDRESS err: %v", err)
 		}
 	}()
 
@@ -95,28 +95,6 @@ func TestConfigAgent_String(t *testing.T) {
 			}
 			if got := c.String(); got != tt.want {
 				t.Errorf("ConfigAgent.String() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestParseAgent(t *testing.T) {
-	tests := []struct {
-		want    *ConfigAgent
-		name    string
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseAgent()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ParseAgent() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ParseAgent() = %v, want %v", got, tt.want)
 			}
 		})
 	}

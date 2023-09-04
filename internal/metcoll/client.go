@@ -30,17 +30,21 @@ type Client struct {
 	hashkey    []byte
 }
 
+const (
+	HashSHA256 = "HashSHA256"
+)
+
 // NewClient - Object constructor.
 func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogger) *Client {
 	const defautMaxRetry = 3
-	const defautMinWaitRetry = 3
-	const defautMaxWaitRetry = 5
+	const defautMinWaitRetry = 3 * time.Second
+	const defautMaxWaitRetry = 5 * time.Second
 
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = defautMaxRetry
 	retryClient.CheckRetry = checkRetry
-	retryClient.RetryWaitMin = time.Duration(defautMinWaitRetry * time.Second)
-	retryClient.RetryWaitMax = time.Duration(defautMaxWaitRetry * time.Second)
+	retryClient.RetryWaitMin = time.Duration(defautMinWaitRetry)
+	retryClient.RetryWaitMax = time.Duration(defautMaxWaitRetry)
 	retryClient.Logger = logger
 	retryClient.Backoff = backoff
 
@@ -112,7 +116,7 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 
 		h.Write(data)
 
-		req.Header.Set("HashSHA256", fmt.Sprintf("%x", h.Sum(nil)))
+		req.Header.Set(HashSHA256, fmt.Sprintf("%x", h.Sum(nil)))
 	}
 
 	return req, nil
@@ -143,7 +147,11 @@ func (c *Client) doRequest(req *retryablehttp.Request) error {
 		return fmt.Errorf("request execute err: %w", err)
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			c.logger.Error("an error occured while body closing err: %v", err)
+		}
+	}()
 
 	res, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -152,7 +160,7 @@ func (c *Client) doRequest(req *retryablehttp.Request) error {
 
 	if resp.StatusCode < http.StatusMultipleChoices {
 		c.logger.Info(`request for update metric has been completed
-	code: %d, hash: %s`, resp.StatusCode, resp.Header.Get("HashSha256"))
+	code: %d, hash: %s`, resp.StatusCode, resp.Header.Get(HashSHA256))
 	} else {
 		c.logger.Error(`request for update metric has failed
 	code: %d

@@ -50,7 +50,7 @@ func (fs *Filestorage) BatchSetFloat64Value(ctx context.Context,
 	gauges map[string]float64) (map[string]float64, []error, error) {
 	gauges, errs, err := fs.MemStorage.BatchSetFloat64Value(ctx, gauges)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot add batch int64 value in filestorage err: %w", err)
+		return nil, nil, fmt.Errorf("cannot add batch float64 value in filestorage err: %w", err)
 	}
 
 	if fs.storeInterval == 0 {

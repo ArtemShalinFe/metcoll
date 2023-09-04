@@ -1,4 +1,4 @@
-// Package exitchecker checks a direct call to `os.Exit` in the main function of the main package
+// Package exitchecker checks a direct call to `os.Exit` in the main function of the main package.
 package exitchecker
 
 import (
@@ -21,6 +21,7 @@ func NewAnalyzer() *analysis.Analyzer {
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	for _, f := range pass.Files {
+		f := f
 		ast.Inspect(f, func(n ast.Node) bool {
 			switch x := n.(type) {
 			case *ast.FuncDecl:
@@ -41,7 +42,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					pass.Reportf(x.Pos(), "called os.Exit in the main function")
 					return false
 				}
-				return false
+				return true
 			default:
 				return true
 			}
