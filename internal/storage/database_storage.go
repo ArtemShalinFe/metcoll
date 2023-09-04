@@ -625,13 +625,15 @@ func retryIf(err error) bool {
 
 func retryOptions(ctx context.Context) []retry.Option {
 	const defaultAttempts = 3
+	const defaultDelay = 1
+	const defaulMaxDelay = 5
 
 	var opts []retry.Option
 	opts = append(opts,
 		retry.Context(ctx),
 		retry.Attempts(defaultAttempts),
-		retry.Delay(1*time.Second),
-		retry.MaxDelay(5*time.Second),
+		retry.Delay(defaultDelay*time.Second),
+		retry.MaxDelay(defaulMaxDelay*time.Second),
 		retry.RetryIf(retryIf),
 		retry.LastErrorOnly(true),
 		retry.DelayType(backOff))
@@ -640,15 +642,24 @@ func retryOptions(ctx context.Context) []retry.Option {
 }
 
 func backOff(n uint, err error, config *retry.Config) time.Duration {
+	const an0 = 0
+	const an1 = 1
+	const an2 = 2
+
+	const an0backoff = 1 * time.Second
+	const an1backoff = 3 * time.Second
+	const an2backoff = 5 * time.Second
+	const defaultbackoff = 2 * time.Second
+
 	switch n {
-	case 0:
-		return 1 * time.Second
-	case 1:
-		return 3 * time.Second
-	case 2:
-		return 5 * time.Second
+	case an0:
+		return an0backoff
+	case an1:
+		return an1backoff
+	case an2:
+		return an2backoff
 	default:
-		return 2 * time.Second
+		return defaultbackoff
 	}
 }
 

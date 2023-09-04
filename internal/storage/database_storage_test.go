@@ -59,9 +59,9 @@ func TestDB_createTables(t *testing.T) {
 		logger *zap.SugaredLogger
 	}
 	tests := []struct {
-		name    string
 		fields  fields
 		ctx     context.Context
+		name    string
 		wantErr bool
 	}{
 		{

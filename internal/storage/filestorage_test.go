@@ -320,10 +320,10 @@ func TestFilestorage_BatchAddInt64Value(t *testing.T) {
 		counters map[string]int64
 	}
 	tests := []struct {
-		name    string
-		fs      *Filestorage
 		args    args
+		fs      *Filestorage
 		want    map[string]int64
+		name    string
 		wantErr bool
 	}{
 		{
@@ -379,10 +379,10 @@ func TestFilestorage_BatchSetFloat64Value(t *testing.T) {
 		gauges map[string]float64
 	}
 	tests := []struct {
-		name    string
-		fs      *Filestorage
 		args    args
+		fs      *Filestorage
 		want    map[string]float64
+		name    string
 		wantErr bool
 	}{
 		{

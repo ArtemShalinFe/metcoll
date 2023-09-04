@@ -1,3 +1,4 @@
+// Package stats contains methods and functions for collecting metrics.
 package stats
 
 import (
@@ -40,7 +41,8 @@ func (s *Stats) RunCollectBatchStats(ctx context.Context, cfg *configuration.Con
 
 func (s *Stats) update(pause time.Duration) {
 	if pause == 0 {
-		pause = 2 * time.Second
+		const defaultPause = 2 * time.Second
+		pause = defaultPause
 	}
 
 	for {
@@ -58,7 +60,8 @@ func (s *Stats) update(pause time.Duration) {
 
 func (s *Stats) batchCollect(ctx context.Context, pause time.Duration, ms chan<- []*metrics.Metrics) {
 	if pause == 0 {
-		pause = 10 * time.Second
+		const defaultPause = 10 * time.Second
+		pause = defaultPause
 	}
 
 	for {

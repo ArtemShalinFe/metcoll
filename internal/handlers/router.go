@@ -1,3 +1,4 @@
+// Package handlers server REST API handlers for updating and retrieving metric values.
 package handlers
 
 import (

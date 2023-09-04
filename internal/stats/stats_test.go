@@ -83,8 +83,8 @@ func TestStats_ClearPollCount(t *testing.T) {
 	s.pollCount = 10
 
 	tests := []struct {
-		name  string
 		stats *Stats
+		name  string
 	}{
 		{
 			name:  "cleanup",

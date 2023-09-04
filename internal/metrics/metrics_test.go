@@ -58,9 +58,9 @@ func TestGetMetric(t *testing.T) {
 		mType string
 	}
 	tests := []struct {
-		name    string
-		args    args
 		want    *Metrics
+		args    args
+		name    string
 		wantErr bool
 	}{
 		{
@@ -147,11 +147,11 @@ func TestMetrics_Get(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		fields  fields
 		args    args
-		wantErr bool
 		want    *Metrics
+		fields  fields
+		name    string
+		wantErr bool
 	}{
 		{
 			name: "#1 case",

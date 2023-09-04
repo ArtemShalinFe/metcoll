@@ -69,8 +69,8 @@ func TestConfigAgent_String(t *testing.T) {
 	}
 	tests := []struct {
 		name   string
-		fields fields
 		want   string
+		fields fields
 	}{
 		{
 			name: "check print hashkey",
@@ -102,8 +102,8 @@ func TestConfigAgent_String(t *testing.T) {
 
 func TestParseAgent(t *testing.T) {
 	tests := []struct {
-		name    string
 		want    *ConfigAgent
+		name    string
 		wantErr bool
 	}{
 		// TODO: Add test cases.

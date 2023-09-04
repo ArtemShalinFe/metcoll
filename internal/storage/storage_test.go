@@ -29,9 +29,9 @@ func TestInitStorage(t *testing.T) {
 		l   *zap.SugaredLogger
 	}
 	tests := []struct {
-		name    string
 		args    args
 		want    Storage
+		name    string
 		wantErr bool
 	}{
 		{

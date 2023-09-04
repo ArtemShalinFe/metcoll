@@ -1,3 +1,4 @@
+// Package metcoll for interacting with the metrics server.
 package metcoll
 
 import (
@@ -31,11 +32,15 @@ type Client struct {
 
 // NewClient - Object constructor.
 func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogger) *Client {
+	const defautMaxRetry = 3
+	const defautMinWaitRetry = 3
+	const defautMaxWaitRetry = 5
+
 	retryClient := retryablehttp.NewClient()
-	retryClient.RetryMax = 3
+	retryClient.RetryMax = defautMaxRetry
 	retryClient.CheckRetry = checkRetry
-	retryClient.RetryWaitMin = time.Duration(3 * time.Second)
-	retryClient.RetryWaitMax = time.Duration(5 * time.Second)
+	retryClient.RetryWaitMin = time.Duration(defautMinWaitRetry * time.Second)
+	retryClient.RetryWaitMax = time.Duration(defautMaxWaitRetry * time.Second)
 	retryClient.Logger = logger
 	retryClient.Backoff = backoff
 
@@ -56,15 +61,24 @@ func checkRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 }
 
 func backoff(min, max time.Duration, attemptNum int, resp *http.Response) time.Duration {
+	const an0 = 0
+	const an1 = 1
+	const an2 = 2
+
+	const an0backoff = 1 * time.Second
+	const an1backoff = 3 * time.Second
+	const an2backoff = 5 * time.Second
+	const defaultbackoff = 2 * time.Second
+
 	switch attemptNum {
-	case 0:
-		return 1 * time.Second
-	case 1:
-		return 3 * time.Second
-	case 2:
-		return 5 * time.Second
+	case an0:
+		return an0backoff
+	case an1:
+		return an1backoff
+	case an2:
+		return an2backoff
 	default:
-		return 2 * time.Second
+		return defaultbackoff
 	}
 }
 

@@ -107,7 +107,8 @@ func (fs *Filestorage) SetFloat64Value(ctx context.Context, key string, value fl
 }
 
 func (fs *Filestorage) Save(storage *MemStorage) error {
-	file, err := os.OpenFile(fs.path, os.O_WRONLY|os.O_CREATE, 0666)
+	const fileMode = 0666
+	file, err := os.OpenFile(fs.path, os.O_WRONLY|os.O_CREATE, fileMode)
 
 	if err != nil {
 		return fmt.Errorf("cannot open or creating file for state saving err: %w", err)
@@ -137,7 +138,9 @@ func (fs *Filestorage) Save(storage *MemStorage) error {
 }
 
 func (fs *Filestorage) Load(storage *MemStorage) error {
-	file, err := os.OpenFile(fs.path, os.O_RDONLY|os.O_CREATE, 0666)
+	const fileMode = 0666
+
+	file, err := os.OpenFile(fs.path, os.O_RDONLY|os.O_CREATE, fileMode)
 	if err != nil {
 		return fmt.Errorf("cannot open or creating file for state loading err: %w", err)
 	}

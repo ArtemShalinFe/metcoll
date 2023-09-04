@@ -1,4 +1,4 @@
-// Package is used to store indicators of their aggregation and return on request.
+// Package main is used to store indicators of their aggregation and return on request.
 package main
 
 import (
@@ -14,6 +14,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/ArtemShalinFe/metcoll/internal/build"
 	"github.com/ArtemShalinFe/metcoll/internal/compress"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/handlers"
@@ -45,6 +46,8 @@ func run() error {
 		return fmt.Errorf("cannot init zap-logger err: %w ", err)
 	}
 	sl := zl.Sugar()
+
+	sl.Info(build.Info())
 
 	l, err := logger.NewMiddlewareLogger(sl)
 	if err != nil {
