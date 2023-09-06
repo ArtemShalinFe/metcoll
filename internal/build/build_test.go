@@ -19,14 +19,14 @@ func TestInfo(t *testing.T) {
 	}{
 		{
 			name: "case #1",
-			want: "Build version: N/A; Build date: N/A; Build commit: N/A;",
+			want: fmt.Sprintf(infoTemplate(), notAvailable, notAvailable, notAvailable),
 		},
 		{
 			name:         "case #2",
 			buildVersion: "1.0",
 			buildDate:    date,
 			buildCommit:  "test",
-			want:         fmt.Sprintf(infoTemplate, "1.0", date, "test"),
+			want:         fmt.Sprintf(infoTemplate(), "1.0", date, "test"),
 		},
 	}
 	for _, tt := range tests {
@@ -36,8 +36,9 @@ func TestInfo(t *testing.T) {
 			buildCommit = tt.buildCommit
 			buildVersion = tt.buildVersion
 
-			if got := Info(); got != tt.want {
-				t.Errorf("Info() = %v, want %v", got, tt.want)
+			b := NewBuild()
+			if got := b.String(); got != tt.want {
+				t.Errorf("b.String() = %v, want %v", got, tt.want)
 			}
 		})
 	}

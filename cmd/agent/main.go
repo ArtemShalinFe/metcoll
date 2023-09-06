@@ -39,7 +39,7 @@ func run() error {
 	}
 	sl := zl.Sugar()
 
-	sl.Info(build.Info())
+	sl.Info(build.NewBuild())
 
 	l, err := logger.NewMiddlewareLogger(sl)
 	if err != nil {

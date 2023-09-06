@@ -41,6 +41,7 @@ func TestAll(t *testing.T) {
 		testdata, cleanup, err := analysistest.WriteFiles(filemap)
 		if err != nil {
 			t.Errorf("cannot create go files err: %v", err)
+			return
 		}
 		defer cleanup()
 

@@ -29,7 +29,7 @@ vendor/
 .DS_Store
 
 # lint
-.cache
+golangci-lint/*
 
 # coverage test
 coverage.html
