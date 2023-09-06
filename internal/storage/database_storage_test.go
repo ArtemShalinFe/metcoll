@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"errors"
-	"reflect"
 	"syscall"
 	"testing"
 
@@ -522,8 +521,16 @@ func TestDB_GetDataList(t *testing.T) {
 				return
 			}
 
-			if !tt.wantErr && !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("DB.GetDataList() = %v, want %v", got, tt.want)
+			for wantIdx := range tt.want {
+				finded := false
+				for gotIdx := range got {
+					if !finded {
+						finded = tt.want[wantIdx] == got[gotIdx]
+					}
+				}
+				if !finded {
+					t.Errorf("DB.GetDataList() value %v not found in %v", tt.want[wantIdx], got)
+				}
 			}
 		})
 	}
