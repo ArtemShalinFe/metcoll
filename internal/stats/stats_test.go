@@ -33,6 +33,8 @@ func BenchmarkGetReportData(b *testing.B) {
 }
 
 func TestStats_RunCollectBatchStats(t *testing.T) {
+	ctx := context.Background()
+
 	conf := &configuration.ConfigAgent{}
 	conf.Key = []byte("")
 	conf.Limit = 1
@@ -44,7 +46,6 @@ func TestStats_RunCollectBatchStats(t *testing.T) {
 	s := NewStats()
 
 	type args struct {
-		ctx context.Context
 		cfg *configuration.ConfigAgent
 		ms  chan []*metrics.Metrics
 	}
@@ -57,7 +58,6 @@ func TestStats_RunCollectBatchStats(t *testing.T) {
 			name:  "check collect batch stats",
 			stats: s,
 			args: args{
-				ctx: context.Background(),
 				cfg: conf,
 				ms:  mcs,
 			},
@@ -66,9 +66,9 @@ func TestStats_RunCollectBatchStats(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancelCtx := context.WithTimeout(context.Background(), time.Second*5)
+			ctxWithTimeout, cancelCtx := context.WithTimeout(ctx, time.Second*5)
 			defer cancelCtx()
-			tt.stats.RunCollectBatchStats(tt.args.ctx, tt.args.cfg, tt.args.ms)
+			tt.stats.RunCollectBatchStats(ctxWithTimeout, tt.args.cfg, tt.args.ms)
 			select {
 			case <-ctx.Done():
 				return
@@ -83,8 +83,8 @@ func TestStats_ClearPollCount(t *testing.T) {
 	s.pollCount = 10
 
 	tests := []struct {
-		name  string
 		stats *Stats
+		name  string
 	}{
 		{
 			name:  "cleanup",

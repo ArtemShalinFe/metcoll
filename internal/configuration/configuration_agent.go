@@ -8,6 +8,23 @@ import (
 	"github.com/caarlos0/env"
 )
 
+const (
+	defaultReportinterval  = 10
+	reportIntervalFlagName = "r"
+
+	defaultPollInterval  = 2
+	pollIntervalFlagName = "p"
+
+	defaultLimit  = 1
+	limitFlagName = "l"
+
+	defaultMetcollAddress  = "localhost:8080"
+	metcollAddressFlagName = "a"
+
+	defaultHashKey  = ""
+	hashKeyFlagName = "k"
+)
+
 // ConfigAgent contains configuration for agent.
 type ConfigAgent struct {
 	Server         string `env:"ADDRESS"`
@@ -17,11 +34,6 @@ type ConfigAgent struct {
 	Limit          int `env:"RATE_LIMIT"`
 }
 
-const defaultReportinterval = 10
-const defaultPollInterval = 2
-const defaultLimit = 1
-const defaultMetcollAddress = "localhost:8080"
-
 // ParseAgent - return parsed config.
 //
 // Environment variables have higher priority over command line variables.
@@ -29,11 +41,11 @@ func ParseAgent() (*ConfigAgent, error) {
 	var c ConfigAgent
 
 	var hashkey string
-	flag.StringVar(&c.Server, "a", defaultMetcollAddress, "address metcoll server")
-	flag.IntVar(&c.ReportInterval, "r", defaultReportinterval, "report push interval")
-	flag.IntVar(&c.PollInterval, "p", defaultPollInterval, "poll interval")
-	flag.StringVar(&hashkey, "k", "", "hash key")
-	flag.IntVar(&c.Limit, "l", defaultLimit, "worker limit")
+	flag.StringVar(&c.Server, metcollAddressFlagName, defaultMetcollAddress, "address metcoll server")
+	flag.IntVar(&c.ReportInterval, reportIntervalFlagName, defaultReportinterval, "report push interval")
+	flag.IntVar(&c.PollInterval, pollIntervalFlagName, defaultPollInterval, "poll interval")
+	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key")
+	flag.IntVar(&c.Limit, limitFlagName, defaultLimit, "worker limit")
 
 	flag.Parse()
 
@@ -41,7 +53,7 @@ func ParseAgent() (*ConfigAgent, error) {
 		return nil, fmt.Errorf("env parse agent config err: %w", err)
 	}
 
-	envkey := os.Getenv("KEY")
+	envkey := os.Getenv(envHashKey)
 	if envkey != "" {
 		hashkey = envkey
 	}

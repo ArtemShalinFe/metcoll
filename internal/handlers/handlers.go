@@ -14,9 +14,11 @@ import (
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
 
-const contentType = "Content-Type"
-const textPlain = "text/plain; charset=utf-8"
-const applicationJSON = "application/json"
+const (
+	contentType     = "Content-Type"
+	textPlain       = "text/plain; charset=utf-8"
+	applicationJSON = "application/json"
+)
 
 type Handler struct {
 	storage Storage
@@ -79,7 +81,7 @@ func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) 
 	ms, err := h.storage.GetDataList(ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		h.logger.Errorf("get metric list from storage err: %w", err)
+		h.logger.Errorf("an error occurred while getting metric list err: %w", err)
 	}
 
 	list := ""
@@ -110,7 +112,7 @@ func (h *Handler) UpdateMetricFromURL(ctx context.Context,
 		return
 	}
 
-	h.logger.Infof("Trying update %s metric %s with value: %s", m.MType, m.ID, m.String())
+	h.logger.Infof("Trying update %s metric from URL %s with value: %s", m.MType, m.ID, m.String())
 
 	if err := m.Update(ctx, h.storage); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -162,7 +164,7 @@ func (h *Handler) UpdateMetric(ctx context.Context, w http.ResponseWriter, body 
 	if err := m.Update(ctx, h.storage); err != nil {
 		if !errors.Is(err, storage.ErrNoRows) {
 			w.WriteHeader(http.StatusInternalServerError)
-			h.logger.Errorf("UpdateMetric error: %w", err)
+			h.logger.Errorf("an error occurred while updating the metric error: %w", err)
 			return
 		}
 	}
@@ -170,7 +172,7 @@ func (h *Handler) UpdateMetric(ctx context.Context, w http.ResponseWriter, body 
 	b, err = json.Marshal(&m)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		h.logger.Errorf("UpdateMetric marshal to json error: %w", err)
+		h.logger.Errorf("an error occurred while marshal to json the metric error: %w", err)
 		return
 	}
 	w.Header().Set(contentType, applicationJSON)
@@ -179,7 +181,7 @@ func (h *Handler) UpdateMetric(ctx context.Context, w http.ResponseWriter, body 
 
 	if _, err = w.Write(b); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		h.logger.Errorf("UpdateMetric error: %w", err)
+		h.logger.Errorf("an error occurred while writing the response error: %w", err)
 		return
 	}
 }
@@ -281,13 +283,13 @@ func (h *Handler) ReadMetric(ctx context.Context, w http.ResponseWriter, body io
 	b, err := io.ReadAll(body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		h.logger.Errorf("ReadMetric error: %w", err)
+		h.logger.Errorf("an error occurred while reading body error: %w", err)
 		return
 	}
 
 	if err := json.Unmarshal(b, &m); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		h.logger.Errorf("ReadMetric unmarshal error: %w", err)
+		h.logger.Errorf("an error occurred while unmarshal body error: %w", err)
 		return
 	}
 
@@ -302,7 +304,7 @@ func (h *Handler) ReadMetric(ctx context.Context, w http.ResponseWriter, body io
 			return
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
-			h.logger.Errorf("ReadMetric error: %w", err)
+			h.logger.Errorf("an error occurred while getting value error: %w", err)
 			return
 		}
 	}
@@ -310,7 +312,7 @@ func (h *Handler) ReadMetric(ctx context.Context, w http.ResponseWriter, body io
 	b, err = json.Marshal(m)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		h.logger.Errorf("ReadMetric marshal to json error: %w", err)
+		h.logger.Errorf("an error occurred while marshal metric to json error: %w", err)
 		return
 	}
 	w.Header().Set(contentType, applicationJSON)
@@ -318,7 +320,7 @@ func (h *Handler) ReadMetric(ctx context.Context, w http.ResponseWriter, body io
 
 	if _, err = w.Write(b); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		h.logger.Errorf("GetMetric error: %w", err)
+		h.logger.Errorf("an error occurred while writing responce error: %w", err)
 		return
 	}
 }

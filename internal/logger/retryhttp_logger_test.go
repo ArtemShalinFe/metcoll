@@ -7,7 +7,6 @@ import (
 )
 
 func TestNewRLLogger(t *testing.T) {
-
 	l := zap.L().Sugar()
 	lg, err := NewRLLogger(l)
 	if err != nil {
@@ -20,5 +19,4 @@ func TestNewRLLogger(t *testing.T) {
 	lg.Debug(testMsg)
 	lg.Info(testMsg)
 	lg.Warn(testMsg)
-
 }

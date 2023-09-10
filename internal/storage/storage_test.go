@@ -24,20 +24,18 @@ func TestInitStorage(t *testing.T) {
 	}
 
 	type args struct {
-		ctx context.Context
 		cfg *configuration.Config
 		l   *zap.SugaredLogger
 	}
 	tests := []struct {
-		name    string
 		args    args
 		want    Storage
+		name    string
 		wantErr bool
 	}{
 		{
 			name: "#1 case filestorage",
 			args: args{
-				ctx: ctx,
 				cfg: &configuration.Config{
 					FileStoragePath: newTempFile(t),
 				},
@@ -48,7 +46,7 @@ func TestInitStorage(t *testing.T) {
 		{
 			name: "#2 case sqlstorage",
 			args: args{
-				ctx: ctx,
+
 				cfg: &configuration.Config{
 					Database: "somestring",
 				},
@@ -59,7 +57,7 @@ func TestInitStorage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := InitStorage(tt.args.ctx, tt.args.cfg, tt.args.l)
+			got, err := InitStorage(ctx, tt.args.cfg, tt.args.l)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("InitStorage() error = %v, wantErr %v", err, tt.wantErr)
 				return

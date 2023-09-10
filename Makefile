@@ -1,16 +1,34 @@
 # Makefile
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
+VERSION=$(shell cat VERSION)
+DATETIME=$(shell date +'%Y/%m/%d %H:%M:%S')
+COMMIT=$(shell git rev-parse --short HEAD)
+LDFLAGS=-ldflags="-X github.com/ArtemShalinFe/metcoll/internal/build.buildVersion=$(VERSION) -X 'github.com/ArtemShalinFe/metcoll/internal/build.buildDate=$(DATETIME)' -X github.com/ArtemShalinFe/metcoll/internal/build.buildCommit=$(COMMIT)"
+
 .PHONY: tests
 tests: go-tests build-agent build-server ya-tests
 
 .PHONY: build-agent
 build-agent:
-	go build -buildvcs=false -C ./cmd/agent -o agent
+	go build \
+		-C ./cmd/agent \
+		-o agent \
+		$(LDFLAGS)
+		
 
 .PHONY: build-server
 build-server:
-	go build -buildvcs=false -C ./cmd/server -o server
+	go build \
+		-C ./cmd/server \
+		-o server \
+		$(LDFLAGS)
+
+.PHONY: build-staticlint
+build-staticlint:
+	go build \
+		-C ./cmd/staticlint \
+		-o staticlint
 
 .PHONY: go-tests
 go-tests:
@@ -40,7 +58,6 @@ ya-tests:
 	metricstest-darwin-arm64 -test.v -test.run=^TestIteration14\$$ -source-path=. -agent-binary-path=cmd/agent/agent -binary-path=cmd/server/server -server-port=8081 -key="olala/poslednieTesti" -database-dsn='postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable'
 	rm /tmp/test-db.json
 
-# MOCKS
 .PHONY: mocks
 mocks:
 	mockgen -source=internal/metrics/metrics.go -destination=internal/metrics/mock_metrics.go -package metrics

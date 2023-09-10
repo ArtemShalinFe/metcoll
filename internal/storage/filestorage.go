@@ -50,7 +50,7 @@ func (fs *Filestorage) BatchSetFloat64Value(ctx context.Context,
 	gauges map[string]float64) (map[string]float64, []error, error) {
 	gauges, errs, err := fs.MemStorage.BatchSetFloat64Value(ctx, gauges)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot add batch int64 value in filestorage err: %w", err)
+		return nil, nil, fmt.Errorf("cannot add batch float64 value in filestorage err: %w", err)
 	}
 
 	if fs.storeInterval == 0 {
@@ -107,7 +107,8 @@ func (fs *Filestorage) SetFloat64Value(ctx context.Context, key string, value fl
 }
 
 func (fs *Filestorage) Save(storage *MemStorage) error {
-	file, err := os.OpenFile(fs.path, os.O_WRONLY|os.O_CREATE, 0666)
+	const fileMode = 0666
+	file, err := os.OpenFile(fs.path, os.O_WRONLY|os.O_CREATE, fileMode)
 
 	if err != nil {
 		return fmt.Errorf("cannot open or creating file for state saving err: %w", err)
@@ -137,7 +138,9 @@ func (fs *Filestorage) Save(storage *MemStorage) error {
 }
 
 func (fs *Filestorage) Load(storage *MemStorage) error {
-	file, err := os.OpenFile(fs.path, os.O_RDONLY|os.O_CREATE, 0666)
+	const fileMode = 0666
+
+	file, err := os.OpenFile(fs.path, os.O_RDONLY|os.O_CREATE, fileMode)
 	if err != nil {
 		return fmt.Errorf("cannot open or creating file for state loading err: %w", err)
 	}

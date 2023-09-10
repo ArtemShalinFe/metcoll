@@ -8,6 +8,11 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
+const (
+	counter = "counter"
+	gauge   = "gauge"
+)
+
 func TestMetrics_IsPollCount(t *testing.T) {
 	type fields struct {
 		ID    string
@@ -58,27 +63,27 @@ func TestGetMetric(t *testing.T) {
 		mType string
 	}
 	tests := []struct {
-		name    string
-		args    args
 		want    *Metrics
+		args    args
+		name    string
 		wantErr bool
 	}{
 		{
-			name: "counter",
+			name: counter,
 			args: args{
-				id:    "counter",
+				id:    counter,
 				mType: CounterMetric,
 			},
-			want:    NewCounterMetric("counter", 0),
+			want:    NewCounterMetric(counter, 0),
 			wantErr: false,
 		},
 		{
-			name: "gauge",
+			name: gauge,
 			args: args{
-				id:    "gauge",
+				id:    gauge,
 				mType: GaugeMetric,
 			},
-			want:    NewGaugeMetric("gauge", 0),
+			want:    NewGaugeMetric(gauge, 0),
 			wantErr: false,
 		},
 	}
@@ -104,12 +109,12 @@ func TestMetrics_String(t *testing.T) {
 	}{
 		{
 			name:    "",
-			metrics: NewCounterMetric("counter", 1),
+			metrics: NewCounterMetric(counter, 1),
 			want:    "1",
 		},
 		{
 			name:    "",
-			metrics: NewGaugeMetric("gauge", 1.1),
+			metrics: NewGaugeMetric(gauge, 1.1),
 			want:    "1.1",
 		},
 		{
@@ -129,12 +134,14 @@ func TestMetrics_String(t *testing.T) {
 }
 
 func TestMetrics_Get(t *testing.T) {
+	ctx := context.Background()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	db := NewMockStorage(ctrl)
-	db.EXPECT().GetInt64Value(gomock.Any(), "counter").AnyTimes().Return(int64(1), nil)
-	db.EXPECT().GetFloat64Value(gomock.Any(), "gauge").AnyTimes().Return(float64(1.1), nil)
+	db.EXPECT().GetInt64Value(gomock.Any(), counter).AnyTimes().Return(int64(1), nil)
+	db.EXPECT().GetFloat64Value(gomock.Any(), gauge).AnyTimes().Return(float64(1.1), nil)
 
 	type fields struct {
 		ID    string
@@ -142,42 +149,41 @@ func TestMetrics_Get(t *testing.T) {
 		Value string
 	}
 	type args struct {
-		ctx     context.Context
 		storage Storage
 	}
 
 	tests := []struct {
-		name    string
-		fields  fields
 		args    args
-		wantErr bool
 		want    *Metrics
+		fields  fields
+		name    string
+		wantErr bool
 	}{
 		{
 			name: "#1 case",
 			fields: fields{
-				ID:    "counter",
+				ID:    counter,
 				MType: CounterMetric,
 				Value: "1",
 			},
 			args: args{
-				ctx:     context.Background(),
+
 				storage: db,
 			},
-			want: NewCounterMetric("counter", 1),
+			want: NewCounterMetric(counter, 1),
 		},
 		{
 			name: "#2 case",
 			fields: fields{
-				ID:    "gauge",
+				ID:    gauge,
 				MType: GaugeMetric,
 				Value: "1.1",
 			},
 			args: args{
-				ctx:     context.Background(),
+
 				storage: db,
 			},
-			want: NewGaugeMetric("gauge", 1.1),
+			want: NewGaugeMetric(gauge, 1.1),
 		},
 	}
 	for _, tt := range tests {
@@ -187,7 +193,7 @@ func TestMetrics_Get(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			if err := m.Get(tt.args.ctx, tt.args.storage); (err != nil) != tt.wantErr {
+			if err := m.Get(ctx, tt.args.storage); (err != nil) != tt.wantErr {
 				t.Errorf("Metrics.Get() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

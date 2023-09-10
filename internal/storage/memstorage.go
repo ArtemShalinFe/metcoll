@@ -86,20 +86,20 @@ func (ms *MemStorage) getAllDataFloat64(_ context.Context) (map[string]float64, 
 }
 
 func (ms *MemStorage) GetDataList(ctx context.Context) ([]string, error) {
-	var list []string
-
 	AllDataFloat64, err := ms.getAllDataFloat64(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for k, v := range AllDataFloat64 {
-		fv := strconv.FormatFloat(v, 'G', 12, 64)
-		list = append(list, fmt.Sprintf("%s %s", k, fv))
-	}
-
 	AllDataInt64, err := ms.getAllDataInt64(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	list := make([]string, 0, len(AllDataFloat64)+len(AllDataInt64))
+
+	for k, v := range AllDataFloat64 {
+		fv := strconv.FormatFloat(v, 'G', 12, 64)
+		list = append(list, fmt.Sprintf("%s %s", k, fv))
 	}
 
 	for k, v := range AllDataInt64 {

@@ -1,4 +1,4 @@
-// The package describes the interaction of the server with various sources of metrics storage.
+// Package storage describes the interaction of the server with various sources of metrics storage.
 // Metrics can be stored in memory, in a file on disk, in a database.
 package storage
 

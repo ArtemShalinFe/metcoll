@@ -1,4 +1,4 @@
-// Package is used to collect metrics and send them to the server.
+// Package main is used to collect metrics and send them to the server.
 package main
 
 import (
@@ -12,6 +12,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/ArtemShalinFe/metcoll/internal/build"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metcoll"
@@ -37,6 +38,8 @@ func run() error {
 		return fmt.Errorf("cannot init zap-logger err: %w ", err)
 	}
 	sl := zl.Sugar()
+
+	sl.Info(build.NewBuild())
 
 	l, err := logger.NewMiddlewareLogger(sl)
 	if err != nil {

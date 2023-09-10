@@ -11,8 +11,8 @@ func TestMiddlewareLogger_Interrupt(t *testing.T) {
 		SugaredLogger *zap.SugaredLogger
 	}
 	tests := []struct {
-		name    string
 		fields  fields
+		name    string
 		wantErr bool
 	}{
 		{

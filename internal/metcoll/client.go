@@ -1,3 +1,4 @@
+// Package metcoll for interacting with the metrics server.
 package metcoll
 
 import (
@@ -29,13 +30,21 @@ type Client struct {
 	hashkey    []byte
 }
 
+const (
+	HashSHA256 = "HashSHA256"
+)
+
 // NewClient - Object constructor.
 func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogger) *Client {
+	const defautMaxRetry = 3
+	const defautMinWaitRetry = 3 * time.Second
+	const defautMaxWaitRetry = 5 * time.Second
+
 	retryClient := retryablehttp.NewClient()
-	retryClient.RetryMax = 3
+	retryClient.RetryMax = defautMaxRetry
 	retryClient.CheckRetry = checkRetry
-	retryClient.RetryWaitMin = time.Duration(3 * time.Second)
-	retryClient.RetryWaitMax = time.Duration(5 * time.Second)
+	retryClient.RetryWaitMin = time.Duration(defautMinWaitRetry)
+	retryClient.RetryWaitMax = time.Duration(defautMaxWaitRetry)
 	retryClient.Logger = logger
 	retryClient.Backoff = backoff
 
@@ -56,15 +65,24 @@ func checkRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 }
 
 func backoff(min, max time.Duration, attemptNum int, resp *http.Response) time.Duration {
+	const an0 = 0
+	const an1 = 1
+	const an2 = 2
+
+	const an0backoff = 1 * time.Second
+	const an1backoff = 3 * time.Second
+	const an2backoff = 5 * time.Second
+	const defaultbackoff = 2 * time.Second
+
 	switch attemptNum {
-	case 0:
-		return 1 * time.Second
-	case 1:
-		return 3 * time.Second
-	case 2:
-		return 5 * time.Second
+	case an0:
+		return an0backoff
+	case an1:
+		return an1backoff
+	case an2:
+		return an2backoff
 	default:
-		return 2 * time.Second
+		return defaultbackoff
 	}
 }
 
@@ -98,7 +116,7 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 
 		h.Write(data)
 
-		req.Header.Set("HashSHA256", fmt.Sprintf("%x", h.Sum(nil)))
+		req.Header.Set(HashSHA256, fmt.Sprintf("%x", h.Sum(nil)))
 	}
 
 	return req, nil
@@ -129,7 +147,11 @@ func (c *Client) doRequest(req *retryablehttp.Request) error {
 		return fmt.Errorf("request execute err: %w", err)
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			c.logger.Error("an error occured while body closing err: %v", err)
+		}
+	}()
 
 	res, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -138,7 +160,7 @@ func (c *Client) doRequest(req *retryablehttp.Request) error {
 
 	if resp.StatusCode < http.StatusMultipleChoices {
 		c.logger.Info(`request for update metric has been completed
-	code: %d, hash: %s`, resp.StatusCode, resp.Header.Get("HashSha256"))
+	code: %d, hash: %s`, resp.StatusCode, resp.Header.Get(HashSHA256))
 	} else {
 		c.logger.Error(`request for update metric has failed
 	code: %d

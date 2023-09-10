@@ -63,12 +63,12 @@ func (db *DB) createTables(ctx context.Context) error {
 	err = func() error {
 		q := `CREATE TABLE IF NOT EXISTS counters (id character(36) PRIMARY KEY, value bigint);`
 		if err = retryExec(ctx, tx, q); err != nil {
-			return fmt.Errorf("cannot create table for gauges err : %w", err)
+			return fmt.Errorf("cannot create table for couters metric err : %w", err)
 		}
 
 		q = `CREATE TABLE IF NOT EXISTS gauges (id character(36) PRIMARY KEY, delta double precision);`
 		if err = retryExec(ctx, tx, q); err != nil {
-			return fmt.Errorf("cannot create table for couters err : %w", err)
+			return fmt.Errorf("cannot create table for gauges metric err : %w", err)
 		}
 
 		return nil
@@ -78,7 +78,7 @@ func (db *DB) createTables(ctx context.Context) error {
 		if err = retryRollback(ctx, tx); err != nil {
 			return fmt.Errorf("transaction cannot be rolled back err: %w", err)
 		}
-		return err
+		return nil
 	}
 
 	return nil
@@ -607,11 +607,13 @@ func retryQuery(ctx context.Context, tx pgx.Tx, sql string, args ...any) (pgx.Ro
 }
 
 func retryIf(err error) bool {
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return true
+	}
+
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		if pgerrcode.IsConnectionException(pgErr.Code) {
-			return true
-		} else if errors.Is(err, syscall.ECONNREFUSED) {
 			return true
 		} else {
 			return false
@@ -623,13 +625,15 @@ func retryIf(err error) bool {
 
 func retryOptions(ctx context.Context) []retry.Option {
 	const defaultAttempts = 3
+	const defaultDelay = 1
+	const defaulMaxDelay = 5
 
 	var opts []retry.Option
 	opts = append(opts,
 		retry.Context(ctx),
 		retry.Attempts(defaultAttempts),
-		retry.Delay(1*time.Second),
-		retry.MaxDelay(5*time.Second),
+		retry.Delay(defaultDelay*time.Second),
+		retry.MaxDelay(defaulMaxDelay*time.Second),
 		retry.RetryIf(retryIf),
 		retry.LastErrorOnly(true),
 		retry.DelayType(backOff))
@@ -638,15 +642,24 @@ func retryOptions(ctx context.Context) []retry.Option {
 }
 
 func backOff(n uint, err error, config *retry.Config) time.Duration {
+	const an0 = 0
+	const an1 = 1
+	const an2 = 2
+
+	const an0backoff = 1 * time.Second
+	const an1backoff = 3 * time.Second
+	const an2backoff = 5 * time.Second
+	const defaultbackoff = 2 * time.Second
+
 	switch n {
-	case 0:
-		return 1 * time.Second
-	case 1:
-		return 3 * time.Second
-	case 2:
-		return 5 * time.Second
+	case an0:
+		return an0backoff
+	case an1:
+		return an1backoff
+	case an2:
+		return an2backoff
 	default:
-		return 2 * time.Second
+		return defaultbackoff
 	}
 }
 

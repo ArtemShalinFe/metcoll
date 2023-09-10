@@ -15,14 +15,14 @@ func TestConfig_String(t *testing.T) {
 	}
 	tests := []struct {
 		name   string
-		fields fields
 		want   string
+		fields fields
 	}{
 		{
 			name: "check print hashkey",
 			fields: fields{
 				Address:         "nope",
-				Key:             []byte("testKey"),
+				Key:             []byte("testHashKey"),
 				FileStoragePath: "test",
 				Database:        "somedsn",
 				StoreInterval:   1,
