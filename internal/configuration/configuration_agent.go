@@ -203,15 +203,15 @@ func readConfigAgentFromFile(path string) (*ConfigAgent, error) {
 func getConfigVar[val comparable](varCL, varENV, varFile, def, empty val) val {
 	v := def
 
-	if varFile != empty {
+	if varFile != empty && varFile != def {
 		v = varFile
 	}
 
-	if varCL != empty {
+	if varCL != empty && varCL != def {
 		v = varCL
 	}
 
-	if varENV != empty {
+	if varENV != empty && varENV != def {
 		v = varENV
 	}
 

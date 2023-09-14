@@ -73,3 +73,8 @@ lint:
         golangci-lint run \
         -c .golangci-lint.yml \
     > ./golangci-lint/report.json
+
+.PHONY: cryptokeys
+cryptokeys:
+	openssl req -x509 -nodes -days 365 -newkey rsa:16384 -keyout $(ROOT_DIR)/keys/private.pem -out $(ROOT_DIR)/keys/cert.pem
+	openssl rsa -in $(ROOT_DIR)/keys/private.pem -pubout -out $(ROOT_DIR)/keys/public.pem

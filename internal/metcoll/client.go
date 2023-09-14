@@ -6,19 +6,11 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/hmac"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
-	"log"
-	"math/big"
-	"net"
 	"net/http"
 	"net/url"
 	"syscall"
@@ -27,6 +19,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
+	"github.com/ArtemShalinFe/metcoll/internal/crypto"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 )
 
@@ -35,6 +28,7 @@ type Client struct {
 	host       string
 	httpClient *retryablehttp.Client
 	logger     retryablehttp.LeveledLogger
+	publicKey  []byte
 	hashkey    []byte
 }
 
@@ -43,7 +37,7 @@ const (
 )
 
 // NewClient - Object constructor.
-func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogger) *Client {
+func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogger) (*Client, error) {
 	const defautMaxRetry = 3
 	const defautMinWaitRetry = 3 * time.Second
 	const defautMaxWaitRetry = 5 * time.Second
@@ -56,12 +50,24 @@ func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogge
 	retryClient.Logger = logger
 	retryClient.Backoff = backoff
 
-	return &Client{
+	var publicKey []byte
+	if cfg.PublicCryptoKey != "" {
+		publicCryptoKey, err := crypto.GetKeyBytes(cfg.PublicCryptoKey)
+		if err != nil {
+			return nil, fmt.Errorf("an occured error when getting public key bytes, err: %w", err)
+		}
+		publicKey = publicCryptoKey
+	}
+
+	c := &Client{
 		host:       cfg.Server,
 		httpClient: retryClient,
 		logger:     logger,
 		hashkey:    cfg.Key,
+		publicKey:  publicKey,
 	}
+
+	return c, nil
 }
 
 func checkRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
@@ -110,7 +116,6 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 	if err != nil {
 		return nil, fmt.Errorf("cannot create request err: %w", err)
 	}
-	req.Close = true
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
@@ -134,6 +139,13 @@ func (c *Client) batchUpdate(ctx context.Context, metrics []*metrics.Metrics) er
 	body, err := json.Marshal(metrics)
 	if err != nil {
 		return fmt.Errorf("cannot marshal metric err: %w", err)
+	}
+
+	if len(c.publicKey) != 0 {
+		body, err = crypto.Encrypt(c.publicKey, body)
+		if err != nil {
+			return fmt.Errorf("cannot encrypt body err: %w", err)
+		}
 	}
 
 	url, err := url.JoinPath("http://", c.host, "/updates/")
@@ -197,56 +209,4 @@ func (c *Client) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Me
 		return
 	default:
 	}
-}
-
-func certs() {
-	// создаём шаблон сертификата
-	cert := &x509.Certificate{
-		// указываем уникальный номер сертификата
-		SerialNumber: big.NewInt(1658),
-		// заполняем базовую информацию о владельце сертификата
-		Subject: pkix.Name{
-			Organization: []string{"Yandex.Praktikum"},
-			Country:      []string{"RU"},
-		},
-		// разрешаем использование сертификата для 127.0.0.1 и ::1
-		IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
-		// сертификат верен, начиная со времени создания
-		NotBefore: time.Now(),
-		// время жизни сертификата — 10 лет
-		NotAfter:     time.Now().AddDate(10, 0, 0),
-		SubjectKeyId: []byte{1, 2, 3, 4, 6},
-		// устанавливаем использование ключа для цифровой подписи,
-		// а также клиентской и серверной авторизации
-		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:    x509.KeyUsageDigitalSignature,
-	}
-
-	// создаём новый приватный RSA-ключ длиной 4096 бит
-	// обратите внимание, что для генерации ключа и сертификата
-	// используется rand.Reader в качестве источника случайных данных
-	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// создаём сертификат x.509
-	certBytes, err := x509.CreateCertificate(rand.Reader, cert, cert, &privateKey.PublicKey, privateKey)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// кодируем сертификат и ключ в формате PEM, который
-	// используется для хранения и обмена криптографическими ключами
-	var certPEM bytes.Buffer
-	pem.Encode(&certPEM, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certBytes,
-	})
-
-	var privateKeyPEM bytes.Buffer
-	pem.Encode(&privateKeyPEM, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
-	})
 }

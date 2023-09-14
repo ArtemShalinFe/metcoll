@@ -77,7 +77,10 @@ func run() error {
 		return fmt.Errorf("cannot init retry logger err: %w", err)
 	}
 
-	client := metcoll.NewClient(cfg, rl)
+	client, err := metcoll.NewClient(cfg, rl)
+	if err != nil {
+		return fmt.Errorf("cannot init metcoll client err: %w", err)
+	}
 	stats := stats.NewStats()
 
 	go func() {
