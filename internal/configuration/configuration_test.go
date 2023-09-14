@@ -1,7 +1,12 @@
 package configuration
 
 import (
+	"fmt"
+	"os"
+	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestConfig_String(t *testing.T) {
@@ -28,7 +33,7 @@ func TestConfig_String(t *testing.T) {
 				StoreInterval:   1,
 				Restore:         false,
 			},
-			want: "Addres: nope, StoreInterval: 1, Restore: false, DSN: somedsn, FS path: test",
+			want: "Addres: nope, StoreInterval: 1, Restore: false, DSN: somedsn, FS path: test, Path: ",
 		},
 	}
 	for _, tt := range tests {
@@ -46,4 +51,197 @@ func TestConfig_String(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_readConfigFromENV(t *testing.T) {
+	const a = "localhost:8090"
+	const envAddressName = "ADDRESS"
+
+	if err := os.Setenv(envAddressName, a); err != nil {
+		fmt.Printf("set env ADDRESS err: %v", err)
+		return
+	}
+
+	defer func() {
+		if err := os.Unsetenv(envAddressName); err != nil {
+			fmt.Printf("unset env ADDRESS err: %v", err)
+		}
+	}()
+
+	want := newConfig()
+	want.Address = a
+
+	tests := []struct {
+		name    string
+		want    *Config
+		wantErr bool
+	}{
+		{
+			name:    "#1",
+			want:    want,
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := readConfigFromENV()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("readFromENV() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !assert.Equal(t, got.Address, tt.want.Address) {
+				t.Errorf("readFromENV() = %v, want %v", got.Address, tt.want.Address)
+			}
+		})
+	}
+}
+
+func Test_readConfigFromFile(t *testing.T) {
+	jsonConfig := newConfigFile(t,
+		`{
+			"address": "localhost:8080",
+			"restore": true,
+			"store_interval": "1s",
+			"store_file": "/tmp/metrics-db.json", 
+			"database_dsn": "", 
+			"crypto_key": "/path/to/key.pem"
+		}`)
+
+	jsonConfig2 := newConfigFile(t,
+		`{
+			"address": "localhost:8090",
+			"restore": true,
+			"store_interval": "1m", 
+			"store_file": "/tmp/metrics-db.json", 
+			"database_dsn": "", 
+			"crypto_key": "/path/to/key.pem"
+		}`)
+
+	jsonConfigErr := newConfigFile(t,
+		`{
+		"store_interval": "1masdasd",
+	}`)
+
+	want := newConfig()
+	want.StoreInterval = 1
+
+	want2 := newConfig()
+	want2.Address = "localhost:8090"
+	want2.StoreInterval = 60
+
+	wantErr := newConfig()
+
+	tests := []struct {
+		name    string
+		path    string
+		want    *Config
+		wantErr bool
+	}{
+		{
+			name: "#1",
+			path: jsonConfig,
+			want: want,
+		},
+		{
+			name: "#2",
+			path: jsonConfig2,
+			want: want2,
+		},
+		{
+			name:    "#3",
+			path:    jsonConfigErr,
+			want:    wantErr,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := readConfigFromFile(tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("readFromFile() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("readFromFile() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConfig_setFromConfigs(t *testing.T) {
+
+	clc := newConfig()
+	clc.Database = "changed"
+
+	envc := newConfig()
+	envc.Database = "changed2"
+
+	fc := newConfig()
+	fc.Database = "changed3"
+	fc.Restore = false
+
+	want := &Config{
+		Address:         defaultMetcollAddress,
+		FileStoragePath: defaultFileStoragePath,
+		Database:        envc.Database,
+		Key:             []byte(defaultHashKey),
+		StoreInterval:   defaultStoreInterval,
+		Restore:         fc.Restore,
+		Path:            "",
+	}
+
+	type args struct {
+		configCL   *Config
+		configENV  *Config
+		configFile *Config
+		path       string
+	}
+	tests := []struct {
+		name string
+		want *Config
+		args args
+	}{
+		{
+			name: "#1",
+			want: want,
+			args: args{
+				configCL:   clc,
+				configENV:  envc,
+				configFile: fc,
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			c := newConfig()
+			c.setFromConfigs(tt.args.configCL, tt.args.configENV, tt.args.configFile, tt.args.path)
+
+			assert.Equal(t, tt.want.Database, c.Database, "DSN path comparing")
+			assert.Equal(t, tt.want.Restore, c.Restore, "Restore storage comparing")
+		})
+	}
+}
+
+func newConfigFile(t *testing.T, jsonText string) string {
+	t.Helper()
+	td := os.TempDir()
+
+	f, err := os.CreateTemp(td, "*.json")
+	if err != nil {
+		t.Errorf("cannot create new json file for config tests: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Errorf("cannot close json file for config tests: %v", err)
+		}
+	}()
+
+	if _, err := f.Write([]byte(jsonText)); err != nil {
+		t.Errorf("cannot write json text in file for config tests: %v", err)
+	}
+
+	return f.Name()
 }

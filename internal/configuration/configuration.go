@@ -1,9 +1,12 @@
 package configuration
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"time"
 
 	"github.com/caarlos0/env"
 )
@@ -11,49 +14,177 @@ import (
 const (
 	defaultStoreInterval  = 300
 	storeIntervalFlagName = "i"
+	envStoreInterval      = "STORE_INTERVAL"
+
+	defaultFileStoragePath = "/tmp/metrics-db.json"
+	defaultRestore         = true
+
+	defaultPrivateCryptoKeyPath = ""
 
 	envHashKey = "KEY"
 )
 
-// Config contains configuration for server.
-type Config struct {
-	Address         string `env:"ADDRESS"`
-	FileStoragePath string `env:"FILE_STORAGE_PATH"`
-	Database        string `env:"DATABASE_DSN"`
-	Key             []byte
-	StoreInterval   int  `env:"STORE_INTERVAL"`
-	Restore         bool `env:"RESTORE"`
+func newConfig() *Config {
+	return &Config{
+		Address:         defaultMetcollAddress,
+		FileStoragePath: defaultFileStoragePath,
+		StoreInterval:   defaultStoreInterval,
+		Restore:         defaultRestore,
+	}
 }
 
+// Config contains configuration for server.
+type Config struct {
+	Address          string `env:"ADDRESS" json:"address"`
+	FileStoragePath  string `env:"FILE_STORAGE_PATH"  json:"store_file"`
+	Database         string `env:"DATABASE_DSN" json:"database_dsn"`
+	Key              []byte
+	StoreInterval    int    `env:"STORE_INTERVAL" json:"store_interval"`
+	Restore          bool   `env:"RESTORE" json:"restore"`
+	Path             string `env:"CONFIG"`
+	PrivateCryptoKey string `env:"CRYPTO_KEY" json:"crypto_key"`
+}
+
+// Parse - return parsed config.
+//
+// Environment variables have higher priority over command line variables and config file.
+// Command line variables have higher priority over variables from config file.
 func Parse() (*Config, error) {
-	var c Config
+	configCL := readConfigFromCL()
 
-	var hashkey string
-
-	flag.StringVar(&c.Address, metcollAddressFlagName, defaultMetcollAddress, "server end point")
-	flag.IntVar(&c.StoreInterval, storeIntervalFlagName, defaultStoreInterval, "storage saving interval")
-	flag.StringVar(&c.FileStoragePath, "f", "/tmp/metrics-db.json", "path to metric file-storage")
-	flag.BoolVar(&c.Restore, "r", true, "restore metrics from a file at server startup")
-	flag.StringVar(&c.Database, "d", "", "database connection")
-	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key")
-
-	flag.Parse()
-
-	if err := env.Parse(&c); err != nil {
-		return nil, fmt.Errorf("env parse server config err: %w", err)
+	configENV, err := readConfigFromENV()
+	if err != nil {
+		return nil, fmt.Errorf("an error occurred when reading the srv configuration env var, err: %w", err)
 	}
 
+	path := getConfigVar(configCL.Path, configENV.Path, "", "", "")
+	configFile, err := readConfigFromFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("an error occurred when reading the srv configuration file, err: %w", err)
+	}
+
+	var c Config
+	c.setFromConfigs(configCL, configENV, configFile, path)
+
+	return &c, nil
+}
+
+// UnmarshalJSON - For anmarshaling of the time parameters of the configuration file.
+func (c *Config) UnmarshalJSON(data []byte) error {
+	type ConfigJSON struct {
+		Address         string `json:"address"`
+		FileStoragePath string `json:"store_file"`
+		Database        string `json:"database_dsn"`
+		Key             []byte
+		StoreInterval   string `json:"store_interval"`
+		Restore         bool   `json:"restore"`
+	}
+
+	var v ConfigJSON
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+
+	c.Address = v.Address
+	c.FileStoragePath = v.FileStoragePath
+	c.Restore = v.Restore
+	c.Database = v.Database
+
+	si, err := time.ParseDuration(v.StoreInterval)
+	if err != nil {
+		return fmt.Errorf("cannot parse poll interval duration err: %w", err)
+	}
+	c.StoreInterval = int(si.Seconds())
+
+	return nil
+}
+
+func (c *Config) String() string {
+	return fmt.Sprintf("Addres: %s, StoreInterval: %d, Restore: %t, DSN: %s, FS path: %s, Path: %s",
+		c.Address, c.StoreInterval, c.Restore, c.Database, c.FileStoragePath, c.Path)
+}
+
+// setFromConfigs -  sets configuration values from instances obtained
+// from command line variables, environment variables, configuration file variables.
+func (c *Config) setFromConfigs(configCL, configENV, configFile *Config, path string) {
+	c.Address = getConfigVar(
+		configCL.Address, configENV.Address, configFile.Address, defaultMetcollAddress, "")
+
+	c.FileStoragePath = getConfigVar(
+		configCL.FileStoragePath, configENV.FileStoragePath, configFile.FileStoragePath, defaultFileStoragePath, "")
+
+	c.Database = getConfigVar(
+		configCL.Database, configENV.Database, configFile.Database, "", "")
+
+	c.StoreInterval = getConfigVar(
+		configCL.StoreInterval, configENV.StoreInterval, configFile.StoreInterval, defaultStoreInterval, 0)
+
+	c.Restore = getConfigVar(
+		configCL.Restore, configENV.Restore, configFile.Restore, defaultRestore, true)
+
+	c.PrivateCryptoKey = getConfigVar(
+		configCL.PrivateCryptoKey, configENV.PrivateCryptoKey, configFile.PrivateCryptoKey, defaultPrivateCryptoKeyPath, "")
+
+	c.Path = path
+}
+
+// readConfigFromENV - reading env vars and returned config.
+func readConfigFromENV() (*Config, error) {
+	c := newConfig()
+
+	if err := env.Parse(c); err != nil {
+		return nil, fmt.Errorf("env parse srv config err: %w", err)
+	}
+
+	var hashkey string
 	envkey := os.Getenv(envHashKey)
 	if envkey != "" {
 		hashkey = envkey
 	}
 
 	c.Key = []byte(hashkey)
-
-	return &c, nil
+	return c, nil
 }
 
-func (c *Config) String() string {
-	return fmt.Sprintf("Addres: %s, StoreInterval: %d, Restore: %t, DSN: %s, FS path: %s",
-		c.Address, c.StoreInterval, c.Restore, c.Database, c.FileStoragePath)
+// readConfigFromCL - reading command line vars and returned config.
+func readConfigFromCL() *Config {
+	c := newConfig()
+
+	var hashkey string
+	flag.StringVar(&c.Address, metcollAddressFlagName, defaultMetcollAddress, "server endpoint")
+	flag.IntVar(&c.StoreInterval, storeIntervalFlagName, defaultStoreInterval, "storage saving interval")
+	flag.StringVar(&c.FileStoragePath, "f", defaultFileStoragePath, "path to metric file-storage")
+	flag.BoolVar(&c.Restore, "r", defaultRestore, "restore metrics from a file at server startup")
+	flag.StringVar(&c.Database, "d", "", "database connection")
+	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key")
+	flag.StringVar(&c.PrivateCryptoKey, cryptoKeyFlagName, defaultCryptoKeyPath, "path to privatekey.pem")
+
+	flag.Parse()
+
+	return c
+}
+
+// readConfigFromFile - reading config file and returned config.
+func readConfigFromFile(path string) (*Config, error) {
+	if path == "" {
+		return newConfig(), nil
+	}
+
+	configFile, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("an error occurred when opening the srv configuration file err: %w", err)
+	}
+	defer configFile.Close()
+
+	byteValue, err := io.ReadAll(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("an error occurred when parse the srv configuration file err: %w", err)
+	}
+
+	c := newConfig()
+	if err := json.Unmarshal(byteValue, &c); err != nil {
+		return nil, fmt.Errorf("an error occurred when unmarshal the srv configuration file err: %w", err)
+	}
+
+	return c, nil
 }

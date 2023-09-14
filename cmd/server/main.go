@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"go.uber.org/zap"
@@ -38,7 +39,11 @@ func main() {
 }
 
 func run() error {
-	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancelCtx := signal.NotifyContext(context.Background(),
+		os.Interrupt,
+		os.Kill,
+		syscall.SIGQUIT)
+
 	defer cancelCtx()
 
 	zl, err := zap.NewProduction()
