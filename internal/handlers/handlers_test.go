@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	gomock "go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
@@ -26,9 +28,26 @@ const (
 	bodyCloseErrTemplate      = "an error occured while body closing err: %v"
 	temaplateURLErr           = "URL: %s"
 	requestErrTemplate        = "http request err: %v"
+	metricg                   = "metricg"
+	metricc                   = "metricc"
 )
 
 func TestHandler_UpdateMetricFromURL(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+	db.EXPECT().SetFloat64Value(gomock.Any(), metricg, float64(1.2)).Times(1).
+		Return(float64(0), errors.New("failed update float64"))
+	db.EXPECT().AddInt64Value(gomock.Any(), metricc, int64(1)).Times(1).
+		Return(int64(0), errors.New("failed update int64"))
+
+	mts, err := testServerWithMockStorage(db)
+	if err != nil {
+		t.Errorf(testServerInitErrTemplate, err)
+	}
+	defer mts.Close()
+
 	ts, err := testServer()
 	if err != nil {
 		t.Errorf(testServerInitErrTemplate, err)
@@ -36,32 +55,36 @@ func TestHandler_UpdateMetricFromURL(t *testing.T) {
 	defer ts.Close()
 
 	var tests = []struct {
+		server *httptest.Server
 		url    string
 		want   string
 		method string
 		status int
+		body   io.Reader
 	}{
-		{"/update/gauge/metricg/1.2", "metricg 1.2", http.MethodPost, http.StatusOK},
-		{"/update/counter/metricc/1", "metricc 1", http.MethodPost, http.StatusOK},
-		{"/update/counter/ /1", "", http.MethodPost, http.StatusBadRequest},
-		{"/update/gauge/", "", http.MethodPost, http.StatusNotFound},
-		{"/update/counter/", "", http.MethodPost, http.StatusNotFound},
-		{"/update/gauge/metric/novalue", "", http.MethodPost, http.StatusBadRequest},
-		{"/update/counter/metric/novalue", "", http.MethodPost, http.StatusBadRequest},
-		{"/update/summary/metric/1", "", http.MethodPost, http.StatusBadRequest},
-		{"/update/gauge/metricg/1.0", "", http.MethodGet, http.StatusMethodNotAllowed},
-		{"/value/gauge/metricg", "1.2", http.MethodGet, http.StatusOK},
-		{"/value/counter/metricc", "1", http.MethodGet, http.StatusOK},
-		{"/value/counter/ ", "", http.MethodGet, http.StatusBadRequest},
-		{"/value/gauge/", "", http.MethodGet, http.StatusNotFound},
-		{"/value/counter/", "", http.MethodGet, http.StatusNotFound},
-		{"/value/summary/metric", "", http.MethodGet, http.StatusBadRequest},
-		{"/value/gauge/metricq", "", http.MethodPost, http.StatusMethodNotAllowed},
-		{"/value/gauge/metricq", "", http.MethodGet, http.StatusNotFound},
-		{"/value/counter/metricq", "", http.MethodGet, http.StatusNotFound},
+		{ts, "/update/gauge/metricg/1.2", "metricg 1.2", http.MethodPost, http.StatusOK, nil},
+		{ts, "/update/counter/metricc/1", "metricc 1", http.MethodPost, http.StatusOK, nil},
+		{ts, "/update/counter/ /1", "", http.MethodPost, http.StatusBadRequest, nil},
+		{ts, "/update/gauge/", "", http.MethodPost, http.StatusNotFound, nil},
+		{ts, "/update/counter/", "", http.MethodPost, http.StatusNotFound, nil},
+		{ts, "/update/gauge/metric/novalue", "", http.MethodPost, http.StatusBadRequest, nil},
+		{ts, "/update/counter/metric/novalue", "", http.MethodPost, http.StatusBadRequest, nil},
+		{ts, "/update/summary/metric/1", "", http.MethodPost, http.StatusBadRequest, nil},
+		{ts, "/update/gauge/metricg/1.0", "", http.MethodGet, http.StatusMethodNotAllowed, nil},
+		{ts, "/value/gauge/metricg", "1.2", http.MethodGet, http.StatusOK, nil},
+		{ts, "/value/counter/metricc", "1", http.MethodGet, http.StatusOK, nil},
+		{ts, "/value/counter/ ", "", http.MethodGet, http.StatusBadRequest, nil},
+		{ts, "/value/gauge/", "", http.MethodGet, http.StatusNotFound, nil},
+		{ts, "/value/counter/", "", http.MethodGet, http.StatusNotFound, nil},
+		{ts, "/value/summary/metric", "", http.MethodGet, http.StatusBadRequest, nil},
+		{ts, "/value/gauge/metricq", "", http.MethodPost, http.StatusMethodNotAllowed, nil},
+		{ts, "/value/gauge/metricq", "", http.MethodGet, http.StatusNotFound, nil},
+		{ts, "/value/counter/metricq", "", http.MethodGet, http.StatusNotFound, nil},
+		{mts, "/update/gauge/metricg/1.2", "", http.MethodPost, http.StatusInternalServerError, nil},
+		{mts, "/update/counter/metricc/1", "", http.MethodPost, http.StatusInternalServerError, nil},
 	}
 	for _, v := range tests {
-		resp, get := testRequest(t, ts, v.method, v.url, nil)
+		resp, get := testRequest(t, v.server, v.method, v.url, v.body)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
 				t.Errorf(bodyCloseErrTemplate, err)
@@ -75,6 +98,18 @@ func TestHandler_UpdateMetricFromURL(t *testing.T) {
 }
 
 func TestHandler_Ping(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+	db.EXPECT().Ping(gomock.Any()).Return(errors.New("failed ping"))
+
+	mts, err := testServerWithMockStorage(db)
+	if err != nil {
+		t.Errorf(testServerInitErrTemplate, err)
+	}
+	defer mts.Close()
+
 	ts, err := testServer()
 	if err != nil {
 		t.Errorf(testServerInitErrTemplate, err)
@@ -82,15 +117,17 @@ func TestHandler_Ping(t *testing.T) {
 	defer ts.Close()
 
 	var tests = []struct {
+		server *httptest.Server
 		url    string
 		want   string
 		method string
 		status int
 	}{
-		{"/ping", "", http.MethodGet, http.StatusOK},
+		{ts, "/ping", "", http.MethodGet, http.StatusOK},
+		{mts, "/ping", "", http.MethodGet, http.StatusInternalServerError},
 	}
 	for _, v := range tests {
-		resp, get := testRequest(t, ts, v.method, v.url, nil)
+		resp, get := testRequest(t, v.server, v.method, v.url, nil)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
 				t.Errorf(bodyCloseErrTemplate, err)
@@ -128,10 +165,22 @@ func ExampleHandler_UpdateMetricFromURL() {
 	// 200
 }
 
-const metricg = "metricg"
-const metricc = "metricc"
-
 func TestHandler_UpdateMetric(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+	db.EXPECT().SetFloat64Value(gomock.Any(), metricg, float64(1.2)).Times(1).
+		Return(float64(0), errors.New("failed update float64"))
+	db.EXPECT().AddInt64Value(gomock.Any(), metricc, int64(1)).Times(1).
+		Return(int64(0), errors.New("failed update int64"))
+
+	mts, err := testServerWithMockStorage(db)
+	if err != nil {
+		t.Errorf(testServerInitErrTemplate, err)
+	}
+	defer mts.Close()
+
 	ts, err := testServer()
 	if err != nil {
 		t.Errorf(testServerInitErrTemplate, err)
@@ -139,6 +188,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 	defer ts.Close()
 
 	var tests = []struct {
+		server      *httptest.Server
 		bodyMetrics *metrics.Metrics
 		want        *metrics.Metrics
 		name        string
@@ -147,6 +197,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 		status      int
 	}{
 		{
+			server:      ts,
 			name:        "#1",
 			url:         "/update/",
 			want:        metrics.NewGaugeMetric(metricg, 1.2),
@@ -155,6 +206,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			bodyMetrics: metrics.NewGaugeMetric(metricg, 1.2),
 		},
 		{
+			server:      ts,
 			name:        "#2",
 			url:         "/update/",
 			want:        metrics.NewGaugeMetric(metricg, 1.3),
@@ -163,6 +215,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			bodyMetrics: metrics.NewGaugeMetric(metricg, 1.3),
 		},
 		{
+			server:      ts,
 			name:        "#3",
 			url:         "/update/",
 			want:        metrics.NewCounterMetric(metricc, 1),
@@ -171,6 +224,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			bodyMetrics: metrics.NewCounterMetric(metricc, 1),
 		},
 		{
+			server:      ts,
 			name:        "#4",
 			url:         "/update/",
 			want:        metrics.NewCounterMetric(metricc, 2),
@@ -179,6 +233,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			bodyMetrics: metrics.NewCounterMetric(metricc, 1),
 		},
 		{
+			server:      ts,
 			name:        "#5",
 			url:         "/counter/",
 			want:        &metrics.Metrics{},
@@ -187,6 +242,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			bodyMetrics: &metrics.Metrics{},
 		},
 		{
+			server:      ts,
 			name:        "#6",
 			url:         "/update/",
 			want:        &metrics.Metrics{},
@@ -195,6 +251,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			bodyMetrics: &metrics.Metrics{},
 		},
 		{
+			server:      ts,
 			name:        "#7",
 			url:         "/update/",
 			want:        &metrics.Metrics{},
@@ -203,6 +260,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			bodyMetrics: metrics.NewCounterMetric(metricc, 1),
 		},
 		{
+			server: ts,
 			name:   "#8",
 			url:    "/update/",
 			want:   &metrics.Metrics{},
@@ -214,6 +272,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			},
 		},
 		{
+			server: ts,
 			name:   "#9",
 			url:    "/update/",
 			want:   &metrics.Metrics{},
@@ -226,6 +285,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			},
 		},
 		{
+			server: ts,
 			name:   "#10",
 			url:    "/value/",
 			want:   metrics.NewCounterMetric(metricc, 2),
@@ -237,6 +297,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			},
 		},
 		{
+			server: ts,
 			name:   "#11",
 			url:    "/value/",
 			want:   metrics.NewGaugeMetric(metricg, 1.3),
@@ -248,6 +309,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			},
 		},
 		{
+			server: ts,
 			name:   "#12",
 			url:    "/value/",
 			want:   &metrics.Metrics{},
@@ -259,6 +321,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			},
 		},
 		{
+			server: ts,
 			name:   "#13",
 			url:    "/value/",
 			want:   &metrics.Metrics{},
@@ -268,6 +331,24 @@ func TestHandler_UpdateMetric(t *testing.T) {
 				ID:    "metricGaugeNotFound",
 				MType: metrics.GaugeMetric,
 			},
+		},
+		{
+			server:      mts,
+			name:        "#14",
+			url:         "/update/",
+			want:        nil,
+			status:      http.StatusInternalServerError,
+			method:      http.MethodPost,
+			bodyMetrics: metrics.NewGaugeMetric(metricg, 1.2),
+		},
+		{
+			server:      mts,
+			name:        "#15",
+			url:         "/update/",
+			want:        nil,
+			status:      http.StatusInternalServerError,
+			method:      http.MethodPost,
+			bodyMetrics: metrics.NewCounterMetric(metricc, 1),
 		},
 	}
 
@@ -285,7 +366,7 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			t.Error(err)
 		}
 
-		resp, b := testRequest(t, ts, v.method, v.url, bytes.NewBuffer(b))
+		resp, b := testRequest(t, v.server, v.method, v.url, bytes.NewBuffer(b))
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
 				t.Errorf(bodyCloseErrTemplate, err)
@@ -443,18 +524,32 @@ func TestHandler_CollectMetricList(t *testing.T) {
 	}
 	defer ts.Close()
 
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+	db.EXPECT().GetDataList(gomock.Any()).AnyTimes().Return(nil, errors.New("any error"))
+
+	mts, err := testServerWithMockStorage(db)
+	if err != nil {
+		t.Errorf(testServerInitErrTemplate, err)
+	}
+	defer mts.Close()
+
 	var tests = []struct {
+		server *httptest.Server
 		url    string
 		want   string
 		method string
 		status int
 	}{
-		{"/update/gauge/metricg/1.2", "metricg 1.2", http.MethodPost, http.StatusOK},
-		{"/update/counter/metricc/1", "metricc 1", http.MethodPost, http.StatusOK},
-		{"/", "", http.MethodGet, http.StatusOK},
+		{ts, "/update/gauge/metricg/1.2", "metricg 1.2", http.MethodPost, http.StatusOK},
+		{ts, "/update/counter/metricc/1", "metricc 1", http.MethodPost, http.StatusOK},
+		{ts, "/", "", http.MethodGet, http.StatusOK},
+		{mts, "/", "", http.MethodGet, http.StatusInternalServerError},
 	}
 	for _, v := range tests {
-		resp, get := testRequest(t, ts, v.method, v.url, nil)
+		resp, get := testRequest(t, v.server, v.method, v.url, nil)
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
 				t.Errorf(bodyCloseErrTemplate, err)
@@ -465,11 +560,13 @@ func TestHandler_CollectMetricList(t *testing.T) {
 			continue
 		}
 
-		var hp = "request home page"
 		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.url))
-		assert.NotContains(t, string(get), "metricq", hp)
-		assert.Contains(t, string(get), metricg, hp)
-		assert.Contains(t, string(get), metricc, hp)
+		if resp.StatusCode != http.StatusInternalServerError {
+			var hp = "request home page"
+			assert.NotContains(t, string(get), "metricq", hp)
+			assert.Contains(t, string(get), metricg, hp)
+			assert.Contains(t, string(get), metricc, hp)
+		}
 	}
 }
 
@@ -537,12 +634,7 @@ func BenchmarkUpdateMetricFromURL(b *testing.B) {
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
-	zl, err := zap.NewProduction()
-	if err != nil {
-		fmt.Printf("cannot init zap-logger err: %v", err)
-		return
-	}
-	sl := zl.Sugar()
+	sl := zap.L().Sugar()
 
 	s, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
@@ -665,6 +757,22 @@ func testServer() (*httptest.Server, error) {
 	r := NewRouter(ctx, h, l.RequestLogger)
 
 	h.CollectMetricList(ctx, httptest.NewRecorder())
+
+	return httptest.NewServer(r), nil
+}
+
+func testServerWithMockStorage(s Storage) (*httptest.Server, error) {
+	ctx := context.Background()
+
+	sl := zap.L().Sugar()
+
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		return nil, fmt.Errorf("cannot init middleware logger err: %w", err)
+	}
+
+	h := NewHandler(s, sl)
+	r := NewRouter(ctx, h, l.RequestLogger)
 
 	return httptest.NewServer(r), nil
 }

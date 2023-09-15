@@ -67,7 +67,7 @@ func InitStorage(ctx context.Context, cfg *configuration.Config, l *zap.SugaredL
 	}
 
 	if strings.TrimSpace(cfg.FileStoragePath) != "" {
-		fs, err := newFilestorage(newMemStorage(), l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
+		fs, err := newFilestorage(pctx, newMemStorage(), l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
 		if err != nil {
 			return nil, fmt.Errorf("cannot init filestorage err: %w", err)
 		}

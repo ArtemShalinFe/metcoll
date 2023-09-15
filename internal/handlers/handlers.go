@@ -101,10 +101,7 @@ func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) 
 }
 
 func (h *Handler) UpdateMetricFromURL(ctx context.Context,
-	w http.ResponseWriter,
-	id string,
-	mType string,
-	value string) {
+	w http.ResponseWriter, id string, mType string, value string) {
 	m, err := metrics.NewMetric(id, mType, value)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)

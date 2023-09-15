@@ -61,6 +61,8 @@ ya-tests:
 .PHONY: mocks
 mocks:
 	mockgen -source=internal/metrics/metrics.go -destination=internal/metrics/mock_metrics.go -package metrics
+	mockgen -source=internal/handlers/handlers.go -destination=internal/handlers/mock_handlers.go -package handlers
+
 
 .PHONY: lint
 lint:

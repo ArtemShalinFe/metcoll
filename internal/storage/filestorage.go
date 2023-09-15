@@ -20,11 +20,8 @@ type Filestorage struct {
 	storeInterval int
 }
 
-func newFilestorage(stg *MemStorage,
-	l *zap.SugaredLogger,
-	path string,
-	storeInterval int,
-	restore bool) (*Filestorage, error) {
+func newFilestorage(ctx context.Context, stg *MemStorage,
+	l *zap.SugaredLogger, path string, storeInterval int, restore bool) (*Filestorage, error) {
 	fs := &Filestorage{
 		MemStorage:    stg,
 		logger:        l,
@@ -40,7 +37,7 @@ func newFilestorage(stg *MemStorage,
 	}
 
 	if storeInterval > 0 {
-		go fs.runIntervalStateSaving()
+		go fs.runIntervalStateSaving(ctx)
 	}
 
 	return fs, nil
@@ -175,11 +172,17 @@ func (fs *Filestorage) Load(storage *MemStorage) error {
 	return nil
 }
 
-func (fs *Filestorage) runIntervalStateSaving() {
+func (fs *Filestorage) runIntervalStateSaving(ctx context.Context) {
 	sleepDuration := time.Duration(fs.storeInterval) * time.Second
 
 	for {
-		time.Sleep(sleepDuration)
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			time.Sleep(sleepDuration)
+		}
+
 		if err := fs.Save(fs.MemStorage); err != nil {
 			fs.logger.Errorf("interval state saving cannot save state err: %w", err)
 		}

@@ -18,7 +18,7 @@ func TestInitStorage(t *testing.T) {
 		t.Error(err)
 	}
 
-	fs, err := newFilestorage(ts, zap.L().Sugar(), newTempFile(t), 0, false)
+	fs, err := newFilestorage(ctx, ts, zap.L().Sugar(), newTempFile(t), 0, false)
 	if err != nil {
 		t.Error(err)
 	}
