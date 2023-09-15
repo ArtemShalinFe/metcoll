@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+
+	"go.uber.org/zap"
 )
 
 func GetKeyBytes(pathToKey string) ([]byte, error) {
@@ -16,14 +18,21 @@ func GetKeyBytes(pathToKey string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("an error occurred when opening a file with a public key, err: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			zap.S().Errorf("an error occurred when closing file %s, err: %w", pathToKey, err)
+		}
+	}()
 
 	i, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("an error occurred while retrieving file stat, err: %w", err)
+		return nil, fmt.Errorf("an error occurred while retrieving file %s, err: %w", pathToKey, err)
 	}
 	buf := make([]byte, i.Size())
-	f.Read(buf)
+
+	if _, err := f.Read(buf); err != nil {
+		return nil, fmt.Errorf("an error occurred when reading file %s, err: %w", pathToKey, err)
+	}
 
 	return buf, nil
 }

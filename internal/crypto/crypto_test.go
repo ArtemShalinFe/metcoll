@@ -14,7 +14,6 @@ import (
 )
 
 func TestEncryptDecrypt(t *testing.T) {
-
 	td := os.TempDir()
 	privFile := path.Join(td, "priv.pem")
 	pubFile := path.Join(td, "pub.pem")
@@ -60,14 +59,14 @@ func TestEncryptDecrypt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gotPrivate, err := GetKeyBytes(tt.args.privateKey)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GetKeyBytes() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("private key GetKeyBytes() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			assert.NotEqual(t, len(gotPrivate), 0)
 
 			gotPublic, err := GetKeyBytes(tt.args.publicKey)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GetKeyBytes() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("public key GetKeyBytes() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			assert.NotEqual(t, len(gotPublic), 0)
@@ -90,6 +89,8 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func generateKeys(t *testing.T, privFile string, pubFile string) error {
+	t.Helper()
+
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Error(err)
@@ -107,7 +108,7 @@ func generateKeys(t *testing.T, privFile string, pubFile string) error {
 		Bytes: privateKeyBytes,
 	})
 
-	err = os.WriteFile(privFile, privateKeyPEM, 0644)
+	err = os.WriteFile(privFile, privateKeyPEM, 0600)
 	if err != nil {
 		return fmt.Errorf("an occured error when write private key, err: %w", err)
 	}
@@ -120,7 +121,7 @@ func generateKeys(t *testing.T, privFile string, pubFile string) error {
 		Type:  "RSA PUBLIC KEY",
 		Bytes: publicKeyBytes,
 	})
-	err = os.WriteFile(pubFile, publicKeyPEM, 0644)
+	err = os.WriteFile(pubFile, publicKeyPEM, 0600)
 	if err != nil {
 		return fmt.Errorf("an occured error when write public key, err: %w", err)
 	}

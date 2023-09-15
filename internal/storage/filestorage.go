@@ -35,7 +35,7 @@ func newFilestorage(stg *MemStorage,
 	if restore {
 		if err := fs.Load(fs.MemStorage); err != nil {
 			fs.logger.Infof("cannot restore state storage err: %w", err)
-			return fs, nil
+			return fs, err
 		}
 	}
 

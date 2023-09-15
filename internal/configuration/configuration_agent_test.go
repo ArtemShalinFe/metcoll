@@ -2,36 +2,27 @@ package configuration
 
 import (
 	"flag"
-	"fmt"
-	"os"
 	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	localhost8090  = "localhost:8090"
+	envAddressName = "ADDRESS"
+)
+
 func TestCheckConfigAgentPriority(t *testing.T) {
 	var c ConfigAgent
 
-	const a = "localhost:8090"
-	const envAddressName = "ADDRESS"
+	serverFS := flag.NewFlagSet(metcollAddressFlagName, flag.ContinueOnError)
+	serverFS.StringVar(&c.Server, metcollAddressFlagName, localhost8090, "metcollserver  end point")
 
-	serverFS := flag.NewFlagSet("a", flag.ContinueOnError)
-	serverFS.StringVar(&c.Server, "a", a, "metcollserver  end point")
+	limitFS := flag.NewFlagSet(limitFlagName, flag.ContinueOnError)
+	limitFS.IntVar(&c.Limit, limitFlagName, 1, "limit")
 
-	limitFS := flag.NewFlagSet("l", flag.ContinueOnError)
-	limitFS.IntVar(&c.Limit, "l", 1, "limit")
-
-	if err := os.Setenv(envAddressName, a); err != nil {
-		fmt.Printf("set env ADDRESS err: %v", err)
-		return
-	}
-
-	defer func() {
-		if err := os.Unsetenv(envAddressName); err != nil {
-			fmt.Printf("unset env ADDRESS err: %v", err)
-		}
-	}()
+	t.Setenv(envAddressName, localhost8090)
 
 	flag.Parse()
 
@@ -105,23 +96,14 @@ func Test_readConfigAgentFromENV(t *testing.T) {
 	const a = "localhost:8090"
 	const envAddressName = "ADDRESS"
 
-	if err := os.Setenv(envAddressName, a); err != nil {
-		fmt.Printf("set env ADDRESS err: %v", err)
-		return
-	}
-
-	defer func() {
-		if err := os.Unsetenv(envAddressName); err != nil {
-			fmt.Printf("unset env ADDRESS err: %v", err)
-		}
-	}()
+	t.Setenv(envAddressName, a)
 
 	want := newConfigAgent()
 	want.Server = a
 
 	tests := []struct {
-		name    string
 		want    *ConfigAgent
+		name    string
 		wantErr bool
 	}{
 		{
@@ -146,7 +128,7 @@ func Test_readConfigAgentFromENV(t *testing.T) {
 }
 
 func Test_readConfigAgentFromFile(t *testing.T) {
-	jsonConfig := newConfigAgentFile(t,
+	jsonConfig := newConfigFile(t,
 		`{
 		"address": "localhost:8080",
 		"report_interval": "1s",
@@ -154,7 +136,7 @@ func Test_readConfigAgentFromFile(t *testing.T) {
 		"crypto_key": "/path/to/key.pem"
 	}`)
 
-	jsonConfig2 := newConfigAgentFile(t,
+	jsonConfig2 := newConfigFile(t,
 		`{
 		"address": "localhost:8090",
 		"report_interval": "1m",
@@ -162,7 +144,7 @@ func Test_readConfigAgentFromFile(t *testing.T) {
 		"crypto_key": "/path/to/key.pem"
 	}`)
 
-	jsonConfigErr := newConfigAgentFile(t,
+	jsonConfigErr := newConfigFile(t,
 		`{
 		"report_interval": "1masdasd",
 	}`)
@@ -171,17 +153,20 @@ func Test_readConfigAgentFromFile(t *testing.T) {
 	want.ReportInterval = 1
 	want.PollInterval = 1
 
+	reportInterval := 60
+	pollInterval := 3600
+
 	want2 := newConfigAgent()
-	want2.Server = "localhost:8090"
-	want2.ReportInterval = 60
-	want2.PollInterval = 3600
+	want2.Server = localhost8090
+	want2.ReportInterval = reportInterval
+	want2.PollInterval = pollInterval
 
 	wantErr := newConfigAgent()
 
 	tests := []struct {
+		want    *ConfigAgent
 		name    string
 		path    string
-		want    *ConfigAgent
 		wantErr bool
 	}{
 		{
@@ -206,33 +191,12 @@ func Test_readConfigAgentFromFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := readConfigAgentFromFile(tt.path)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("readFromFile() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("readConfigAgentFromFile() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !tt.wantErr && !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("readFromFile() = %v, want %v", got, tt.want)
+				t.Errorf("readConfigAgentFromFile() = %v, want %v", got, tt.want)
 			}
 		})
 	}
-}
-
-func newConfigAgentFile(t *testing.T, jsonText string) string {
-	t.Helper()
-	td := os.TempDir()
-
-	f, err := os.CreateTemp(td, "*.json")
-	if err != nil {
-		t.Errorf("cannot create new json file for config agent tests: %v", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			t.Errorf("cannot close json file for config agent tests: %v", err)
-		}
-	}()
-
-	if _, err := f.Write([]byte(jsonText)); err != nil {
-		t.Errorf("cannot write json text in file for config agent tests: %v", err)
-	}
-
-	return f.Name()
 }

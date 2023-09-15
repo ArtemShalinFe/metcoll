@@ -237,7 +237,6 @@ func TestFilestorage_AddInt64Value(t *testing.T) {
 	}
 
 	type args struct {
-		ctx   context.Context
 		key   string
 		value int64
 	}
@@ -252,7 +251,6 @@ func TestFilestorage_AddInt64Value(t *testing.T) {
 			name: "#1 positive case",
 			fs:   fs,
 			args: args{
-				ctx:   ctx,
 				key:   test1,
 				value: 1,
 			},
@@ -263,7 +261,7 @@ func TestFilestorage_AddInt64Value(t *testing.T) {
 			name: "#2 positive case",
 			fs:   fs,
 			args: args{
-				ctx:   ctx,
+
 				key:   "test6",
 				value: 6,
 			},
@@ -274,7 +272,7 @@ func TestFilestorage_AddInt64Value(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := fs.AddInt64Value(tt.args.ctx, tt.args.key, tt.args.value)
+			got, err := fs.AddInt64Value(ctx, tt.args.key, tt.args.value)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Filestorage.AddInt64Value() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -365,7 +363,6 @@ func TestFilestorage_BatchSetFloat64Value(t *testing.T) {
 	gauges["test14"] = 0.7
 
 	type args struct {
-		ctx    context.Context
 		gauges map[string]float64
 	}
 	tests := []struct {
@@ -379,7 +376,6 @@ func TestFilestorage_BatchSetFloat64Value(t *testing.T) {
 			name: "#1 case",
 			fs:   fs,
 			args: args{
-				ctx:    ctx,
 				gauges: gauges,
 			},
 			want:    gauges,
@@ -389,7 +385,7 @@ func TestFilestorage_BatchSetFloat64Value(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := tt.fs.BatchSetFloat64Value(tt.args.ctx, tt.args.gauges)
+			_, _, err := tt.fs.BatchSetFloat64Value(ctx, tt.args.gauges)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Filestorage.BatchSetFloat64Value() error = %v, wantErr %v", err, tt.wantErr)
 				return

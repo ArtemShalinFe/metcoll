@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/caarlos0/env"
+	"go.uber.org/zap"
 )
 
 const (
@@ -37,12 +38,12 @@ const (
 // ConfigAgent contains configuration for agent.
 type ConfigAgent struct {
 	Server          string `env:"ADDRESS" json:"address,omitempty"`
-	Key             []byte
-	PollInterval    int    `env:"POLL_INTERVAL" json:"poll_interval,omitempty"`
-	ReportInterval  int    `env:"REPORT_INTERVAL" json:"report_interval,omitempty"`
-	Limit           int    `env:"RATE_LIMIT"`
 	Path            string `env:"CONFIG"`
 	PublicCryptoKey string `env:"CRYPTO_KEY" json:"crypto_key"`
+	Key             []byte
+	PollInterval    int `env:"POLL_INTERVAL" json:"poll_interval,omitempty"`
+	ReportInterval  int `env:"REPORT_INTERVAL" json:"report_interval,omitempty"`
+	Limit           int `env:"RATE_LIMIT"`
 }
 
 func newConfigAgent() *ConfigAgent {
@@ -110,7 +111,7 @@ func (c *ConfigAgent) UnmarshalJSON(data []byte) error {
 
 	var v ConfigAgentJSON
 	if err := json.Unmarshal(data, &v); err != nil {
-		return err
+		return fmt.Errorf("agent config unmarshal error, err: %w", err)
 	}
 
 	c.Server = v.Server
@@ -161,7 +162,7 @@ func readConfigAgentFromCL() *ConfigAgent {
 	flag.StringVar(&c.Path, configFlagName, defaultConfigPath, "path to json config file")
 	flag.IntVar(&c.ReportInterval, reportIntervalFlagName, defaultReportInterval, "report push interval")
 	flag.IntVar(&c.PollInterval, pollIntervalFlagName, defaultPollInterval, "poll interval")
-	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key")
+	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key for setting up request hash")
 	flag.IntVar(&c.Limit, limitFlagName, defaultLimit, "worker limit")
 	flag.StringVar(&c.PublicCryptoKey, cryptoKeyFlagName, defaultCryptoKeyPath, "path to publickey.pem")
 
@@ -176,15 +177,9 @@ func readConfigAgentFromFile(path string) (*ConfigAgent, error) {
 		return newConfigAgent(), nil
 	}
 
-	configFile, err := os.Open(path)
+	byteValue, err := readFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("an error occurred when opening the agent configuration file err: %w", err)
-	}
-	defer configFile.Close()
-
-	byteValue, err := io.ReadAll(configFile)
-	if err != nil {
-		return nil, fmt.Errorf("an error occurred when parse the agent configuration file err: %w", err)
+		return nil, fmt.Errorf("an error occurred when reading agent configuration file err: %w", err)
 	}
 
 	c := newConfigAgent()
@@ -193,6 +188,25 @@ func readConfigAgentFromFile(path string) (*ConfigAgent, error) {
 	}
 
 	return c, nil
+}
+
+func readFile(path string) ([]byte, error) {
+	configFile, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("an error occurred when opening the agent configuration file err: %w", err)
+	}
+	defer func() {
+		if err := configFile.Close(); err != nil {
+			zap.S().Errorf("closing config file was failed, err: %w", err)
+		}
+	}()
+
+	byteValue, err := io.ReadAll(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("an error occurred when parse the agent configuration file err: %w", err)
+	}
+
+	return byteValue, nil
 }
 
 // getConfigVar - compares variables received from

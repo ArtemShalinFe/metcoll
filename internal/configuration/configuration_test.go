@@ -1,7 +1,6 @@
 package configuration
 
 import (
-	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -54,26 +53,16 @@ func TestConfig_String(t *testing.T) {
 }
 
 func Test_readConfigFromENV(t *testing.T) {
-	const a = "localhost:8090"
 	const envAddressName = "ADDRESS"
 
-	if err := os.Setenv(envAddressName, a); err != nil {
-		fmt.Printf("set env ADDRESS err: %v", err)
-		return
-	}
-
-	defer func() {
-		if err := os.Unsetenv(envAddressName); err != nil {
-			fmt.Printf("unset env ADDRESS err: %v", err)
-		}
-	}()
+	t.Setenv(envAddressName, localhost8090)
 
 	want := newConfig()
-	want.Address = a
+	want.Address = localhost8090
 
 	tests := []struct {
-		name    string
 		want    *Config
+		name    string
 		wantErr bool
 	}{
 		{
@@ -133,9 +122,9 @@ func Test_readConfigFromFile(t *testing.T) {
 	wantErr := newConfig()
 
 	tests := []struct {
+		want    *Config
 		name    string
 		path    string
-		want    *Config
 		wantErr bool
 	}{
 		{
@@ -171,7 +160,6 @@ func Test_readConfigFromFile(t *testing.T) {
 }
 
 func TestConfig_setFromConfigs(t *testing.T) {
-
 	clc := newConfig()
 	clc.Database = "changed"
 

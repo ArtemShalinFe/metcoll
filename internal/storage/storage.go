@@ -64,15 +64,17 @@ func InitStorage(ctx context.Context, cfg *configuration.Config, l *zap.SugaredL
 		}
 
 		return db, nil
-	} else if strings.TrimSpace(cfg.FileStoragePath) != "" {
+	}
+
+	if strings.TrimSpace(cfg.FileStoragePath) != "" {
 		fs, err := newFilestorage(newMemStorage(), l, cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
 		if err != nil {
 			return nil, fmt.Errorf("cannot init filestorage err: %w", err)
 		}
 
 		return fs, nil
-	} else {
-		l.Info("saving the state to a filestorage has been disabled - empty filestorage path")
-		return newMemStorage(), nil
 	}
+
+	l.Info("saving the state to a filestorage has been disabled - empty filestorage path")
+	return newMemStorage(), nil
 }

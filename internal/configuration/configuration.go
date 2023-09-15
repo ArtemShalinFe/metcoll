@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"time"
 
@@ -38,11 +37,11 @@ type Config struct {
 	Address          string `env:"ADDRESS" json:"address"`
 	FileStoragePath  string `env:"FILE_STORAGE_PATH"  json:"store_file"`
 	Database         string `env:"DATABASE_DSN" json:"database_dsn"`
-	Key              []byte
-	StoreInterval    int    `env:"STORE_INTERVAL" json:"store_interval"`
-	Restore          bool   `env:"RESTORE" json:"restore"`
 	Path             string `env:"CONFIG"`
 	PrivateCryptoKey string `env:"CRYPTO_KEY" json:"crypto_key"`
+	Key              []byte
+	StoreInterval    int  `env:"STORE_INTERVAL" json:"store_interval"`
+	Restore          bool `env:"RESTORE" json:"restore"`
 }
 
 // Parse - return parsed config.
@@ -75,14 +74,14 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		Address         string `json:"address"`
 		FileStoragePath string `json:"store_file"`
 		Database        string `json:"database_dsn"`
-		Key             []byte
 		StoreInterval   string `json:"store_interval"`
-		Restore         bool   `json:"restore"`
+		Key             []byte
+		Restore         bool `json:"restore"`
 	}
 
 	var v ConfigJSON
 	if err := json.Unmarshal(data, &v); err != nil {
-		return err
+		return fmt.Errorf("server config unmarshal error, err: %w", err)
 	}
 
 	c.Address = v.Address
@@ -92,7 +91,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 
 	si, err := time.ParseDuration(v.StoreInterval)
 	if err != nil {
-		return fmt.Errorf("cannot parse poll interval duration err: %w", err)
+		return fmt.Errorf("cannot parse store interval duration err: %w", err)
 	}
 	c.StoreInterval = int(si.Seconds())
 
@@ -156,7 +155,7 @@ func readConfigFromCL() *Config {
 	flag.StringVar(&c.FileStoragePath, "f", defaultFileStoragePath, "path to metric file-storage")
 	flag.BoolVar(&c.Restore, "r", defaultRestore, "restore metrics from a file at server startup")
 	flag.StringVar(&c.Database, "d", "", "database connection")
-	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key")
+	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key for check agent request hash")
 	flag.StringVar(&c.PrivateCryptoKey, cryptoKeyFlagName, defaultCryptoKeyPath, "path to privatekey.pem")
 
 	flag.Parse()
@@ -170,15 +169,9 @@ func readConfigFromFile(path string) (*Config, error) {
 		return newConfig(), nil
 	}
 
-	configFile, err := os.Open(path)
+	byteValue, err := readFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("an error occurred when opening the srv configuration file err: %w", err)
-	}
-	defer configFile.Close()
-
-	byteValue, err := io.ReadAll(configFile)
-	if err != nil {
-		return nil, fmt.Errorf("an error occurred when parse the srv configuration file err: %w", err)
+		return nil, fmt.Errorf("an error occurred when reading srv configuration file err: %w", err)
 	}
 
 	c := newConfig()
