@@ -30,7 +30,7 @@ func TestEncryptDecrypt(t *testing.T) {
 		}
 	}()
 
-	if err := generateKeys(t, privFile, pubFile); err != nil {
+	if err := generateKeys(t, privFile, pubFile, 100); err != nil {
 		t.Errorf("cannot generate keypair, err: %v", err)
 	}
 
@@ -40,18 +40,44 @@ func TestEncryptDecrypt(t *testing.T) {
 		msg        []byte
 	}
 	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		name           string
+		args           args
+		wantErr        bool
+		wantEncryptErr bool
+		wantDecryptErr bool
 	}{
 		{
 			name: "#1",
 			args: args{
 				publicKey:  pubFile,
 				privateKey: privFile,
-				msg:        []byte("the secret"),
+				msg:        []byte("s"),
 			},
-			wantErr: false,
+			wantErr:        false,
+			wantEncryptErr: false,
+			wantDecryptErr: false,
+		},
+		{
+			name: "#2",
+			args: args{
+				publicKey:  pubFile,
+				privateKey: privFile,
+				msg:        []byte("this is a super secret that has a super large size"),
+			},
+			wantErr:        false,
+			wantEncryptErr: true,
+			wantDecryptErr: true,
+		},
+		{
+			name: "#3",
+			args: args{
+				publicKey:  newTempFile(t),
+				privateKey: newTempFile(t),
+				msg:        []byte(""),
+			},
+			wantErr:        false,
+			wantEncryptErr: true,
+			wantDecryptErr: true,
 		},
 	}
 	for _, tt := range tests {
@@ -72,26 +98,27 @@ func TestEncryptDecrypt(t *testing.T) {
 			assert.NotEqual(t, len(gotPublic), 0)
 
 			encrypted, err := Encrypt(gotPublic, tt.args.msg)
-			if (err != nil) != tt.wantErr {
+			if (err != nil) != tt.wantEncryptErr {
 				t.Errorf("Encrypt() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
 			decrypted, err := Decrypt(gotPrivate, encrypted)
-			if (err != nil) != tt.wantErr {
+			if (err != nil) != tt.wantDecryptErr {
 				t.Errorf("Decrypt() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-
-			assert.Equal(t, string(decrypted), string(tt.args.msg))
+			if !tt.wantDecryptErr && !tt.wantEncryptErr {
+				assert.Equal(t, string(decrypted), string(tt.args.msg))
+			}
 		})
 	}
 }
 
-func generateKeys(t *testing.T, privFile string, pubFile string) error {
+func generateKeys(t *testing.T, privFile string, pubFile string, bits int) error {
 	t.Helper()
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
 		t.Error(err)
 	}
@@ -127,4 +154,26 @@ func generateKeys(t *testing.T, privFile string, pubFile string) error {
 	}
 
 	return nil
+}
+
+func newTempFile(t *testing.T) string {
+	t.Helper()
+	td := os.TempDir()
+
+	f, err := os.CreateTemp(td, "*")
+	if err != nil {
+		t.Errorf("cannot create new temp file for tests: %v", err)
+	}
+
+	if _, err := f.Write([]byte("test")); err != nil {
+		t.Errorf("cannot write test in temp file for tests: %v", err)
+	}
+
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Errorf("cannot close temp file for tests: %v", err)
+		}
+	}()
+
+	return f.Name()
 }

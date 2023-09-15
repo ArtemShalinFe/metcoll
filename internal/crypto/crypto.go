@@ -16,7 +16,7 @@ import (
 func GetKeyBytes(pathToKey string) ([]byte, error) {
 	f, err := os.Open(pathToKey)
 	if err != nil {
-		return nil, fmt.Errorf("an error occurred when opening a file with a public key, err: %w", err)
+		return nil, fmt.Errorf("an error occurred when opening a file with a key, err: %w", err)
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
