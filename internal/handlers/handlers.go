@@ -93,11 +93,7 @@ func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) 
 
 	w.Header().Set(contentType, "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-
-	if _, err := w.Write(resp); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		h.logger.Errorf("collect metric list response write was failed err: %w", err)
-	}
+	h.writeResponseBody(w, resp)
 }
 
 func (h *Handler) UpdateMetricFromURL(ctx context.Context,
@@ -121,12 +117,7 @@ func (h *Handler) UpdateMetricFromURL(ctx context.Context,
 
 	w.Header().Set(contentType, textPlain)
 	w.WriteHeader(http.StatusOK)
-
-	if _, err = w.Write([]byte(resp)); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		h.logger.Errorf("update metric response write was failed : %w", err)
-		return
-	}
+	h.writeResponseBody(w, []byte(resp))
 }
 
 func (h *Handler) UpdateMetric(ctx context.Context, w http.ResponseWriter, body io.ReadCloser) {
@@ -175,12 +166,7 @@ func (h *Handler) UpdateMetric(ctx context.Context, w http.ResponseWriter, body 
 	w.Header().Set(contentType, applicationJSON)
 
 	w.WriteHeader(http.StatusOK)
-
-	if _, err = w.Write(b); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		h.logger.Errorf("an error occurred while writing the response error: %w", err)
-		return
-	}
+	h.writeResponseBody(w, b)
 }
 
 func (h *Handler) BatchUpdate(ctx context.Context, w http.ResponseWriter, body io.ReadCloser) {
@@ -238,12 +224,7 @@ func (h *Handler) BatchUpdate(ctx context.Context, w http.ResponseWriter, body i
 	}
 
 	w.WriteHeader(http.StatusOK)
-
-	if _, err = w.Write(b); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		h.logger.Errorf("BatchUpdate error: %w", err)
-		return
-	}
+	h.writeResponseBody(w, b)
 }
 
 func (h *Handler) ReadMetricFromURL(ctx context.Context, w http.ResponseWriter, id string, mType string) {
@@ -266,12 +247,7 @@ func (h *Handler) ReadMetricFromURL(ctx context.Context, w http.ResponseWriter, 
 
 	w.Header().Set(contentType, textPlain)
 	w.WriteHeader(http.StatusOK)
-
-	if _, err = w.Write([]byte(m.String())); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		h.logger.Errorf("read metric (URL), respose write err: %w", err)
-		return
-	}
+	h.writeResponseBody(w, []byte(m.String()))
 }
 
 func (h *Handler) ReadMetric(ctx context.Context, w http.ResponseWriter, body io.ReadCloser) {
@@ -314,12 +290,7 @@ func (h *Handler) ReadMetric(ctx context.Context, w http.ResponseWriter, body io
 	}
 	w.Header().Set(contentType, applicationJSON)
 	w.WriteHeader(http.StatusOK)
-
-	if _, err = w.Write(b); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		h.logger.Errorf("an error occurred while writing responce error: %w", err)
-		return
-	}
+	h.writeResponseBody(w, b)
 }
 
 func (h *Handler) Ping(ctx context.Context, w http.ResponseWriter) {
@@ -330,4 +301,11 @@ func (h *Handler) Ping(ctx context.Context, w http.ResponseWriter) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) writeResponseBody(w http.ResponseWriter, b []byte) {
+	if _, err := w.Write(b); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.logger.Errorf("an error occurred while writing the response error: %w", err)
+	}
 }

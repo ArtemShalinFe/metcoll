@@ -12,15 +12,14 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	gomock "go.uber.org/mock/gomock"
-	"go.uber.org/zap"
-
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	gomock "go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 )
 
 const (
@@ -349,6 +348,15 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			status:      http.StatusInternalServerError,
 			method:      http.MethodPost,
 			bodyMetrics: metrics.NewCounterMetric(metricc, 1),
+		},
+		{
+			server:      ts,
+			name:        "#16",
+			url:         "/update/",
+			want:        &metrics.Metrics{},
+			status:      http.StatusBadRequest,
+			method:      http.MethodPost,
+			bodyMetrics: &metrics.Metrics{ID: metricc, MType: metrics.CounterMetric},
 		},
 	}
 
