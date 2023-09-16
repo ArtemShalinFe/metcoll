@@ -25,8 +25,9 @@ func TestMiddlewareLogger_Interrupt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := &MiddlewareLogger{
-				SugaredLogger: tt.fields.SugaredLogger,
+			l, err := NewMiddlewareLogger(tt.fields.SugaredLogger)
+			if err != nil {
+				t.Errorf("NewMiddlewareLogger() error = %v", err)
 			}
 			if err := l.Interrupt(); (err != nil) != tt.wantErr {
 				t.Errorf("MiddlewareLogger.Interrupt() error = %v, wantErr %v", err, tt.wantErr)
