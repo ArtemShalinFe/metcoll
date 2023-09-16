@@ -56,6 +56,7 @@ func Test_readConfigFromENV(t *testing.T) {
 	const envAddressName = "ADDRESS"
 
 	t.Setenv(envAddressName, localhost8090)
+	t.Setenv(envHashKey, envAddressName)
 
 	want := newConfig()
 	want.Address = localhost8090
@@ -142,6 +143,12 @@ func Test_readConfigFromFile(t *testing.T) {
 			path:    jsonConfigErr,
 			want:    wantErr,
 			wantErr: true,
+		},
+		{
+			name:    "#4",
+			path:    "",
+			want:    newConfig(),
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
