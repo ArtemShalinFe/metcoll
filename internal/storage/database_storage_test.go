@@ -775,3 +775,108 @@ func TestDB_SetFloat64Value(t *testing.T) {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
 }
+
+func TestDB_Ping(t *testing.T) {
+	ctx := context.Background()
+
+	mock, err := pgxmock.NewPool(pgxmock.MonitorPingsOption(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+
+	mock.ExpectPing()
+	mock.ExpectPing().WillReturnError(errors.New("ping error"))
+
+	type fields struct {
+		pool   PgxIface
+		logger *zap.SugaredLogger
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantErr bool
+	}{
+		{
+			name: "begin fail case",
+			fields: fields{
+				pool:   mock,
+				logger: zap.L().Sugar(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "positive case",
+			fields: fields{
+				pool:   mock,
+				logger: zap.L().Sugar(),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			db := &DB{
+				pool:   tt.fields.pool,
+				logger: tt.fields.logger,
+			}
+			err := db.Ping(ctx)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("DB.SetFloat64Value() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+		})
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestDB_Interrupt(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+
+	mock.ExpectClose()
+
+	type fields struct {
+		pool   PgxIface
+		logger *zap.SugaredLogger
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantErr bool
+	}{
+		{
+			name: "begin fail case",
+			fields: fields{
+				pool:   mock,
+				logger: zap.L().Sugar(),
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			db := &DB{
+				pool:   tt.fields.pool,
+				logger: tt.fields.logger,
+			}
+			err := db.Interrupt()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("DB.SetFloat64Value() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+		})
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}

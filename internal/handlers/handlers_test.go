@@ -70,15 +70,6 @@ func TestHandler_UpdateMetricFromURL(t *testing.T) {
 		{ts, "/update/counter/metric/novalue", "", http.MethodPost, http.StatusBadRequest, nil},
 		{ts, "/update/summary/metric/1", "", http.MethodPost, http.StatusBadRequest, nil},
 		{ts, "/update/gauge/metricg/1.0", "", http.MethodGet, http.StatusMethodNotAllowed, nil},
-		{ts, "/value/gauge/metricg", "1.2", http.MethodGet, http.StatusOK, nil},
-		{ts, "/value/counter/metricc", "1", http.MethodGet, http.StatusOK, nil},
-		{ts, "/value/counter/ ", "", http.MethodGet, http.StatusBadRequest, nil},
-		{ts, "/value/gauge/", "", http.MethodGet, http.StatusNotFound, nil},
-		{ts, "/value/counter/", "", http.MethodGet, http.StatusNotFound, nil},
-		{ts, "/value/summary/metric", "", http.MethodGet, http.StatusBadRequest, nil},
-		{ts, "/value/gauge/metricq", "", http.MethodPost, http.StatusMethodNotAllowed, nil},
-		{ts, "/value/gauge/metricq", "", http.MethodGet, http.StatusNotFound, nil},
-		{ts, "/value/counter/metricq", "", http.MethodGet, http.StatusNotFound, nil},
 		{mts, "/update/gauge/metricg/1.2", "", http.MethodPost, http.StatusInternalServerError, nil},
 		{mts, "/update/counter/metricc/1", "", http.MethodPost, http.StatusInternalServerError, nil},
 	}
@@ -162,6 +153,66 @@ func ExampleHandler_UpdateMetricFromURL() {
 
 	// Output:
 	// 200
+}
+
+func TestHandler_ReadMetricFromURL(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+	db.EXPECT().GetFloat64Value(gomock.Any(), metricg).Times(1).
+		Return(float64(1.2), nil)
+	db.EXPECT().GetInt64Value(gomock.Any(), metricc).Times(1).
+		Return(int64(1), nil)
+	db.EXPECT().GetFloat64Value(gomock.Any(), metricg).Times(1).
+		Return(float64(0), errors.New("failed to geting float64"))
+	db.EXPECT().GetInt64Value(gomock.Any(), metricc).Times(1).
+		Return(int64(0), errors.New("failed to geting int64"))
+
+	mts, err := testServerWithMockStorage(db)
+	if err != nil {
+		t.Errorf(testServerInitErrTemplate, err)
+	}
+	defer mts.Close()
+
+	ts, err := testServer()
+	if err != nil {
+		t.Errorf(testServerInitErrTemplate, err)
+	}
+	defer ts.Close()
+
+	var tests = []struct {
+		server *httptest.Server
+		url    string
+		want   string
+		method string
+		status int
+		body   io.Reader
+	}{
+		{mts, "/value/gauge/metricg", "1.2", http.MethodGet, http.StatusOK, nil},
+		{mts, "/value/counter/metricc", "1", http.MethodGet, http.StatusOK, nil},
+		{ts, "/value/counter/ ", "", http.MethodGet, http.StatusBadRequest, nil},
+		{ts, "/value/gauge/", "", http.MethodGet, http.StatusNotFound, nil},
+		{ts, "/value/counter/", "", http.MethodGet, http.StatusNotFound, nil},
+		{ts, "/value/summary/metric", "", http.MethodGet, http.StatusBadRequest, nil},
+		{ts, "/value/gauge/metricq", "", http.MethodPost, http.StatusMethodNotAllowed, nil},
+		{ts, "/value/gauge/metricq", "", http.MethodGet, http.StatusNotFound, nil},
+		{ts, "/value/counter/metricq", "", http.MethodGet, http.StatusNotFound, nil},
+		{mts, "/value/gauge/metricg", "", http.MethodGet, http.StatusInternalServerError, nil},
+		{mts, "/value/counter/metricc", "", http.MethodGet, http.StatusInternalServerError, nil},
+	}
+	for _, v := range tests {
+		resp, get := testRequest(t, v.server, v.method, v.url, v.body)
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Errorf(bodyCloseErrTemplate, err)
+			}
+		}()
+		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.url))
+		if v.want != "" {
+			assert.Equal(t, v.want, string(get), fmt.Sprintf(temaplateURLErr, v.url))
+		}
+	}
 }
 
 func TestHandler_UpdateMetric(t *testing.T) {
@@ -284,8 +335,102 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			},
 		},
 		{
-			server: ts,
-			name:   "#10",
+			server:      mts,
+			name:        "#10",
+			url:         "/update/",
+			want:        nil,
+			status:      http.StatusInternalServerError,
+			method:      http.MethodPost,
+			bodyMetrics: metrics.NewGaugeMetric(metricg, 1.2),
+		},
+		{
+			server:      mts,
+			name:        "#11",
+			url:         "/update/",
+			want:        nil,
+			status:      http.StatusInternalServerError,
+			method:      http.MethodPost,
+			bodyMetrics: metrics.NewCounterMetric(metricc, 1),
+		},
+		{
+			server:      ts,
+			name:        "#12",
+			url:         "/update/",
+			want:        &metrics.Metrics{},
+			status:      http.StatusBadRequest,
+			method:      http.MethodPost,
+			bodyMetrics: &metrics.Metrics{ID: metricc, MType: metrics.CounterMetric},
+		},
+	}
+
+	type MetricAlias metrics.Metrics
+
+	for _, v := range tests {
+		am := struct {
+			MetricAlias
+		}{
+			MetricAlias: MetricAlias(*v.bodyMetrics),
+		}
+
+		b, err := json.Marshal(am)
+		if err != nil {
+			t.Error(err)
+		}
+
+		resp, b := testRequest(t, v.server, v.method, v.url, bytes.NewBuffer(b))
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Errorf(bodyCloseErrTemplate, err)
+			}
+		}()
+		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.url))
+
+		if resp.StatusCode < 300 {
+			var met metrics.Metrics
+			if err = json.Unmarshal(b, &met); err != nil {
+				t.Error(err)
+			}
+			require.Equal(t, v.want, &met, fmt.Sprintf(temaplateURLErr, v.url))
+		}
+	}
+}
+
+func TestHandler_ReadMetric(t *testing.T) {
+	const metricGaugeNotFound = "metricGaugeNotFound"
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+	db.EXPECT().GetInt64Value(gomock.Any(), metricc).Times(1).
+		Return(int64(2), nil)
+	db.EXPECT().GetFloat64Value(gomock.Any(), metricg).Times(1).
+		Return(float64(1.3), nil)
+	db.EXPECT().GetFloat64Value(gomock.Any(), metricGaugeNotFound).Times(1).
+		Return(float64(0), storage.ErrNoRows)
+	db.EXPECT().GetFloat64Value(gomock.Any(), metricg).Times(1).
+		Return(float64(0), errors.New("failed update float64"))
+	db.EXPECT().GetInt64Value(gomock.Any(), metricc).Times(1).
+		Return(int64(0), errors.New("failed update int64"))
+
+	mts, err := testServerWithMockStorage(db)
+	if err != nil {
+		t.Errorf(testServerInitErrTemplate, err)
+	}
+	defer mts.Close()
+
+	var tests = []struct {
+		server      *httptest.Server
+		bodyMetrics *metrics.Metrics
+		want        *metrics.Metrics
+		name        string
+		url         string
+		method      string
+		status      int
+	}{
+		{
+			server: mts,
+			name:   "#1",
 			url:    "/value/",
 			want:   metrics.NewCounterMetric(metricc, 2),
 			status: http.StatusOK,
@@ -296,8 +441,8 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			},
 		},
 		{
-			server: ts,
-			name:   "#11",
+			server: mts,
+			name:   "#2",
 			url:    "/value/",
 			want:   metrics.NewGaugeMetric(metricg, 1.3),
 			status: http.StatusOK,
@@ -308,8 +453,8 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			},
 		},
 		{
-			server: ts,
-			name:   "#12",
+			server: mts,
+			name:   "#3",
 			url:    "/value/",
 			want:   &metrics.Metrics{},
 			status: http.StatusBadRequest,
@@ -320,43 +465,40 @@ func TestHandler_UpdateMetric(t *testing.T) {
 			},
 		},
 		{
-			server: ts,
-			name:   "#13",
+			server: mts,
+			name:   "#4",
 			url:    "/value/",
 			want:   &metrics.Metrics{},
 			status: http.StatusNotFound,
 			method: http.MethodPost,
 			bodyMetrics: &metrics.Metrics{
-				ID:    "metricGaugeNotFound",
+				ID:    metricGaugeNotFound,
 				MType: metrics.GaugeMetric,
 			},
 		},
 		{
-			server:      mts,
-			name:        "#14",
-			url:         "/update/",
-			want:        nil,
-			status:      http.StatusInternalServerError,
-			method:      http.MethodPost,
-			bodyMetrics: metrics.NewGaugeMetric(metricg, 1.2),
+			server: mts,
+			name:   "#5",
+			url:    "/value/",
+			want:   &metrics.Metrics{},
+			status: http.StatusInternalServerError,
+			method: http.MethodPost,
+			bodyMetrics: &metrics.Metrics{
+				ID:    metricg,
+				MType: metrics.GaugeMetric,
+			},
 		},
 		{
-			server:      mts,
-			name:        "#15",
-			url:         "/update/",
-			want:        nil,
-			status:      http.StatusInternalServerError,
-			method:      http.MethodPost,
-			bodyMetrics: metrics.NewCounterMetric(metricc, 1),
-		},
-		{
-			server:      ts,
-			name:        "#16",
-			url:         "/update/",
-			want:        &metrics.Metrics{},
-			status:      http.StatusBadRequest,
-			method:      http.MethodPost,
-			bodyMetrics: &metrics.Metrics{ID: metricc, MType: metrics.CounterMetric},
+			server: mts,
+			name:   "#6",
+			url:    "/value/",
+			want:   &metrics.Metrics{},
+			status: http.StatusInternalServerError,
+			method: http.MethodPost,
+			bodyMetrics: &metrics.Metrics{
+				ID:    metricc,
+				MType: metrics.CounterMetric,
+			},
 		},
 	}
 
@@ -801,4 +943,80 @@ func testRequest(t *testing.T, ts *httptest.Server, method string, path string, 
 	require.NoError(t, err)
 
 	return resp, respBody
+}
+
+type errRecorder struct{}
+
+func (er *errRecorder) Header() http.Header {
+	return nil
+}
+
+func (er *errRecorder) Write([]byte) (int, error) {
+	return 0, errors.New("err recorder errors")
+}
+
+func (er *errRecorder) WriteHeader(statusCode int) {
+}
+
+func TestHandler_writeResponseBody(t *testing.T) {
+
+	ctx := context.Background()
+	cfg := &configuration.Config{}
+
+	sl := zap.L().Sugar()
+
+	s, err := storage.InitStorage(ctx, cfg, sl)
+	if err != nil {
+		t.Errorf("cannot init storage err: %v", err)
+		return
+	}
+
+	type fields struct {
+		storage Storage
+		logger  *zap.SugaredLogger
+	}
+	type args struct {
+		w http.ResponseWriter
+		b []byte
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "#1",
+			fields: fields{
+				storage: s,
+				logger:  sl,
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				b: []byte("useless string"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "#2",
+			fields: fields{
+				storage: s,
+				logger:  sl,
+			},
+			args: args{
+				w: &errRecorder{},
+				b: []byte("useless string"),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := &Handler{
+				storage: tt.fields.storage,
+				logger:  tt.fields.logger,
+			}
+			h.writeResponseBody(tt.args.w, tt.args.b)
+		})
+	}
 }
