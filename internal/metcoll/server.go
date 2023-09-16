@@ -31,7 +31,7 @@ func NewServer(cfg *configuration.Config, logger *zap.SugaredLogger) (*Server, e
 	if cfg.PrivateCryptoKey != "" {
 		privateCryptoKey, err := crypto.GetKeyBytes(cfg.PrivateCryptoKey)
 		if err != nil {
-			return nil, fmt.Errorf("an occured error when getting public key bytes, err: %w", err)
+			return nil, fmt.Errorf("an occured error when server getting key bytes, err: %w", err)
 		}
 		privateKey = privateCryptoKey
 	}
@@ -88,7 +88,7 @@ func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
 		}
 
 		// for ya-autotests.
-		bodyHash := r.Header.Get("HashSHA256")
+		bodyHash := r.Header.Get(HashSHA256)
 		if bodyHash == "" {
 			h.ServeHTTP(w, r)
 			return
@@ -103,12 +103,12 @@ func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
 		}
 		r.Body = io.NopCloser(&buf)
 
-		hash := hmac.New(sha256.New, []byte(s.hashkey))
+		hash := hmac.New(sha256.New, s.hashkey)
 		hash.Write(body)
 
 		sign := hash.Sum(nil)
 
-		if fmt.Sprintf("%x", sign) == bodyHash {
+		if hashBytesToString(hash, sign) == bodyHash {
 			h.ServeHTTP(w, r)
 		} else {
 			http.Error(w, "incorrect hash", http.StatusBadRequest)
@@ -148,7 +148,12 @@ func (r *ResponseHashWriter) Write(b []byte) (int, error) {
 	hash := hmac.New(sha256.New, r.hashkey)
 	hash.Write(b)
 
-	r.ResponseWriter.Header().Set("HashSHA256", fmt.Sprintf("%x", hash.Sum(nil)))
+	r.ResponseWriter.Header().Set(HashSHA256, hashBytesToString(hash, nil))
 
-	return r.ResponseWriter.Write(b)
+	n, err := r.ResponseWriter.Write(b)
+	if err != nil {
+		return 0, fmt.Errorf("response write was faild, err: %w", err)
+	}
+
+	return n, nil
 }

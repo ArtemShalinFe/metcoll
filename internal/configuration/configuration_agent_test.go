@@ -117,11 +117,11 @@ func Test_readConfigAgentFromENV(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := readConfigAgentFromENV()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("readFromENV() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("readConfigAgentFromENV() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !assert.Equal(t, got.Server, tt.want.Server) {
-				t.Errorf("readFromENV() = %v, want %v", got.Server, tt.want.Server)
+				t.Errorf("readConfigAgentFromENV() = %v, want %v", got.Server, tt.want.Server)
 			}
 		})
 	}

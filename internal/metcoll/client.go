@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"net/http"
 	"net/url"
@@ -45,8 +46,8 @@ func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogge
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = defautMaxRetry
 	retryClient.CheckRetry = checkRetry
-	retryClient.RetryWaitMin = time.Duration(defautMinWaitRetry)
-	retryClient.RetryWaitMax = time.Duration(defautMaxWaitRetry)
+	retryClient.RetryWaitMin = defautMinWaitRetry
+	retryClient.RetryWaitMax = defautMaxWaitRetry
 	retryClient.Logger = logger
 	retryClient.Backoff = backoff
 
@@ -54,7 +55,7 @@ func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogge
 	if cfg.PublicCryptoKey != "" {
 		publicCryptoKey, err := crypto.GetKeyBytes(cfg.PublicCryptoKey)
 		if err != nil {
-			return nil, fmt.Errorf("an occured error when getting public key bytes, err: %w", err)
+			return nil, fmt.Errorf("an occured error when agent getting key bytes, err: %w", err)
 		}
 		publicKey = publicCryptoKey
 	}
@@ -125,11 +126,11 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 			return nil, fmt.Errorf("cannot calculate hash err: %w", err)
 		}
 
-		h := hmac.New(sha256.New, []byte(c.hashkey))
+		h := hmac.New(sha256.New, c.hashkey)
 
 		h.Write(data)
 
-		req.Header.Set(HashSHA256, fmt.Sprintf("%x", h.Sum(nil)))
+		req.Header.Set(HashSHA256, hashBytesToString(h, nil))
 	}
 
 	return req, nil
@@ -209,4 +210,8 @@ func (c *Client) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Me
 		return
 	default:
 	}
+}
+
+func hashBytesToString(h hash.Hash, bytes []byte) string {
+	return fmt.Sprintf("%x", h.Sum(bytes))
 }

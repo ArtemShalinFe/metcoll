@@ -25,7 +25,7 @@ import (
 const (
 	testServerInitErrTemplate = "an error occured while creating HTTP server for tests err: %v"
 	bodyCloseErrTemplate      = "an error occured while body closing err: %v"
-	temaplateURLErr           = "URL: %s"
+	temaplateURLErr           = "%s URL: %s"
 	requestErrTemplate        = "http request err: %v"
 	metricg                   = "metricg"
 	metricc                   = "metricc"
@@ -37,9 +37,9 @@ func TestHandler_UpdateMetricFromURL(t *testing.T) {
 
 	db := NewMockStorage(ctrl)
 	db.EXPECT().SetFloat64Value(gomock.Any(), metricg, float64(1.2)).Times(1).
-		Return(float64(0), errors.New("failed update float64"))
+		Return(float64(0), errors.New("failed update float64 metric from url"))
 	db.EXPECT().AddInt64Value(gomock.Any(), metricc, int64(1)).Times(1).
-		Return(int64(0), errors.New("failed update int64"))
+		Return(int64(0), errors.New("failed update int64 metric from url"))
 
 	mts, err := testServerWithMockStorage(db)
 	if err != nil {
@@ -80,9 +80,9 @@ func TestHandler_UpdateMetricFromURL(t *testing.T) {
 				t.Errorf(bodyCloseErrTemplate, err)
 			}
 		}()
-		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.url))
+		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.method, v.url))
 		if v.want != "" {
-			assert.Equal(t, v.want, string(get), fmt.Sprintf(temaplateURLErr, v.url))
+			assert.Equal(t, v.want, string(get), fmt.Sprintf(temaplateURLErr, v.method, v.url))
 		}
 	}
 }
@@ -123,9 +123,9 @@ func TestHandler_Ping(t *testing.T) {
 				t.Errorf(bodyCloseErrTemplate, err)
 			}
 		}()
-		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.url))
+		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.method, v.url))
 		if v.want != "" {
-			assert.Equal(t, v.want, string(get), fmt.Sprintf(temaplateURLErr, v.url))
+			assert.Equal(t, v.want, string(get), fmt.Sprintf(temaplateURLErr, v.method, v.url))
 		}
 	}
 }
@@ -208,9 +208,9 @@ func TestHandler_ReadMetricFromURL(t *testing.T) {
 				t.Errorf(bodyCloseErrTemplate, err)
 			}
 		}()
-		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.url))
+		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.method, v.url))
 		if v.want != "" {
-			assert.Equal(t, v.want, string(get), fmt.Sprintf(temaplateURLErr, v.url))
+			assert.Equal(t, v.want, string(get), fmt.Sprintf(temaplateURLErr, v.method, v.url))
 		}
 	}
 }
@@ -383,14 +383,14 @@ func TestHandler_UpdateMetric(t *testing.T) {
 				t.Errorf(bodyCloseErrTemplate, err)
 			}
 		}()
-		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.url))
+		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.method, v.url))
 
 		if resp.StatusCode < 300 {
 			var met metrics.Metrics
 			if err = json.Unmarshal(b, &met); err != nil {
 				t.Error(err)
 			}
-			require.Equal(t, v.want, &met, fmt.Sprintf(temaplateURLErr, v.url))
+			require.Equal(t, v.want, &met, fmt.Sprintf(temaplateURLErr, v.method, v.url))
 		}
 	}
 }
@@ -409,9 +409,9 @@ func TestHandler_ReadMetric(t *testing.T) {
 	db.EXPECT().GetFloat64Value(gomock.Any(), metricGaugeNotFound).Times(1).
 		Return(float64(0), storage.ErrNoRows)
 	db.EXPECT().GetFloat64Value(gomock.Any(), metricg).Times(1).
-		Return(float64(0), errors.New("failed update float64"))
+		Return(float64(0), errors.New("failed read float64"))
 	db.EXPECT().GetInt64Value(gomock.Any(), metricc).Times(1).
-		Return(int64(0), errors.New("failed update int64"))
+		Return(int64(0), errors.New("failed read int64"))
 
 	mts, err := testServerWithMockStorage(db)
 	if err != nil {
@@ -522,14 +522,14 @@ func TestHandler_ReadMetric(t *testing.T) {
 				t.Errorf(bodyCloseErrTemplate, err)
 			}
 		}()
-		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.url))
+		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.method, v.url))
 
 		if resp.StatusCode < 300 {
 			var met metrics.Metrics
 			if err = json.Unmarshal(b, &met); err != nil {
 				t.Error(err)
 			}
-			require.Equal(t, v.want, &met, fmt.Sprintf(temaplateURLErr, v.url))
+			require.Equal(t, v.want, &met, fmt.Sprintf(temaplateURLErr, v.method, v.url))
 		}
 	}
 }
@@ -615,10 +615,11 @@ func TestHandler_BatchUpdate(t *testing.T) {
 	defer ts.Close()
 
 	var bodyMetrics []*metrics.Metrics
-	bodyMetrics = append(bodyMetrics, metrics.NewCounterMetric("one", 1))
-	bodyMetrics = append(bodyMetrics, metrics.NewCounterMetric("two", 2))
-	bodyMetrics = append(bodyMetrics, metrics.NewGaugeMetric("three dot one", 3.1))
-	bodyMetrics = append(bodyMetrics, metrics.NewGaugeMetric("four dot two", 4.2))
+	bodyMetrics = append(bodyMetrics,
+		metrics.NewCounterMetric("one", 1),
+		metrics.NewCounterMetric("two", 2),
+		metrics.NewGaugeMetric("three dot one", 3.1),
+		metrics.NewGaugeMetric("four dot two", 4.2))
 
 	var bodyMetricsErr1 []*metrics.Metrics
 	bodyMetricsErr1 = append(bodyMetricsErr1, &metrics.Metrics{ID: "someID", MType: "wrongType"})
@@ -696,14 +697,14 @@ func TestHandler_BatchUpdate(t *testing.T) {
 				t.Errorf(bodyCloseErrTemplate, err)
 			}
 		}()
-		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf("%s URL: %s", v.name, v.url))
+		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.method, v.url))
 
 		if resp.StatusCode < 300 {
 			var errs []string
 			if err = json.Unmarshal(b, &errs); err != nil {
 				t.Error(err)
 			}
-			require.Equal(t, v.want, errs, fmt.Sprintf("%s URL: %s", v.name, v.url))
+			require.Equal(t, v.want, errs, fmt.Sprintf(temaplateURLErr, v.method, v.url))
 		}
 	}
 }
@@ -717,10 +718,10 @@ func ExampleHandler_BatchUpdate() {
 
 	var bodyMetrics []*metrics.Metrics
 	bodyMetrics = append(bodyMetrics,
-		metrics.NewCounterMetric("one", 1),
-		metrics.NewCounterMetric("two", 2),
-		metrics.NewGaugeMetric("three dot one", 3.1),
-		metrics.NewGaugeMetric("four dot two", 4.2),
+		metrics.NewCounterMetric("first", 1),
+		metrics.NewCounterMetric("second", 2),
+		metrics.NewGaugeMetric("first dot one", 3.1),
+		metrics.NewGaugeMetric("second dot two", 4.2),
 	)
 
 	b, err := json.Marshal(bodyMetrics)
@@ -788,7 +789,7 @@ func TestHandler_CollectMetricList(t *testing.T) {
 			continue
 		}
 
-		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.url))
+		assert.Equal(t, v.status, resp.StatusCode, fmt.Sprintf(temaplateURLErr, v.method, v.url))
 		if resp.StatusCode != http.StatusInternalServerError {
 			var hp = "request home page"
 			assert.NotContains(t, string(get), "metricq", hp)
@@ -866,7 +867,7 @@ func BenchmarkUpdateMetricFromURL(b *testing.B) {
 
 	s, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
-		fmt.Printf("cannot init logger err: %v", err)
+		fmt.Printf("update metric from URL cannot init storage err: %v", err)
 		return
 	}
 
@@ -887,16 +888,11 @@ func BenchmarkUpdateMetric(b *testing.B) {
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
-	zl, err := zap.NewProduction()
-	if err != nil {
-		fmt.Printf("cannot init zap-logger err: %v", err)
-		return
-	}
-	sl := zl.Sugar()
+	sl := zap.S()
 
 	s, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
-		fmt.Printf("cannot init logger err: %v", err)
+		fmt.Printf("bench update metric, cannot init storage err: %v", err)
 		return
 	}
 
@@ -910,7 +906,7 @@ func BenchmarkUpdateMetric(b *testing.B) {
 		gm := metrics.NewCounterMetric(id, int64(i))
 		bs, err := json.Marshal(gm)
 		if err != nil {
-			fmt.Printf("marashal err: %v", err)
+			fmt.Printf("update metric marashal err: %v", err)
 			return
 		}
 		body := io.NopCloser(bytes.NewReader(bs))
@@ -924,16 +920,11 @@ func BenchmarkBatchUpdate(b *testing.B) {
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
-	zl, err := zap.NewProduction()
-	if err != nil {
-		fmt.Printf("cannot init zap-logger err: %v", err)
-		return
-	}
-	sl := zl.Sugar()
+	sl := zap.S()
 
 	s, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
-		fmt.Printf("cannot init logger err: %v", err)
+		fmt.Printf("bench batch update metric, cannot init logger err: %v", err)
 		return
 	}
 
@@ -955,7 +946,7 @@ func BenchmarkBatchUpdate(b *testing.B) {
 
 		bs, err := json.Marshal(ms)
 		if err != nil {
-			fmt.Printf("marashal err: %v", err)
+			fmt.Printf("batch update marashal err: %v", err)
 			return
 		}
 		body := io.NopCloser(bytes.NewReader(bs))
@@ -973,12 +964,12 @@ func testServer() (*httptest.Server, error) {
 
 	l, err := logger.NewMiddlewareLogger(sl)
 	if err != nil {
-		return nil, fmt.Errorf("cannot init middleware logger err: %w", err)
+		return nil, fmt.Errorf("server cannot init middleware logger err: %w", err)
 	}
 
 	s, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
-		return nil, fmt.Errorf("cannot init storage err: %w", err)
+		return nil, fmt.Errorf("server cannot init storage err: %w", err)
 	}
 
 	h := NewHandler(s, sl)
@@ -996,7 +987,7 @@ func testServerWithMockStorage(s Storage) (*httptest.Server, error) {
 
 	l, err := logger.NewMiddlewareLogger(sl)
 	if err != nil {
-		return nil, fmt.Errorf("cannot init middleware logger err: %w", err)
+		return nil, fmt.Errorf("mock server cannot init middleware logger err: %w", err)
 	}
 
 	h := NewHandler(s, sl)
@@ -1005,7 +996,9 @@ func testServerWithMockStorage(s Storage) (*httptest.Server, error) {
 	return httptest.NewServer(r), nil
 }
 
-func testRequest(t *testing.T, ts *httptest.Server, method string, path string, body io.Reader) (*http.Response, []byte) {
+func testRequest(t *testing.T, ts *httptest.Server,
+	method string, path string, body io.Reader) (*http.Response, []byte) {
+	t.Helper()
 	req, err := http.NewRequest(method, ts.URL+path, body)
 	require.NoError(t, err)
 
@@ -1037,7 +1030,6 @@ func (er *errRecorder) WriteHeader(statusCode int) {
 }
 
 func TestHandler_writeResponseBody(t *testing.T) {
-
 	ctx := context.Background()
 	cfg := &configuration.Config{}
 
@@ -1045,7 +1037,7 @@ func TestHandler_writeResponseBody(t *testing.T) {
 
 	s, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
-		t.Errorf("cannot init storage err: %v", err)
+		t.Errorf("write response body cannot init storage err: %v", err)
 		return
 	}
 
@@ -1071,7 +1063,7 @@ func TestHandler_writeResponseBody(t *testing.T) {
 			},
 			args: args{
 				w: httptest.NewRecorder(),
-				b: []byte("useless string"),
+				b: []byte("first useless string"),
 			},
 			wantErr: false,
 		},
@@ -1083,7 +1075,7 @@ func TestHandler_writeResponseBody(t *testing.T) {
 			},
 			args: args{
 				w: &errRecorder{},
-				b: []byte("useless string"),
+				b: []byte("second useless string"),
 			},
 			wantErr: true,
 		},
