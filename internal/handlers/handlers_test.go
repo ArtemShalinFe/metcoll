@@ -586,6 +586,12 @@ func TestHandler_BatchUpdate(t *testing.T) {
 	bodyMetrics = append(bodyMetrics, metrics.NewGaugeMetric("three dot one", 3.1))
 	bodyMetrics = append(bodyMetrics, metrics.NewGaugeMetric("four dot two", 4.2))
 
+	var bodyMetricsErr1 []*metrics.Metrics
+	bodyMetricsErr1 = append(bodyMetricsErr1, &metrics.Metrics{ID: "someid", MType: "wrongType"})
+
+	var bodyMetricsErr2 []*metrics.Metrics
+	bodyMetricsErr2 = append(bodyMetricsErr2, &metrics.Metrics{ID: "someid", MType: metrics.CounterMetric})
+
 	var want []string
 
 	var tests = []struct {
@@ -603,6 +609,22 @@ func TestHandler_BatchUpdate(t *testing.T) {
 			status:      http.StatusOK,
 			method:      http.MethodPost,
 			bodyMetrics: bodyMetrics,
+		},
+		{
+			name:        "BatchUpdate #2",
+			url:         "/updates/",
+			want:        want,
+			status:      http.StatusBadRequest,
+			method:      http.MethodPost,
+			bodyMetrics: bodyMetricsErr1,
+		},
+		{
+			name:        "BatchUpdate #3",
+			url:         "/updates/",
+			want:        want,
+			status:      http.StatusBadRequest,
+			method:      http.MethodPost,
+			bodyMetrics: bodyMetricsErr2,
 		},
 	}
 
