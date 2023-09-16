@@ -574,6 +574,40 @@ func ExampleHandler_UpdateMetric() {
 }
 
 func TestHandler_BatchUpdate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+
+	var gaugeMetrics []*metrics.Metrics
+	gaugeMetrics = append(gaugeMetrics, metrics.NewGaugeMetric(metricg, 1.2))
+
+	var counterMetrics []*metrics.Metrics
+	counterMetrics = append(counterMetrics, metrics.NewCounterMetric(metricc, 1))
+
+	updatedCounterMetrics := make(map[string]int64)
+	updatedCounterMetrics[metricc] = 1
+	updatedGaugeMetrics := make(map[string]float64)
+	updatedGaugeMetrics[metricg] = 1.2
+
+	// #1 negative case
+	db.EXPECT().BatchSetFloat64Value(gomock.Any(), updatedGaugeMetrics).Times(1).
+		Return(nil, nil, errors.New("failed batch update float64"))
+
+	// #2 negative case
+
+	db.EXPECT().BatchSetFloat64Value(gomock.Any(), make(map[string]float64)).Times(1).
+		Return(make(map[string]float64), nil, nil)
+
+	db.EXPECT().BatchAddInt64Value(gomock.Any(), updatedCounterMetrics).Times(1).
+		Return(nil, nil, errors.New("failed batch update int64"))
+
+	mts, err := testServerWithMockStorage(db)
+	if err != nil {
+		t.Errorf(testServerInitErrTemplate, err)
+	}
+	defer mts.Close()
+
 	ts, err := testServer()
 	if err != nil {
 		t.Errorf(testServerInitErrTemplate, err)
@@ -587,14 +621,15 @@ func TestHandler_BatchUpdate(t *testing.T) {
 	bodyMetrics = append(bodyMetrics, metrics.NewGaugeMetric("four dot two", 4.2))
 
 	var bodyMetricsErr1 []*metrics.Metrics
-	bodyMetricsErr1 = append(bodyMetricsErr1, &metrics.Metrics{ID: "someid", MType: "wrongType"})
+	bodyMetricsErr1 = append(bodyMetricsErr1, &metrics.Metrics{ID: "someID", MType: "wrongType"})
 
 	var bodyMetricsErr2 []*metrics.Metrics
-	bodyMetricsErr2 = append(bodyMetricsErr2, &metrics.Metrics{ID: "someid", MType: metrics.CounterMetric})
+	bodyMetricsErr2 = append(bodyMetricsErr2, &metrics.Metrics{ID: "someID", MType: metrics.CounterMetric})
 
 	var want []string
 
 	var tests = []struct {
+		server      *httptest.Server
 		name        string
 		url         string
 		method      string
@@ -603,6 +638,7 @@ func TestHandler_BatchUpdate(t *testing.T) {
 		status      int
 	}{
 		{
+			server:      ts,
 			name:        "BatchUpdate #1",
 			url:         "/updates/",
 			want:        want,
@@ -611,6 +647,7 @@ func TestHandler_BatchUpdate(t *testing.T) {
 			bodyMetrics: bodyMetrics,
 		},
 		{
+			server:      ts,
 			name:        "BatchUpdate #2",
 			url:         "/updates/",
 			want:        want,
@@ -619,12 +656,31 @@ func TestHandler_BatchUpdate(t *testing.T) {
 			bodyMetrics: bodyMetricsErr1,
 		},
 		{
+			server:      ts,
 			name:        "BatchUpdate #3",
 			url:         "/updates/",
 			want:        want,
 			status:      http.StatusBadRequest,
 			method:      http.MethodPost,
 			bodyMetrics: bodyMetricsErr2,
+		},
+		{
+			server:      mts,
+			name:        "BatchUpdate #4",
+			url:         "/updates/",
+			want:        want,
+			status:      http.StatusBadRequest,
+			method:      http.MethodPost,
+			bodyMetrics: gaugeMetrics,
+		},
+		{
+			server:      mts,
+			name:        "BatchUpdate #5",
+			url:         "/updates/",
+			want:        want,
+			status:      http.StatusBadRequest,
+			method:      http.MethodPost,
+			bodyMetrics: counterMetrics,
 		},
 	}
 
@@ -634,7 +690,7 @@ func TestHandler_BatchUpdate(t *testing.T) {
 			t.Error(err)
 		}
 
-		resp, b := testRequest(t, ts, v.method, v.url, bytes.NewBuffer(b))
+		resp, b := testRequest(t, v.server, v.method, v.url, bytes.NewBuffer(b))
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
 				t.Errorf(bodyCloseErrTemplate, err)
