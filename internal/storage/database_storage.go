@@ -535,7 +535,10 @@ func retryQueryRowInt64(ctx context.Context, tx pgx.Tx, sql string, args ...any)
 	if err := retry.Do(
 		func() error {
 			row := tx.QueryRow(ctx, sql, args...)
-			return row.Scan(&val)
+			if err := row.Scan(&val); err != nil {
+				return fmt.Errorf("error scan row int64, err: %w", err)
+			}
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {
@@ -550,7 +553,10 @@ func retryQueryRowFloat64(ctx context.Context, tx pgx.Tx, sql string, args ...an
 	if err := retry.Do(
 		func() error {
 			row := tx.QueryRow(ctx, sql, args...)
-			return row.Scan(&val)
+			if err := row.Scan(&val); err != nil {
+				return fmt.Errorf("error scan row float64, err: %w", err)
+			}
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {
@@ -566,13 +572,13 @@ func retryBatchResultQueryRowFloat64(ctx context.Context, results pgx.BatchResul
 
 	if err := retry.Do(
 		func() error {
-			err := results.QueryRow().Scan(&id, &val)
-			if err != nil {
-				if err != pgx.ErrNoRows {
-					return fmt.Errorf("getting results gauge err: %w", err)
+			if err := results.QueryRow().Scan(&id, &val); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return nil
 				}
+				return fmt.Errorf("getting results gauge err: %w", err)
 			}
-			return err
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {
@@ -588,13 +594,13 @@ func retryBatchResultQueryRowInt64(ctx context.Context, results pgx.BatchResults
 
 	if err := retry.Do(
 		func() error {
-			err := results.QueryRow().Scan(&id, &val)
-			if err != nil {
-				if err != pgx.ErrNoRows {
-					return fmt.Errorf("getting results gauge err: %w", err)
+			if err := results.QueryRow().Scan(&id, &val); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return nil
 				}
+				return fmt.Errorf("getting results counter err: %w", err)
 			}
-			return err
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {
@@ -604,14 +610,17 @@ func retryBatchResultQueryRowInt64(ctx context.Context, results pgx.BatchResults
 	return id, val, nil
 }
 
-func retryQuery(ctx context.Context, tx pgx.Tx, sql string, args ...any) (pgx.Rows, error) {
+func retryQuery(ctx context.Context, tx pgx.Tx, sql string) (pgx.Rows, error) {
 	var rows pgx.Rows
 	var err error
 
 	if err = retry.Do(
 		func() error {
 			rows, err = tx.Query(ctx, sql)
-			return err
+			if err != nil {
+				return fmt.Errorf("tx query err: %w", err)
+			}
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {

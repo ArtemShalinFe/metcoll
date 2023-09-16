@@ -350,7 +350,7 @@ func TestFilestorage_BatchSetFloat64Value(t *testing.T) {
 	ctx := context.Background()
 
 	ts := newMemStorage()
-	if _, err := ts.SetFloat64Value(ctx, "test13", 1.3); err != nil {
+	if _, err := ts.SetFloat64Value(ctx, "test123", 1.3); err != nil {
 		t.Error(err)
 	}
 
@@ -360,7 +360,7 @@ func TestFilestorage_BatchSetFloat64Value(t *testing.T) {
 	}
 
 	gauges := make(map[string]float64)
-	gauges["test13"] = 1.4
+	gauges["test123"] = 1.4
 	gauges["test14"] = 0.7
 
 	type args struct {
@@ -407,7 +407,7 @@ func TestFilestorage_runIntervalStateSaving(t *testing.T) {
 	ctx := context.Background()
 
 	ts := newMemStorage()
-	if _, err := ts.SetFloat64Value(ctx, "test13", 1.3); err != nil {
+	if _, err := ts.SetFloat64Value(ctx, "test23", 2.3); err != nil {
 		t.Error(err)
 	}
 

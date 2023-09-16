@@ -560,7 +560,7 @@ func TestDB_AddInt64Value(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(iq).WithArgs("counterTwo", int64(1)).
-		WillReturnError(errors.New("some insert errors"))
+		WillReturnError(errors.New("insert errors"))
 	mock.ExpectCommit()
 
 	mock.ExpectBegin()
@@ -793,8 +793,8 @@ func TestDB_Ping(t *testing.T) {
 		logger *zap.SugaredLogger
 	}
 	tests := []struct {
-		name    string
 		fields  fields
+		name    string
 		wantErr bool
 	}{
 		{
@@ -823,7 +823,7 @@ func TestDB_Ping(t *testing.T) {
 			}
 			err := db.Ping(ctx)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("DB.SetFloat64Value() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("DB.Ping() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 		})
@@ -848,8 +848,8 @@ func TestDB_Interrupt(t *testing.T) {
 		logger *zap.SugaredLogger
 	}
 	tests := []struct {
-		name    string
 		fields  fields
+		name    string
 		wantErr bool
 	}{
 		{
@@ -870,7 +870,7 @@ func TestDB_Interrupt(t *testing.T) {
 			}
 			err := db.Interrupt()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("DB.SetFloat64Value() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("DB.Interrupt() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 		})
