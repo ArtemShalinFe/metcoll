@@ -199,3 +199,132 @@ func TestMetrics_Get(t *testing.T) {
 		})
 	}
 }
+
+func TestMetrics_Update(t *testing.T) {
+	ctx := context.Background()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+	db.EXPECT().AddInt64Value(gomock.Any(), counter, int64(1)).AnyTimes().Return(int64(2), nil)
+	db.EXPECT().SetFloat64Value(gomock.Any(), gauge, float64(1.2)).AnyTimes().Return(float64(1.2), nil)
+
+	type fields struct {
+		ID    string
+		MType string
+		Value string
+	}
+	type args struct {
+		storage Storage
+	}
+
+	tests := []struct {
+		args    args
+		want    *Metrics
+		fields  fields
+		name    string
+		wantErr bool
+	}{
+		{
+			name: "#1 case",
+			fields: fields{
+				ID:    counter,
+				MType: CounterMetric,
+				Value: "1",
+			},
+			args: args{
+
+				storage: db,
+			},
+			want: NewCounterMetric(counter, 2),
+		},
+		{
+			name: "#2 case",
+			fields: fields{
+				ID:    gauge,
+				MType: GaugeMetric,
+				Value: "1.2",
+			},
+			args: args{
+				storage: db,
+			},
+			want: NewGaugeMetric(gauge, 1.2),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			m, err := NewMetric(tt.fields.ID, tt.fields.MType, tt.fields.Value)
+			if err != nil {
+				t.Error(err)
+			}
+			if err := m.Update(ctx, tt.args.storage); (err != nil) != tt.wantErr {
+				t.Errorf("Metrics.Get() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestBatchUpdate(t *testing.T) {
+	ctx := context.Background()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := NewMockStorage(ctrl)
+
+	var ms []*Metrics
+	ms = append(ms, NewCounterMetric(counter, 1))
+	ms = append(ms, NewGaugeMetric(gauge, 1.2))
+
+	var wantms []*Metrics
+	wantms = append(wantms, NewCounterMetric(counter, 2))
+	wantms = append(wantms, NewGaugeMetric(gauge, 1.2))
+
+	counters := make(map[string]int64)
+	counters[counter] = 1
+	db.EXPECT().BatchAddInt64Value(gomock.Any(), counters).AnyTimes().Return(counters, nil, nil)
+
+	gauges := make(map[string]float64)
+	gauges[gauge] = 1.2
+	db.EXPECT().BatchSetFloat64Value(gomock.Any(), gauges).AnyTimes().Return(gauges, nil, nil)
+
+	tests := []struct {
+		storage Storage
+		want    []*Metrics
+		name    string
+		wantErr bool
+		metrics []*Metrics
+	}{
+		{
+			name:    "#1 case",
+			storage: db,
+			want:    wantms,
+			metrics: ms,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ms, errs, err := BatchUpdate(ctx, tt.metrics, tt.storage)
+			if err != nil {
+				t.Errorf("test of batch update was failed, err: %v", err)
+			}
+			for _, er := range errs {
+				t.Errorf("test of update was failed, err: %v", er)
+			}
+			for _, wantMetric := range tt.want {
+				found := false
+				for _, metric := range ms {
+					if wantMetric.ID == metric.ID {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("metric %s not found", wantMetric.ID)
+				}
+			}
+		})
+	}
+}
