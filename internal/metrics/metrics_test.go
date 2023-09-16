@@ -260,7 +260,7 @@ func TestMetrics_Update(t *testing.T) {
 				t.Error(err)
 			}
 			if err := m.Update(ctx, tt.args.storage); (err != nil) != tt.wantErr {
-				t.Errorf("Metrics.Get() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Metrics.Update() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -275,12 +275,12 @@ func TestBatchUpdate(t *testing.T) {
 	db := NewMockStorage(ctrl)
 
 	var ms []*Metrics
-	ms = append(ms, NewCounterMetric(counter, 1))
-	ms = append(ms, NewGaugeMetric(gauge, 1.2))
+	ms = append(ms, NewCounterMetric(counter, 1),
+		NewGaugeMetric(gauge, 1.2))
 
 	var wantms []*Metrics
-	wantms = append(wantms, NewCounterMetric(counter, 2))
-	wantms = append(wantms, NewGaugeMetric(gauge, 1.2))
+	wantms = append(wantms, NewCounterMetric(counter, 2),
+		NewGaugeMetric(gauge, 1.2))
 
 	counters := make(map[string]int64)
 	counters[counter] = 1
@@ -292,10 +292,10 @@ func TestBatchUpdate(t *testing.T) {
 
 	tests := []struct {
 		storage Storage
-		want    []*Metrics
 		name    string
-		wantErr bool
+		want    []*Metrics
 		metrics []*Metrics
+		wantErr bool
 	}{
 		{
 			name:    "#1 case",

@@ -86,6 +86,8 @@ func (ms *MemStorage) getAllDataFloat64(_ context.Context) (map[string]float64, 
 }
 
 func (ms *MemStorage) GetDataList(ctx context.Context) ([]string, error) {
+	const metricTemplate = "%s %s"
+
 	AllDataFloat64, err := ms.getAllDataFloat64(ctx)
 	if err != nil {
 		return nil, err
@@ -99,12 +101,12 @@ func (ms *MemStorage) GetDataList(ctx context.Context) ([]string, error) {
 
 	for k, v := range AllDataFloat64 {
 		fv := strconv.FormatFloat(v, 'G', 12, 64)
-		list = append(list, fmt.Sprintf("%s %s", k, fv))
+		list = append(list, fmt.Sprintf(metricTemplate, k, fv))
 	}
 
 	for k, v := range AllDataInt64 {
 		iv := strconv.FormatInt(v, 10)
-		list = append(list, fmt.Sprintf("%s %s", k, iv))
+		list = append(list, fmt.Sprintf(metricTemplate, k, iv))
 	}
 
 	return list, nil
