@@ -1,7 +1,11 @@
+//go:build usetempdir
+// +build usetempdir
+
 package configuration
 
 import (
 	"flag"
+	"os"
 	"reflect"
 	"testing"
 
@@ -128,7 +132,7 @@ func Test_readConfigAgentFromENV(t *testing.T) {
 }
 
 func Test_readConfigAgentFromFile(t *testing.T) {
-	jsonConfig := newConfigFile(t,
+	jsonConfig := newAgentConfigFile(t,
 		`{
 		"address": "localhost:8080",
 		"report_interval": "1s",
@@ -136,7 +140,7 @@ func Test_readConfigAgentFromFile(t *testing.T) {
 		"crypto_key": "/path/to/key.pem"
 	}`)
 
-	jsonConfig2 := newConfigFile(t,
+	jsonConfig2 := newAgentConfigFile(t,
 		`{
 		"address": "localhost:8090",
 		"report_interval": "1m",
@@ -144,7 +148,7 @@ func Test_readConfigAgentFromFile(t *testing.T) {
 		"crypto_key": "/path/to/key.pem"
 	}`)
 
-	jsonConfigErr := newConfigFile(t,
+	jsonConfigErr := newAgentConfigFile(t,
 		`{
 		"report_interval": "1masdasd",
 	}`)
@@ -199,4 +203,25 @@ func Test_readConfigAgentFromFile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newAgentConfigFile(t *testing.T, jsonText string) string {
+	t.Helper()
+	td := os.TempDir()
+
+	f, err := os.CreateTemp(td, "*.json")
+	if err != nil {
+		t.Errorf("cannot create new json file for config tests: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Errorf("cannot close json file for config tests: %v", err)
+		}
+	}()
+
+	if _, err := f.Write([]byte(jsonText)); err != nil {
+		t.Errorf("cannot write json text in file for config tests: %v", err)
+	}
+
+	return f.Name()
 }

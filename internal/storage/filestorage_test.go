@@ -1,3 +1,6 @@
+//go:build usetempdir
+// +build usetempdir
+
 package storage
 
 import (

@@ -1,9 +1,13 @@
+//go:build usetempdir
+// +build usetempdir
+
 // The package describes the interaction of the server with various sources of metrics storage.
 // Metrics can be stored in memory, in a file on disk, in a database.
 package storage
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
@@ -37,7 +41,7 @@ func TestInitStorage(t *testing.T) {
 			name: "#1 case filestorage",
 			args: args{
 				cfg: &configuration.Config{
-					FileStoragePath: newTempFile(t),
+					FileStoragePath: newFileStorageFile(t),
 				},
 			},
 			want:    fs,
@@ -72,4 +76,21 @@ func TestInitStorage(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newFileStorageFile(t *testing.T) string {
+	t.Helper()
+	td := os.TempDir()
+
+	f, err := os.CreateTemp(td, "*")
+	if err != nil {
+		t.Errorf("cannot create new temp file for filestorage tests: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Errorf("cannot close temp file for filestorage tests: %v", err)
+		}
+	}()
+
+	return f.Name()
 }

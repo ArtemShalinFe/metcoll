@@ -36,6 +36,12 @@ go-tests:
 	go test ./... -v -race -count=1 -coverpkg=./... -coverprofile=coverage.out 
 	go tool cover -html=coverage.out -o ./coverage.html
 
+.PHONY: unit-tests
+unit-tests:
+	go vet ./...
+	go test ./... -v -race -count=1 -coverpkg=./... -coverprofile=unit_coverage.out --tags=usetempdir
+	go tool cover -html=coverage.out -o ./coverage.html
+
 .PHONY: cur-test
 cur-test: build-agent build-server
 	metricstest-darwin-arm64 -test.v -test.run=^TestIteration14\$$ -source-path=. -agent-binary-path=cmd/agent/agent -binary-path=cmd/server/server -server-port=8081 -key="olala/poslednieTesti" -database-dsn='postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable'
