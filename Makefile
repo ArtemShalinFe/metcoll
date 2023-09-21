@@ -84,5 +84,8 @@ lint:
 
 .PHONY: cryptokeys
 cryptokeys:
-	openssl req -x509 -nodes -days 365 -newkey rsa:16384 -keyout $(ROOT_DIR)/keys/private.pem -out $(ROOT_DIR)/keys/cert.pem
-	openssl rsa -in $(ROOT_DIR)/keys/private.pem -pubout -out $(ROOT_DIR)/keys/public.pem
+	[ -d $(ROOT_DIR)/keys ] || mkdir -p $(ROOT_DIR)/keys
+	$(MAKE) -C $(ROOT_DIR)/rsagen build-rsagen
+	mv $(ROOT_DIR)/rsagen/cmd/rsagen $(ROOT_DIR)/keys
+	$(ROOT_DIR)/keys/rsagen -o "$(ROOT_DIR)/keys" -b "10000"
+	rm -f $(ROOT_DIR)/keys/rsagen
