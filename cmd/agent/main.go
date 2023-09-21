@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -26,7 +25,7 @@ const timeoutShutdown = time.Second * 60
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatal(err)
+		zap.S().Fatalf("an occured fatal err: %w", err)
 	}
 }
 
