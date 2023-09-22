@@ -40,7 +40,7 @@ func NewBuild() Build {
 	return b
 }
 
-// Info returns data about the assembly.
+// String - Info returns data about the assembly.
 func (b *Build) String() string {
 	return fmt.Sprintf(infoTemplate(), b.buildVersion, b.buildDate, b.buildCommit)
 }

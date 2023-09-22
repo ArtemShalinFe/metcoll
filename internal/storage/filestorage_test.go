@@ -1,9 +1,13 @@
+//go:build usetempdir
+// +build usetempdir
+
 package storage
 
 import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/go-playground/assert"
 	"go.uber.org/zap"
@@ -169,7 +173,7 @@ func TestFilestorage_SetFloat64Value(t *testing.T) {
 		t.Error(err)
 	}
 
-	fs, err := newFilestorage(ts, zap.L().Sugar(), newTempFile(t), 0, false)
+	fs, err := newFilestorage(ctx, ts, zap.L().Sugar(), newTempFile(t), 0, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -231,13 +235,12 @@ func TestFilestorage_AddInt64Value(t *testing.T) {
 		t.Error(err)
 	}
 
-	fs, err := newFilestorage(ts, zap.L().Sugar(), newTempFile(t), 0, false)
+	fs, err := newFilestorage(ctx, ts, zap.L().Sugar(), newTempFile(t), 0, false)
 	if err != nil {
 		t.Error(err)
 	}
 
 	type args struct {
-		ctx   context.Context
 		key   string
 		value int64
 	}
@@ -252,7 +255,6 @@ func TestFilestorage_AddInt64Value(t *testing.T) {
 			name: "#1 positive case",
 			fs:   fs,
 			args: args{
-				ctx:   ctx,
 				key:   test1,
 				value: 1,
 			},
@@ -263,7 +265,7 @@ func TestFilestorage_AddInt64Value(t *testing.T) {
 			name: "#2 positive case",
 			fs:   fs,
 			args: args{
-				ctx:   ctx,
+
 				key:   "test6",
 				value: 6,
 			},
@@ -274,7 +276,7 @@ func TestFilestorage_AddInt64Value(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := fs.AddInt64Value(tt.args.ctx, tt.args.key, tt.args.value)
+			got, err := fs.AddInt64Value(ctx, tt.args.key, tt.args.value)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Filestorage.AddInt64Value() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -294,7 +296,7 @@ func TestFilestorage_BatchAddInt64Value(t *testing.T) {
 		t.Error(err)
 	}
 
-	fs, err := newFilestorage(ts, zap.L().Sugar(), newTempFile(t), 0, false)
+	fs, err := newFilestorage(ctx, ts, zap.L().Sugar(), newTempFile(t), 0, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -351,21 +353,20 @@ func TestFilestorage_BatchSetFloat64Value(t *testing.T) {
 	ctx := context.Background()
 
 	ts := newMemStorage()
-	if _, err := ts.SetFloat64Value(ctx, "test13", 1.3); err != nil {
+	if _, err := ts.SetFloat64Value(ctx, "test123", 1.3); err != nil {
 		t.Error(err)
 	}
 
-	fs, err := newFilestorage(ts, zap.L().Sugar(), newTempFile(t), 0, false)
+	fs, err := newFilestorage(ctx, ts, zap.L().Sugar(), newTempFile(t), 0, false)
 	if err != nil {
 		t.Error(err)
 	}
 
 	gauges := make(map[string]float64)
-	gauges["test13"] = 1.4
+	gauges["test123"] = 1.4
 	gauges["test14"] = 0.7
 
 	type args struct {
-		ctx    context.Context
 		gauges map[string]float64
 	}
 	tests := []struct {
@@ -379,7 +380,6 @@ func TestFilestorage_BatchSetFloat64Value(t *testing.T) {
 			name: "#1 case",
 			fs:   fs,
 			args: args{
-				ctx:    ctx,
 				gauges: gauges,
 			},
 			want:    gauges,
@@ -389,7 +389,7 @@ func TestFilestorage_BatchSetFloat64Value(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := tt.fs.BatchSetFloat64Value(tt.args.ctx, tt.args.gauges)
+			_, _, err := tt.fs.BatchSetFloat64Value(ctx, tt.args.gauges)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Filestorage.BatchSetFloat64Value() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -403,5 +403,113 @@ func TestFilestorage_BatchSetFloat64Value(t *testing.T) {
 			}
 			assert.Equal(t, value, v)
 		}
+	}
+}
+
+func TestFilestorage_runIntervalStateSaving(t *testing.T) {
+	ctx := context.Background()
+
+	ts := newMemStorage()
+	if _, err := ts.SetFloat64Value(ctx, "test23", 2.3); err != nil {
+		t.Error(err)
+	}
+
+	type fields struct {
+		MemStorage    *MemStorage
+		logger        *zap.SugaredLogger
+		path          string
+		storeInterval int
+		sleepTime     int
+	}
+	tests := []struct {
+		name   string
+		fields fields
+	}{
+		{
+			name: "test interval saving",
+			fields: fields{
+				MemStorage:    ts,
+				logger:        zap.L().Sugar(),
+				path:          newTempFile(t),
+				storeInterval: 1,
+				sleepTime:     3,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := &Filestorage{
+				MemStorage:    tt.fields.MemStorage,
+				logger:        tt.fields.logger,
+				path:          tt.fields.path,
+				storeInterval: tt.fields.storeInterval,
+			}
+
+			tctx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(tt.fields.sleepTime))
+			defer cancel()
+
+			fs.runIntervalStateSaving(tctx)
+
+			time.Sleep(time.Duration(tt.fields.sleepTime) * time.Second)
+
+			f, err := os.Open(tt.fields.path)
+			if err != nil {
+				t.Errorf("an erorr occured when opening file, err: %v", err)
+				return
+			}
+
+			i, err := f.Stat()
+			if err != nil {
+				t.Errorf("an erorr occured when getting file stats, err: %v", err)
+				return
+			}
+
+			assert.NotEqual(t, i.Size(), 0)
+		})
+	}
+}
+
+func TestFilestorage_Ping(t *testing.T) {
+	ctx := context.Background()
+
+	ts := newMemStorage()
+	if _, err := ts.SetFloat64Value(ctx, "test71", 7.1); err != nil {
+		t.Error(err)
+	}
+
+	type fields struct {
+		MemStorage    *MemStorage
+		logger        *zap.SugaredLogger
+		path          string
+		storeInterval int
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantErr bool
+	}{
+		{
+			name: "#1",
+			fields: fields{
+				MemStorage:    ts,
+				logger:        zap.L().Sugar(),
+				path:          newTempFile(t),
+				storeInterval: 0,
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := &Filestorage{
+				MemStorage:    tt.fields.MemStorage,
+				logger:        tt.fields.logger,
+				path:          tt.fields.path,
+				storeInterval: tt.fields.storeInterval,
+			}
+			if err := fs.Ping(ctx); (err != nil) != tt.wantErr {
+				t.Errorf("Filestorage.Ping() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }

@@ -4,10 +4,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"go.uber.org/zap"
@@ -25,12 +25,15 @@ const timeoutShutdown = time.Second * 60
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatal(err)
+		zap.S().Fatalf("an occured fatal err: %w", err)
 	}
 }
 
 func run() error {
-	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancelCtx := signal.NotifyContext(context.Background(),
+		os.Interrupt,
+		os.Kill,
+		syscall.SIGQUIT)
 	defer cancelCtx()
 
 	zl, err := zap.NewProduction()
@@ -73,7 +76,10 @@ func run() error {
 		return fmt.Errorf("cannot init retry logger err: %w", err)
 	}
 
-	client := metcoll.NewClient(cfg, rl)
+	client, err := metcoll.NewClient(cfg, rl)
+	if err != nil {
+		return fmt.Errorf("cannot init metcoll client err: %w", err)
+	}
 	stats := stats.NewStats()
 
 	go func() {

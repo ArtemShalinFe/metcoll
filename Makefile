@@ -36,6 +36,12 @@ go-tests:
 	go test ./... -v -race -count=1 -coverpkg=./... -coverprofile=coverage.out 
 	go tool cover -html=coverage.out -o ./coverage.html
 
+.PHONY: unit-tests
+unit-tests:
+	go vet ./...
+	go test ./... -v -race -count=1 -coverpkg=./... -coverprofile=unit_coverage.out --tags=usetempdir
+	go tool cover -html=coverage.out -o ./coverage.html
+
 .PHONY: cur-test
 cur-test: build-agent build-server
 	metricstest-darwin-arm64 -test.v -test.run=^TestIteration14\$$ -source-path=. -agent-binary-path=cmd/agent/agent -binary-path=cmd/server/server -server-port=8081 -key="olala/poslednieTesti" -database-dsn='postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable'
@@ -61,6 +67,8 @@ ya-tests:
 .PHONY: mocks
 mocks:
 	mockgen -source=internal/metrics/metrics.go -destination=internal/metrics/mock_metrics.go -package metrics
+	mockgen -source=internal/handlers/handlers.go -destination=internal/handlers/mock_handlers.go -package handlers
+
 
 .PHONY: lint
 lint:
@@ -73,3 +81,11 @@ lint:
         golangci-lint run \
         -c .golangci-lint.yml \
     > ./golangci-lint/report.json
+
+.PHONY: cryptokeys
+cryptokeys:
+	[ -d $(ROOT_DIR)/keys ] || mkdir -p $(ROOT_DIR)/keys
+	$(MAKE) -C $(ROOT_DIR)/rsagen build-rsagen
+	mv $(ROOT_DIR)/rsagen/cmd/rsagen $(ROOT_DIR)/keys
+	$(ROOT_DIR)/keys/rsagen -o "$(ROOT_DIR)/keys" -b "10000"
+	rm -f $(ROOT_DIR)/keys/rsagen

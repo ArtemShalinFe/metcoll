@@ -3,6 +3,8 @@ package compress
 import (
 	"net/http"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
 // CompressedTypes is types that support compression.
@@ -27,7 +29,11 @@ func CompressMiddleware(h http.Handler) http.Handler {
 			if strings.Contains(acceptEncoding, gzipEncoding) {
 				gzipWriter := NewGzipWriter(w)
 				origWriter = gzipWriter
-				defer gzipWriter.Close()
+				defer func() {
+					if err := gzipWriter.Close(); err != nil {
+						zap.S().Errorf("cannot close gzip writer, err: %w", err)
+					}
+				}()
 			}
 		}
 
@@ -41,7 +47,11 @@ func CompressMiddleware(h http.Handler) http.Handler {
 					return
 				}
 				r.Body = compressReader
-				defer compressReader.Close()
+				defer func() {
+					if err := compressReader.Close(); err != nil {
+						zap.S().Errorf("cannot close gzip reader, err: %w", err)
+					}
+				}()
 			}
 		}
 

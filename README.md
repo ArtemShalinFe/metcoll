@@ -14,8 +14,19 @@
 - [godoc](https://pkg.go.dev/golang.org/x/tools/cmd/godoc)
 - [graphviz](https://graphviz.org)
 - [PostgreSQL](https://www.postgresql.org)
+- [OpenSSL](https://www.openssl.org)
 
 ## Как собрать
+
+### Шифрование
+
+Для включения шифрования необходимо сгенерировать файлы приватного(для сервера) и публичного(для агента) ключа. Это можно сделать командой:
+
+```sh
+make cryptokeys
+```
+
+Файлы будут сгенерированы в корневой директории проекта в каталоге `keys`
 
 ### Сборка сервиса metcoll-agent
 

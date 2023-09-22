@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"net/http"
 	"net/url"
@@ -19,6 +20,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
+	"github.com/ArtemShalinFe/metcoll/internal/crypto"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 )
 
@@ -27,6 +29,7 @@ type Client struct {
 	host       string
 	httpClient *retryablehttp.Client
 	logger     retryablehttp.LeveledLogger
+	publicKey  []byte
 	hashkey    []byte
 }
 
@@ -35,7 +38,7 @@ const (
 )
 
 // NewClient - Object constructor.
-func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogger) *Client {
+func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogger) (*Client, error) {
 	const defautMaxRetry = 3
 	const defautMinWaitRetry = 3 * time.Second
 	const defautMaxWaitRetry = 5 * time.Second
@@ -43,17 +46,29 @@ func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogge
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = defautMaxRetry
 	retryClient.CheckRetry = checkRetry
-	retryClient.RetryWaitMin = time.Duration(defautMinWaitRetry)
-	retryClient.RetryWaitMax = time.Duration(defautMaxWaitRetry)
+	retryClient.RetryWaitMin = defautMinWaitRetry
+	retryClient.RetryWaitMax = defautMaxWaitRetry
 	retryClient.Logger = logger
 	retryClient.Backoff = backoff
 
-	return &Client{
+	var publicKey []byte
+	if cfg.PublicCryptoKey != "" {
+		publicCryptoKey, err := crypto.GetKeyBytes(cfg.PublicCryptoKey)
+		if err != nil {
+			return nil, fmt.Errorf("an occured error when agent getting key bytes, err: %w", err)
+		}
+		publicKey = publicCryptoKey
+	}
+
+	c := &Client{
 		host:       cfg.Server,
 		httpClient: retryClient,
 		logger:     logger,
 		hashkey:    cfg.Key,
+		publicKey:  publicKey,
 	}
+
+	return c, nil
 }
 
 func checkRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
@@ -102,7 +117,6 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 	if err != nil {
 		return nil, fmt.Errorf("cannot create request err: %w", err)
 	}
-	req.Close = true
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
@@ -112,11 +126,11 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 			return nil, fmt.Errorf("cannot calculate hash err: %w", err)
 		}
 
-		h := hmac.New(sha256.New, []byte(c.hashkey))
+		h := hmac.New(sha256.New, c.hashkey)
 
 		h.Write(data)
 
-		req.Header.Set(HashSHA256, fmt.Sprintf("%x", h.Sum(nil)))
+		req.Header.Set(HashSHA256, hashBytesToString(h, nil))
 	}
 
 	return req, nil
@@ -126,6 +140,13 @@ func (c *Client) batchUpdate(ctx context.Context, metrics []*metrics.Metrics) er
 	body, err := json.Marshal(metrics)
 	if err != nil {
 		return fmt.Errorf("cannot marshal metric err: %w", err)
+	}
+
+	if len(c.publicKey) != 0 {
+		body, err = crypto.Encrypt(c.publicKey, body)
+		if err != nil {
+			return fmt.Errorf("cannot encrypt body err: %w", err)
+		}
 	}
 
 	url, err := url.JoinPath("http://", c.host, "/updates/")
@@ -179,12 +200,18 @@ type PushResult struct {
 // BatchUpdateMetric - Sends updated metrics received from the channel `mcs` to the server.
 func (c *Client) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Metrics, result chan<- error) {
 	for m := range mcs {
-		err := c.batchUpdate(ctx, m)
-
-		select {
-		case <-ctx.Done():
-			return
-		case result <- err:
+		if err := c.batchUpdate(ctx, m); err != nil {
+			result <- err
 		}
 	}
+
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+}
+
+func hashBytesToString(h hash.Hash, bytes []byte) string {
+	return fmt.Sprintf("%x", h.Sum(bytes))
 }

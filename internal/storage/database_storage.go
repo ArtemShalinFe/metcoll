@@ -28,6 +28,12 @@ type DB struct {
 	logger *zap.SugaredLogger
 }
 
+const (
+	txRollbackFailed = "transaction cannot be rolled back err: %w"
+	txStartFailed    = "unable to start transaction err: %w"
+	execQuerryError  = "query %s \n\n execute error: %w"
+)
+
 func newSQLStorage(ctx context.Context, dataSourceName string, logger *zap.SugaredLogger) (*DB, error) {
 	pool, err := pgxpool.New(ctx, dataSourceName)
 	if err != nil {
@@ -76,7 +82,7 @@ func (db *DB) createTables(ctx context.Context) error {
 
 	if err != nil {
 		if err = retryRollback(ctx, tx); err != nil {
-			return fmt.Errorf("transaction cannot be rolled back err: %w", err)
+			return fmt.Errorf(txRollbackFailed, err)
 		}
 		return nil
 	}
@@ -87,7 +93,7 @@ func (db *DB) createTables(ctx context.Context) error {
 func (db *DB) GetInt64Value(ctx context.Context, key string) (int64, error) {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("unable to start transaction err: %w", err)
+		return 0, fmt.Errorf(txStartFailed, err)
 	}
 
 	defer func() {
@@ -101,7 +107,7 @@ func (db *DB) GetInt64Value(ctx context.Context, key string) (int64, error) {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return 0, ErrNoRows
 			} else {
-				return 0, fmt.Errorf("query %s \n\n execute error: %w", q, err)
+				return 0, fmt.Errorf(execQuerryError, q, err)
 			}
 		}
 		return val, nil
@@ -109,7 +115,7 @@ func (db *DB) GetInt64Value(ctx context.Context, key string) (int64, error) {
 
 	if err != nil && !errors.Is(err, ErrNoRows) {
 		if err = retryRollback(ctx, tx); err != nil {
-			return val, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+			return val, fmt.Errorf(txRollbackFailed, err)
 		}
 		return 0, err
 	}
@@ -120,7 +126,7 @@ func (db *DB) GetInt64Value(ctx context.Context, key string) (int64, error) {
 func (db *DB) GetFloat64Value(ctx context.Context, key string) (float64, error) {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("unable to start transaction err: %w", err)
+		return 0, fmt.Errorf(txStartFailed, err)
 	}
 	defer func() {
 		commitTransaction(ctx, tx, db.logger)
@@ -133,7 +139,7 @@ func (db *DB) GetFloat64Value(ctx context.Context, key string) (float64, error) 
 			if errors.Is(err, pgx.ErrNoRows) {
 				return 0, ErrNoRows
 			} else {
-				return 0, fmt.Errorf("query %s \n\n execute error: %w", q, err)
+				return 0, fmt.Errorf(execQuerryError, q, err)
 			}
 		}
 		return val, nil
@@ -141,7 +147,7 @@ func (db *DB) GetFloat64Value(ctx context.Context, key string) (float64, error) 
 
 	if err != nil {
 		if err = retryRollback(ctx, tx); err != nil {
-			return 0, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+			return 0, fmt.Errorf(txRollbackFailed, err)
 		}
 		return 0, err
 	}
@@ -152,7 +158,7 @@ func (db *DB) GetFloat64Value(ctx context.Context, key string) (float64, error) 
 func (db *DB) AddInt64Value(ctx context.Context, key string, value int64) (int64, error) {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("unable to start transaction err: %w", err)
+		return 0, fmt.Errorf(txStartFailed, err)
 	}
 	defer func() {
 		commitTransaction(ctx, tx, db.logger)
@@ -169,14 +175,14 @@ func (db *DB) AddInt64Value(ctx context.Context, key string, value int64) (int64
 
 		val, err := retryQueryRowInt64(ctx, tx, q, key, value)
 		if err != nil {
-			return 0, fmt.Errorf("query %s \n\n execute error: %w", q, err)
+			return 0, fmt.Errorf(execQuerryError, q, err)
 		}
 		return val, nil
 	}()
 
 	if err != nil {
 		if err = retryRollback(ctx, tx); err != nil {
-			return 0, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+			return 0, fmt.Errorf(txRollbackFailed, err)
 		}
 		return 0, err
 	}
@@ -187,7 +193,7 @@ func (db *DB) AddInt64Value(ctx context.Context, key string, value int64) (int64
 func (db *DB) SetFloat64Value(ctx context.Context, key string, value float64) (float64, error) {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("unable to start transaction err: %w", err)
+		return 0, fmt.Errorf(txStartFailed, err)
 	}
 	defer func() {
 		commitTransaction(ctx, tx, db.logger)
@@ -204,14 +210,14 @@ func (db *DB) SetFloat64Value(ctx context.Context, key string, value float64) (f
 
 		val, err := retryQueryRowFloat64(ctx, tx, q, key, value)
 		if err != nil {
-			return 0, fmt.Errorf("query %s \n\n execute error: %w", q, err)
+			return 0, fmt.Errorf(execQuerryError, q, err)
 		}
 		return val, nil
 	}()
 
 	if err != nil {
 		if err = retryRollback(ctx, tx); err != nil {
-			return 0, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+			return 0, fmt.Errorf(txRollbackFailed, err)
 		}
 		return 0, err
 	}
@@ -225,7 +231,7 @@ func (db *DB) BatchSetFloat64Value(ctx context.Context,
 
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
-		return nil, errs, fmt.Errorf("unable to start transaction err: %w", err)
+		return nil, errs, fmt.Errorf(txStartFailed, err)
 	}
 	defer func() {
 		commitTransaction(ctx, tx, db.logger)
@@ -254,24 +260,24 @@ func (db *DB) BatchSetFloat64Value(ctx context.Context,
 		for i := 0; i < len(gauges); i++ {
 			id, val, err := retryBatchResultQueryRowFloat64(ctx, results)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("metric %s update error", idMap[i]))
+				errs = append(errs, fmt.Errorf("metric float64 %s update error", idMap[i]))
 			}
 
 			updated[id] = val
 		}
 
 		if err = results.Close(); err != nil {
-			return nil, errs, fmt.Errorf("batch update err: %w", err)
+			return nil, errs, fmt.Errorf("batch float64 update err: %w", err)
 		}
 
-		return updated, errs, err
+		return updated, errs, fmt.Errorf("batch update err: %w", err)
 	}()
 
 	if err != nil {
 		if err = retryRollback(ctx, tx); err != nil {
-			return nil, nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+			return nil, nil, fmt.Errorf(txRollbackFailed, err)
 		}
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("tx rollbacked, batch float64 update err: %w", err)
 	}
 
 	return updated, errs, nil
@@ -283,7 +289,7 @@ func (db *DB) BatchAddInt64Value(ctx context.Context,
 
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
-		return nil, errs, fmt.Errorf("unable to start transaction err: %w", err)
+		return nil, errs, fmt.Errorf(txStartFailed, err)
 	}
 	defer func() {
 		commitTransaction(ctx, tx, db.logger)
@@ -312,13 +318,13 @@ func (db *DB) BatchAddInt64Value(ctx context.Context,
 		for i := 0; i < len(counters); i++ {
 			id, val, err := retryBatchResultQueryRowInt64(ctx, results)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("metric %s update error", idMap[i]))
+				errs = append(errs, fmt.Errorf("metric int64 %s update error", idMap[i]))
 			}
 
 			updated[id] = val
 		}
 		if err = results.Close(); err != nil {
-			return nil, errs, fmt.Errorf("batch update err: %w", err)
+			return nil, errs, fmt.Errorf("batch int64 update err: %w", err)
 		}
 
 		return updated, errs, nil
@@ -326,9 +332,9 @@ func (db *DB) BatchAddInt64Value(ctx context.Context,
 
 	if err != nil {
 		if err := retryRollback(ctx, tx); err != nil {
-			return nil, nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+			return nil, nil, fmt.Errorf(txRollbackFailed, err)
 		}
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("tx rollbacked, batch int64 update err: %w", err)
 	}
 
 	return updated, errs, nil
@@ -337,7 +343,7 @@ func (db *DB) BatchAddInt64Value(ctx context.Context,
 func (db *DB) getAllDataInt64(ctx context.Context) (map[string]int64, error) {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to start transaction err: %w", err)
+		return nil, fmt.Errorf(txStartFailed, err)
 	}
 	defer func() {
 		commitTransaction(ctx, tx, db.logger)
@@ -347,7 +353,7 @@ func (db *DB) getAllDataInt64(ctx context.Context) (map[string]int64, error) {
 		q := `SELECT id, value FROM counters;`
 		r, err := retryQuery(ctx, tx, q)
 		if err != nil {
-			return nil, fmt.Errorf("query %s \n\n execute error: %w", q, err)
+			return nil, fmt.Errorf(execQuerryError, q, err)
 		}
 
 		defer r.Close()
@@ -374,9 +380,9 @@ func (db *DB) getAllDataInt64(ctx context.Context) (map[string]int64, error) {
 
 	if err != nil {
 		if err = retryRollback(ctx, tx); err != nil {
-			return nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+			return nil, fmt.Errorf(txRollbackFailed, err)
 		}
-		return nil, err
+		return nil, fmt.Errorf("tx rollbacked, get all int64 err: %w", err)
 	}
 
 	return dataInt64, nil
@@ -385,7 +391,7 @@ func (db *DB) getAllDataInt64(ctx context.Context) (map[string]int64, error) {
 func (db *DB) getAllDataFloat64(ctx context.Context) (map[string]float64, error) {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to start transaction err: %w", err)
+		return nil, fmt.Errorf(txStartFailed, err)
 	}
 	defer func() {
 		commitTransaction(ctx, tx, db.logger)
@@ -395,7 +401,7 @@ func (db *DB) getAllDataFloat64(ctx context.Context) (map[string]float64, error)
 		q := `SELECT id, delta FROM gauges;`
 		r, err := retryQuery(ctx, tx, q)
 		if err != nil {
-			return nil, fmt.Errorf("query %s \n\n execute error: %w", q, err)
+			return nil, fmt.Errorf(execQuerryError, q, err)
 		}
 		defer r.Close()
 
@@ -406,14 +412,14 @@ func (db *DB) getAllDataFloat64(ctx context.Context) (map[string]float64, error)
 
 			err = r.Scan(&id, &value)
 			if err != nil {
-				return nil, fmt.Errorf("get all int64 data err: %w", err)
+				return nil, fmt.Errorf("get all float64 data err: %w", err)
 			}
 
 			dataFloat64[id] = value
 		}
 
 		if r.Err() != nil {
-			return nil, fmt.Errorf("get all int64 data iteration err: %w", err)
+			return nil, fmt.Errorf("get all float64 data iteration err: %w", err)
 		}
 
 		return dataFloat64, nil
@@ -421,9 +427,9 @@ func (db *DB) getAllDataFloat64(ctx context.Context) (map[string]float64, error)
 
 	if err != nil {
 		if err = retryRollback(ctx, tx); err != nil {
-			return nil, fmt.Errorf("transaction cannot be rolled back err: %w", err)
+			return nil, fmt.Errorf(txRollbackFailed, err)
 		}
-		return nil, err
+		return nil, fmt.Errorf("tx rollbacked, get all float64 err: %w", err)
 	}
 
 	return dataFloat64, nil
@@ -431,6 +437,7 @@ func (db *DB) getAllDataFloat64(ctx context.Context) (map[string]float64, error)
 
 func (db *DB) GetDataList(ctx context.Context) ([]string, error) {
 	var list []string
+	const metricTemplate = "%s %s"
 
 	AllDataFloat64, err := db.getAllDataFloat64(ctx)
 	if err != nil {
@@ -439,7 +446,7 @@ func (db *DB) GetDataList(ctx context.Context) ([]string, error) {
 
 	for k, v := range AllDataFloat64 {
 		fv := strconv.FormatFloat(v, 'G', 12, 64)
-		list = append(list, fmt.Sprintf("%s %s", k, fv))
+		list = append(list, fmt.Sprintf(metricTemplate, k, fv))
 	}
 
 	AllDataInt64, err := db.getAllDataInt64(ctx)
@@ -449,7 +456,7 @@ func (db *DB) GetDataList(ctx context.Context) ([]string, error) {
 
 	for k, v := range AllDataInt64 {
 		iv := strconv.FormatInt(v, 10)
-		list = append(list, fmt.Sprintf("%s %s", k, iv))
+		list = append(list, fmt.Sprintf(metricTemplate, k, iv))
 	}
 
 	return list, nil
@@ -467,11 +474,13 @@ func (db *DB) Ping(ctx context.Context) error {
 	return nil
 }
 
-func retryExec(ctx context.Context, tx pgx.Tx, sql string, arguments ...any) error {
+func retryExec(ctx context.Context, tx pgx.Tx, sql string) error {
 	if err := retry.Do(
 		func() error {
-			_, err := tx.Exec(ctx, sql)
-			return err
+			if _, err := tx.Exec(ctx, sql); err != nil {
+				return fmt.Errorf("exec querry was failed, err: %w", err)
+			}
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {
@@ -488,7 +497,10 @@ func retryRollback(ctx context.Context, tx pgx.Tx) error {
 			if errors.Is(err, pgx.ErrTxClosed) {
 				return nil
 			}
-			return err
+			if err != nil {
+				return fmt.Errorf("tx rollback was failed, err: %w", err)
+			}
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {
@@ -505,7 +517,10 @@ func retryCommit(ctx context.Context, tx pgx.Tx) error {
 			if errors.Is(err, pgx.ErrTxClosed) {
 				return nil
 			}
-			return err
+			if err != nil {
+				return fmt.Errorf("tx commit was failed, err: %w", err)
+			}
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {
@@ -520,7 +535,10 @@ func retryQueryRowInt64(ctx context.Context, tx pgx.Tx, sql string, args ...any)
 	if err := retry.Do(
 		func() error {
 			row := tx.QueryRow(ctx, sql, args...)
-			return row.Scan(&val)
+			if err := row.Scan(&val); err != nil {
+				return fmt.Errorf("error scan row int64, err: %w", err)
+			}
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {
@@ -535,7 +553,10 @@ func retryQueryRowFloat64(ctx context.Context, tx pgx.Tx, sql string, args ...an
 	if err := retry.Do(
 		func() error {
 			row := tx.QueryRow(ctx, sql, args...)
-			return row.Scan(&val)
+			if err := row.Scan(&val); err != nil {
+				return fmt.Errorf("error scan row float64, err: %w", err)
+			}
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {
@@ -551,13 +572,13 @@ func retryBatchResultQueryRowFloat64(ctx context.Context, results pgx.BatchResul
 
 	if err := retry.Do(
 		func() error {
-			err := results.QueryRow().Scan(&id, &val)
-			if err != nil {
-				if err != pgx.ErrNoRows {
-					return fmt.Errorf("getting results gauge err: %w", err)
+			if err := results.QueryRow().Scan(&id, &val); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return nil
 				}
+				return fmt.Errorf("getting results gauge err: %w", err)
 			}
-			return err
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {
@@ -573,13 +594,13 @@ func retryBatchResultQueryRowInt64(ctx context.Context, results pgx.BatchResults
 
 	if err := retry.Do(
 		func() error {
-			err := results.QueryRow().Scan(&id, &val)
-			if err != nil {
-				if err != pgx.ErrNoRows {
-					return fmt.Errorf("getting results gauge err: %w", err)
+			if err := results.QueryRow().Scan(&id, &val); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return nil
 				}
+				return fmt.Errorf("getting results counter err: %w", err)
 			}
-			return err
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {
@@ -589,14 +610,17 @@ func retryBatchResultQueryRowInt64(ctx context.Context, results pgx.BatchResults
 	return id, val, nil
 }
 
-func retryQuery(ctx context.Context, tx pgx.Tx, sql string, args ...any) (pgx.Rows, error) {
+func retryQuery(ctx context.Context, tx pgx.Tx, sql string) (pgx.Rows, error) {
 	var rows pgx.Rows
 	var err error
 
 	if err = retry.Do(
 		func() error {
 			rows, err = tx.Query(ctx, sql)
-			return err
+			if err != nil {
+				return fmt.Errorf("tx query err: %w", err)
+			}
+			return nil
 		},
 		retryOptions(ctx)...,
 	); err != nil {

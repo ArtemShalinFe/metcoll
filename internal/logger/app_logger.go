@@ -25,7 +25,6 @@ func NewMiddlewareLogger(l *zap.SugaredLogger) (*MiddlewareLogger, error) {
 // RequestLogger - middleware for saving incoming requests and responses to them.
 func (l *MiddlewareLogger) RequestLogger(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		rw := NewResponseLoggerWriter(w)
 		var buf bytes.Buffer
 		tee := io.TeeReader(r.Body, &buf)

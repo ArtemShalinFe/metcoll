@@ -560,7 +560,7 @@ func TestDB_AddInt64Value(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(iq).WithArgs("counterTwo", int64(1)).
-		WillReturnError(errors.New("some insert errors"))
+		WillReturnError(errors.New("insert errors"))
 	mock.ExpectCommit()
 
 	mock.ExpectBegin()
@@ -767,6 +767,111 @@ func TestDB_SetFloat64Value(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("DB.SetFloat64Value() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestDB_Ping(t *testing.T) {
+	ctx := context.Background()
+
+	mock, err := pgxmock.NewPool(pgxmock.MonitorPingsOption(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+
+	mock.ExpectPing()
+	mock.ExpectPing().WillReturnError(errors.New("ping error"))
+
+	type fields struct {
+		pool   PgxIface
+		logger *zap.SugaredLogger
+	}
+	tests := []struct {
+		fields  fields
+		name    string
+		wantErr bool
+	}{
+		{
+			name: "begin fail case",
+			fields: fields{
+				pool:   mock,
+				logger: zap.L().Sugar(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "positive case",
+			fields: fields{
+				pool:   mock,
+				logger: zap.L().Sugar(),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			db := &DB{
+				pool:   tt.fields.pool,
+				logger: tt.fields.logger,
+			}
+			err := db.Ping(ctx)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("DB.Ping() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+		})
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestDB_Interrupt(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+
+	mock.ExpectClose()
+
+	type fields struct {
+		pool   PgxIface
+		logger *zap.SugaredLogger
+	}
+	tests := []struct {
+		fields  fields
+		name    string
+		wantErr bool
+	}{
+		{
+			name: "begin fail case",
+			fields: fields{
+				pool:   mock,
+				logger: zap.L().Sugar(),
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			db := &DB{
+				pool:   tt.fields.pool,
+				logger: tt.fields.logger,
+			}
+			err := db.Interrupt()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("DB.Interrupt() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
 		})
 	}

@@ -8,20 +8,75 @@ import (
 	"io"
 	"net/http"
 
+	"go.uber.org/zap"
+
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
+	"github.com/ArtemShalinFe/metcoll/internal/crypto"
 )
 
 type Server struct {
 	*http.Server
-	hashkey []byte
+	log        *zap.SugaredLogger
+	privateKey []byte
+	hashkey    []byte
 }
 
 // NewServer - Object Constructor.
-func NewServer(cfg *configuration.Config) *Server {
+func NewServer(cfg *configuration.Config, logger *zap.SugaredLogger) (*Server, error) {
 	s := http.Server{
 		Addr: cfg.Address,
 	}
-	return &Server{&s, cfg.Key}
+
+	var privateKey []byte
+	if cfg.PrivateCryptoKey != "" {
+		privateCryptoKey, err := crypto.GetKeyBytes(cfg.PrivateCryptoKey)
+		if err != nil {
+			return nil, fmt.Errorf("an occured error when server getting key bytes, err: %w", err)
+		}
+		privateKey = privateCryptoKey
+	}
+
+	return &Server{
+		&s,
+		logger,
+		privateKey,
+		cfg.Key,
+	}, nil
+}
+
+func (s *Server) CryptoDecrypter(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if len(s.privateKey) == 0 {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		var cryptBuf bytes.Buffer
+		tee := io.TeeReader(r.Body, &cryptBuf)
+		body, err := io.ReadAll(tee)
+		if err != nil {
+			s.log.Errorf("an occured error when reading body err: %w", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		decrypted, err := crypto.Decrypt(s.privateKey, body)
+		if err != nil {
+			s.log.Errorf("an occured error when decrypt body err: %w", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		var decryptBuf bytes.Buffer
+		_, err = decryptBuf.Write(decrypted)
+		if err != nil {
+			s.log.Errorf("an occured error when write decrypted body err: %w", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		r.Body = io.NopCloser(&decryptBuf)
+	})
 }
 
 // RequestHashChecker - middleware checks the hash in the incoming request.
@@ -33,7 +88,7 @@ func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
 		}
 
 		// for ya-autotests.
-		bodyHash := r.Header.Get("HashSHA256")
+		bodyHash := r.Header.Get(HashSHA256)
 		if bodyHash == "" {
 			h.ServeHTTP(w, r)
 			return
@@ -43,17 +98,17 @@ func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
 		tee := io.TeeReader(r.Body, &buf)
 		body, err := io.ReadAll(tee)
 		if err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		r.Body = io.NopCloser(&buf)
 
-		hash := hmac.New(sha256.New, []byte(s.hashkey))
+		hash := hmac.New(sha256.New, s.hashkey)
 		hash.Write(body)
 
 		sign := hash.Sum(nil)
 
-		if fmt.Sprintf("%x", sign) == bodyHash {
+		if hashBytesToString(hash, sign) == bodyHash {
 			h.ServeHTTP(w, r)
 		} else {
 			http.Error(w, "incorrect hash", http.StatusBadRequest)
@@ -93,7 +148,12 @@ func (r *ResponseHashWriter) Write(b []byte) (int, error) {
 	hash := hmac.New(sha256.New, r.hashkey)
 	hash.Write(b)
 
-	r.ResponseWriter.Header().Set("HashSHA256", fmt.Sprintf("%x", hash.Sum(nil)))
+	r.ResponseWriter.Header().Set(HashSHA256, hashBytesToString(hash, nil))
 
-	return r.ResponseWriter.Write(b)
+	n, err := r.ResponseWriter.Write(b)
+	if err != nil {
+		return 0, fmt.Errorf("response write was faild, err: %w", err)
+	}
+
+	return n, nil
 }

@@ -3,6 +3,7 @@ package stats
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"sync"
 	"time"
@@ -155,7 +156,7 @@ func (s *Stats) GetFloat64Value(ctx context.Context, id string) (float64, error)
 	case BuckHashSys:
 		return float64(s.memStats.BuckHashSys), nil
 	case GCCPUFraction:
-		return float64(s.memStats.GCCPUFraction), nil
+		return s.memStats.GCCPUFraction, nil
 	case HeapAlloc:
 		return float64(s.memStats.HeapAlloc), nil
 	case GCSys:
@@ -213,17 +214,17 @@ func (s *Stats) GetFloat64Value(ctx context.Context, id string) (float64, error)
 	case FreeMemory:
 		vm, err := mem.VirtualMemory()
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("returns VirtualmemoryStat was failed, err: %w", err)
 		}
 		return float64(vm.Free), nil
 	case CPUutilization1:
 		c, err := cpu.Info()
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("returns cpu info was failed, err: %w", err)
 		}
 
 		if len(c) > 0 {
-			return float64(c[0].Mhz), nil
+			return c[0].Mhz, nil
 		} else {
 			return 0, nil
 		}

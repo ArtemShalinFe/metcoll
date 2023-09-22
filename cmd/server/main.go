@@ -5,11 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"go.uber.org/zap"
@@ -33,12 +33,16 @@ const (
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatal(err)
+		zap.S().Fatalf("an occured fatal err: %w", err)
 	}
 }
 
 func run() error {
-	ctx, cancelCtx := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancelCtx := signal.NotifyContext(context.Background(),
+		os.Interrupt,
+		os.Kill,
+		syscall.SIGQUIT)
+
 	defer cancelCtx()
 
 	zl, err := zap.NewProduction()
@@ -94,13 +98,17 @@ func run() error {
 	}(componentsErrs)
 
 	l.Info("attempt to launch at address: ", cfg.Address)
-	s := metcoll.NewServer(cfg)
+	s, err := metcoll.NewServer(cfg, sl)
+	if err != nil {
+		componentsErrs <- fmt.Errorf("cannot init metcollserver, err: %w", err)
+	}
 	s.Handler = handlers.NewRouter(ctx,
 		handlers.NewHandler(stg, l.SugaredLogger),
 		l.RequestLogger,
 		s.RequestHashChecker,
 		s.ResponceHashSetter,
-		compress.CompressMiddleware)
+		compress.CompressMiddleware,
+		s.CryptoDecrypter)
 
 	// GS server.
 	go func(errs chan<- error) {

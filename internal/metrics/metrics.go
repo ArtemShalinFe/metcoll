@@ -60,13 +60,13 @@ func NewMetric(id string, mType string, value string) (*Metrics, error) {
 	case GaugeMetric:
 		parsedValue, err := strconv.ParseFloat(value, 64)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("an occured error when parse float for metric: %w", err)
 		}
 		return NewGaugeMetric(id, parsedValue), nil
 	case CounterMetric:
 		parsedValue, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("an occured error when parse int for metric, err: %w", err)
 		}
 		return NewCounterMetric(id, parsedValue), nil
 	default:
