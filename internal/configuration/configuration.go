@@ -164,7 +164,7 @@ func readConfigFromCL() *Config {
 	flag.StringVar(&c.Database, "d", "", "database connection")
 	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key for check agent request hash")
 	flag.StringVar(&c.PrivateCryptoKey, cryptoKeyFlagName, defaultCryptoKeyPath, "path to privatekey.pem")
-	flag.StringVar(&c.TrustedSubnet, trustedSubnetFlagName, defaultTrustedSubnet, "path to privatekey.pem")
+	flag.StringVar(&c.TrustedSubnet, trustedSubnetFlagName, defaultTrustedSubnet, "trusted subnet, example 192.168.31.1")
 
 	flag.Parse()
 

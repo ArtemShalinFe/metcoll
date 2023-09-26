@@ -82,12 +82,26 @@ func TestEncryptDecrypt(t *testing.T) {
 			wantEncryptErr: true,
 			wantDecryptErr: true,
 		},
+		{
+			name: "#4",
+			args: args{
+				publicKey:  newTempFile(t),
+				privateKey: "priv.pem",
+				msg:        []byte(""),
+			},
+			wantErr:        true,
+			wantEncryptErr: true,
+			wantDecryptErr: true,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			gotPrivate, err := GetKeyBytes(tt.args.privateKey)
 			if (err != nil) != tt.wantErr {
+				if gotPrivate == nil {
+					return
+				}
 				t.Errorf("private key GetKeyBytes() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
@@ -95,6 +109,9 @@ func TestEncryptDecrypt(t *testing.T) {
 
 			gotPublic, err := GetKeyBytes(tt.args.publicKey)
 			if (err != nil) != tt.wantErr {
+				if gotPublic == nil {
+					return
+				}
 				t.Errorf("public key GetKeyBytes() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
