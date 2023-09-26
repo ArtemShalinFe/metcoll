@@ -21,6 +21,9 @@ const (
 	defaultPrivateCryptoKeyPath = ""
 
 	envHashKey = "KEY"
+
+	trustedSubnetFlagName = "t"
+	defaultTrustedSubnet  = ""
 )
 
 func newConfig() *Config {
@@ -40,8 +43,9 @@ type Config struct {
 	Path             string `env:"CONFIG"`
 	PrivateCryptoKey string `env:"CRYPTO_KEY" json:"crypto_key"`
 	Key              []byte
-	StoreInterval    int  `env:"STORE_INTERVAL" json:"store_interval"`
-	Restore          bool `env:"RESTORE" json:"restore"`
+	StoreInterval    int    `env:"STORE_INTERVAL" json:"store_interval"`
+	Restore          bool   `env:"RESTORE" json:"restore"`
+	TrustedSubnet    string `env:"TRUSTED_SUBNET" json:"trusted_subnet"`
 }
 
 // Parse - return parsed config.
@@ -124,6 +128,9 @@ func (c *Config) setFromConfigs(configCL, configENV, configFile *Config, path st
 	c.PrivateCryptoKey = getConfigVar(
 		configCL.PrivateCryptoKey, configENV.PrivateCryptoKey, configFile.PrivateCryptoKey, defaultPrivateCryptoKeyPath, "")
 
+	c.TrustedSubnet = getConfigVar(
+		configCL.TrustedSubnet, configENV.TrustedSubnet, configFile.TrustedSubnet, defaultTrustedSubnet, "")
+
 	c.Path = path
 }
 
@@ -157,6 +164,7 @@ func readConfigFromCL() *Config {
 	flag.StringVar(&c.Database, "d", "", "database connection")
 	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key for check agent request hash")
 	flag.StringVar(&c.PrivateCryptoKey, cryptoKeyFlagName, defaultCryptoKeyPath, "path to privatekey.pem")
+	flag.StringVar(&c.TrustedSubnet, trustedSubnetFlagName, defaultTrustedSubnet, "path to privatekey.pem")
 
 	flag.Parse()
 

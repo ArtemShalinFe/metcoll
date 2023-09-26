@@ -6,7 +6,9 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -16,9 +18,10 @@ import (
 
 type Server struct {
 	*http.Server
-	log        *zap.SugaredLogger
-	privateKey []byte
-	hashkey    []byte
+	log           *zap.SugaredLogger
+	privateKey    []byte
+	hashkey       []byte
+	TrustedSubnet *net.IPNet
 }
 
 // NewServer - Object Constructor.
@@ -41,9 +44,42 @@ func NewServer(cfg *configuration.Config, logger *zap.SugaredLogger) (*Server, e
 		logger,
 		privateKey,
 		cfg.Key,
+		parseTrustedSubnet(cfg.TrustedSubnet),
 	}, nil
 }
 
+// CryptoDecrypter - middleware decrypt the incoming request.
+func (s *Server) IPResolver(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.TrustedSubnet == nil {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		ipStr := strings.TrimSpace(r.Header.Get("X-Real-IP"))
+		if strings.TrimSpace(ipStr) == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			s.log.Info("header X-Real-IP is empty")
+			return
+		}
+
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			s.log.Info("failed parse ip from http header")
+			return
+		}
+
+		if !s.TrustedSubnet.Contains(ip) {
+			w.WriteHeader(http.StatusForbidden)
+			s.log.Info("Trusted network does not contain the ip address value from the 'X-Real-IP' header")
+			return
+		}
+
+	})
+}
+
+// CryptoDecrypter - middleware decrypt the incoming request.
 func (s *Server) CryptoDecrypter(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(s.privateKey) == 0 {
@@ -156,4 +192,25 @@ func (r *ResponseHashWriter) Write(b []byte) (int, error) {
 	}
 
 	return n, nil
+}
+
+func parseTrustedSubnet(trustedSubnet string) *net.IPNet {
+	if trustedSubnet == "" {
+		return nil
+	}
+
+	ip := net.ParseIP(trustedSubnet)
+	if ip == nil {
+		return nil
+	}
+	mask := ip.DefaultMask()
+	if mask == nil {
+		return nil
+	}
+	tn := &net.IPNet{
+		IP:   ip,
+		Mask: mask,
+	}
+
+	return tn
 }

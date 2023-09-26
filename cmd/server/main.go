@@ -104,6 +104,7 @@ func run() error {
 	}
 	s.Handler = handlers.NewRouter(ctx,
 		handlers.NewHandler(stg, l.SugaredLogger),
+		s.IPResolver,
 		l.RequestLogger,
 		s.RequestHashChecker,
 		s.ResponceHashSetter,

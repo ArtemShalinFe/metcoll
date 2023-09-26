@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"syscall"
@@ -27,6 +28,7 @@ import (
 // Client - sends requests for metric updates to the server.
 type Client struct {
 	host       string
+	clientIP   string
 	httpClient *retryablehttp.Client
 	logger     retryablehttp.LeveledLogger
 	publicKey  []byte
@@ -66,6 +68,7 @@ func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogge
 		logger:     logger,
 		hashkey:    cfg.Key,
 		publicKey:  publicKey,
+		clientIP:   localIP(),
 	}
 
 	return c, nil
@@ -120,6 +123,8 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
+	req.Header.Set("X-Real-IP", c.clientIP)
+
 	if len(c.hashkey) != 0 {
 		data, err := req.BodyBytes()
 		if err != nil {
@@ -134,6 +139,22 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 	}
 
 	return req, nil
+}
+
+// GetLocalIP returns the non loopback local IP of the host
+func localIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, address := range addrs {
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return ""
 }
 
 func (c *Client) batchUpdate(ctx context.Context, metrics []*metrics.Metrics) error {
