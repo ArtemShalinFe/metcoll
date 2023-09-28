@@ -41,9 +41,10 @@ type ConfigAgent struct {
 	Path            string `env:"CONFIG"`
 	PublicCryptoKey string `env:"CRYPTO_KEY" json:"crypto_key"`
 	Key             []byte
-	PollInterval    int `env:"POLL_INTERVAL" json:"poll_interval,omitempty"`
-	ReportInterval  int `env:"REPORT_INTERVAL" json:"report_interval,omitempty"`
-	Limit           int `env:"RATE_LIMIT"`
+	PollInterval    int  `env:"POLL_INTERVAL" json:"poll_interval,omitempty"`
+	ReportInterval  int  `env:"REPORT_INTERVAL" json:"report_interval,omitempty"`
+	Limit           int  `env:"RATE_LIMIT"`
+	UseProtobuff    bool `env:"USE_PROTOBUFF" json:"use_protobuff"`
 }
 
 func newConfigAgent() *ConfigAgent {
@@ -98,6 +99,9 @@ func (c *ConfigAgent) setFromConfigs(configCL, configENV, configFile *ConfigAgen
 	c.PublicCryptoKey = getConfigVar(
 		configCL.PublicCryptoKey, configENV.PublicCryptoKey, configFile.PublicCryptoKey, defaultCryptoKeyPath, "")
 
+	c.UseProtobuff = getConfigVar(
+		configCL.UseProtobuff, configENV.UseProtobuff, configFile.UseProtobuff, defaultUseProtobuff, false)
+
 	c.Path = path
 }
 
@@ -107,6 +111,7 @@ func (c *ConfigAgent) UnmarshalJSON(data []byte) error {
 		Server         string `json:"address,omitempty"`
 		PollInterval   string `json:"poll_interval,omitempty"`
 		ReportInterval string `json:"report_interval,omitempty"`
+		UseProtobuff   bool   `json:"use_protobuff"`
 	}
 
 	var v ConfigAgentJSON
@@ -126,6 +131,7 @@ func (c *ConfigAgent) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("cannot parse report interval duration err: %w", err)
 	}
 	c.ReportInterval = int(ri.Seconds())
+	c.UseProtobuff = v.UseProtobuff
 
 	return nil
 }
@@ -165,6 +171,7 @@ func readConfigAgentFromCL() *ConfigAgent {
 	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key for setting up request hash")
 	flag.IntVar(&c.Limit, limitFlagName, defaultLimit, "worker limit")
 	flag.StringVar(&c.PublicCryptoKey, cryptoKeyFlagName, defaultCryptoKeyPath, "path to publickey.pem")
+	flag.BoolVar(&c.UseProtobuff, useProtobuffFlagName, defaultUseProtobuff, "use protobuf instead of http protocol")
 
 	flag.Parse()
 

@@ -19,6 +19,7 @@ func TestConfig_String(t *testing.T) {
 		Key             []byte
 		StoreInterval   int
 		Restore         bool
+		UseProtobuff    bool
 	}
 	tests := []struct {
 		name   string
@@ -34,8 +35,9 @@ func TestConfig_String(t *testing.T) {
 				Database:        "somedsn",
 				StoreInterval:   1,
 				Restore:         false,
+				UseProtobuff:    true,
 			},
-			want: "Addres: nope, StoreInterval: 1, Restore: false, DSN: somedsn, FS path: test, Path: ",
+			want: "Addres: nope, StoreInterval: 1, Restore: false, DSN: somedsn, FS path: test, Config: , Protobuff: true",
 		},
 	}
 	for _, tt := range tests {
@@ -47,6 +49,7 @@ func TestConfig_String(t *testing.T) {
 				Key:             tt.fields.Key,
 				StoreInterval:   tt.fields.StoreInterval,
 				Restore:         tt.fields.Restore,
+				UseProtobuff:    tt.fields.UseProtobuff,
 			}
 			if got := c.String(); got != tt.want {
 				t.Errorf("Config.String() = %v, want %v", got, tt.want)
@@ -187,7 +190,7 @@ func TestConfig_setFromConfigs(t *testing.T) {
 		Key:             []byte(defaultHashKey),
 		StoreInterval:   defaultStoreInterval,
 		Restore:         fc.Restore,
-		Path:            "",
+		ConfigFile:      "",
 	}
 
 	type args struct {

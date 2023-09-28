@@ -19,9 +19,11 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"go.uber.org/zap"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/crypto"
+	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 )
 
@@ -30,7 +32,7 @@ type Client struct {
 	host       string
 	clientIP   string
 	httpClient *retryablehttp.Client
-	logger     retryablehttp.LeveledLogger
+	sl         *zap.SugaredLogger
 	publicKey  []byte
 	hashkey    []byte
 }
@@ -39,8 +41,13 @@ const (
 	HashSHA256 = "HashSHA256"
 )
 
-// NewClient - Object constructor.
-func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogger) (*Client, error) {
+// NewHTTPClient - Object constructor.
+func NewHTTPClient(cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (*Client, error) {
+	rl, err := logger.NewRLLogger(sl)
+	if err != nil {
+		return nil, fmt.Errorf("cannot init retry logger err: %w", err)
+	}
+
 	const defautMaxRetry = 3
 	const defautMinWaitRetry = 3 * time.Second
 	const defautMaxWaitRetry = 5 * time.Second
@@ -50,7 +57,7 @@ func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogge
 	retryClient.CheckRetry = checkRetry
 	retryClient.RetryWaitMin = defautMinWaitRetry
 	retryClient.RetryWaitMax = defautMaxWaitRetry
-	retryClient.Logger = logger
+	retryClient.Logger = rl
 	retryClient.Backoff = backoff
 
 	var publicKey []byte
@@ -65,7 +72,7 @@ func NewClient(cfg *configuration.ConfigAgent, logger retryablehttp.LeveledLogge
 	c := &Client{
 		host:       cfg.Server,
 		httpClient: retryClient,
-		logger:     logger,
+		sl:         sl,
 		hashkey:    cfg.Key,
 		publicKey:  publicKey,
 		clientIP:   localIP(),
@@ -191,7 +198,7 @@ func (c *Client) doRequest(req *retryablehttp.Request) error {
 
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			c.logger.Error("an error occured while body closing err: %v", err)
+			c.sl.Error("an error occured while body closing err: %v", err)
 		}
 	}()
 
@@ -201,10 +208,10 @@ func (c *Client) doRequest(req *retryablehttp.Request) error {
 	}
 
 	if resp.StatusCode < http.StatusMultipleChoices {
-		c.logger.Info(`request for update metric has been completed
+		c.sl.Info(`request for update metric has been completed
 	code: %d, hash: %s`, resp.StatusCode, resp.Header.Get(HashSHA256))
 	} else {
-		c.logger.Error(`request for update metric has failed
+		c.sl.Error(`request for update metric has failed
 	code: %d
 	result: %s`, resp.StatusCode, string(res))
 	}
@@ -224,12 +231,12 @@ func (c *Client) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Me
 		if err := c.batchUpdate(ctx, m); err != nil {
 			result <- err
 		}
-	}
 
-	select {
-	case <-ctx.Done():
-		return
-	default:
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 	}
 }
 

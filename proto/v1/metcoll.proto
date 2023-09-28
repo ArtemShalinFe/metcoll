@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package metcoll;
+
+option go_package = "metcoll/proto/v1";
+
+message Metric {
+  string ID = 1;
+  MetricType MType = 2;
+  int64 delta = 3;
+  double value = 4;
+
+  enum MetricType {
+    UNKNOWN = 0;
+    COUNTER = 1;
+    GAUGE = 2;
+  }
+}
+
+message UpdateRequest {
+  Metric metric = 1;
+}
+
+message BatchUpdateRequest {
+  repeated Metric metrics = 1;
+}
+
+message BatchUpdateResponse {
+  string error = 1;
+}
+
+message UpdateResponse {
+  string error = 1;
+}
+
+service Metcoll {
+  rpc Updates(BatchUpdateRequest) returns (BatchUpdateResponse);
+  rpc Update(UpdateRequest) returns (UpdateResponse);
+}
