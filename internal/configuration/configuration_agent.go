@@ -102,6 +102,9 @@ func (c *ConfigAgent) setFromConfigs(configCL, configENV, configFile *ConfigAgen
 	c.UseProtobuff = getConfigVar(
 		configCL.UseProtobuff, configENV.UseProtobuff, configFile.UseProtobuff, defaultUseProtobuff, false)
 
+	c.Key = getConfigByteVar(
+		configCL.Key, configENV.Key, configFile.Key)
+
 	c.Path = path
 }
 
@@ -112,6 +115,7 @@ func (c *ConfigAgent) UnmarshalJSON(data []byte) error {
 		PollInterval   string `json:"poll_interval,omitempty"`
 		ReportInterval string `json:"report_interval,omitempty"`
 		UseProtobuff   bool   `json:"use_protobuff"`
+		HashKey        string `json:"hashkey"`
 	}
 
 	var v ConfigAgentJSON
@@ -132,6 +136,7 @@ func (c *ConfigAgent) UnmarshalJSON(data []byte) error {
 	}
 	c.ReportInterval = int(ri.Seconds())
 	c.UseProtobuff = v.UseProtobuff
+	c.Key = []byte(v.HashKey)
 
 	return nil
 }
@@ -234,6 +239,29 @@ func getConfigVar[val comparable](varCL, varENV, varFile, def, empty val) val {
 
 	if varENV != empty && varENV != def {
 		v = varENV
+	}
+
+	return v
+}
+
+// getConfigByteVar - check len bytes variables received from
+// the application command line, environment variable, and configuration file.
+//
+// Environment variables have higher priority over command line variables and config file.
+// Command line variables have higher priority over variables from config file.
+func getConfigByteVar(varCL, varENV, varFile []byte) []byte {
+	var v []byte
+
+	if len(varENV) != 0 {
+		return varENV
+	}
+
+	if len(varCL) != 0 {
+		return varCL
+	}
+
+	if len(varFile) != 0 {
+		return varFile
 	}
 
 	return v

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"go.uber.org/zap"
+	_ "google.golang.org/grpc/encoding/gzip"
 
 	"github.com/ArtemShalinFe/metcoll/internal/compress"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
@@ -24,9 +25,9 @@ import (
 type HTTPServer struct {
 	httpServer    *http.Server
 	log           *zap.SugaredLogger
+	trustedSubnet *net.IPNet
 	privateKey    []byte
 	hashkey       []byte
-	TrustedSubnet *net.IPNet
 }
 
 // NewHTTPServer - Object Constructor.
@@ -52,9 +53,9 @@ func NewHTTPServer(ctx context.Context, stg Storage, cfg *configuration.Config, 
 	srv := &HTTPServer{
 		&s,
 		sl,
+		parseTrustedSubnet(cfg.TrustedSubnet),
 		privateKey,
 		cfg.Key,
-		parseTrustedSubnet(cfg.TrustedSubnet),
 	}
 
 	srv.httpServer.Handler = handlers.NewRouter(ctx,
@@ -62,7 +63,7 @@ func NewHTTPServer(ctx context.Context, stg Storage, cfg *configuration.Config, 
 		srv.resolverIP,
 		l.RequestLogger,
 		srv.requestHashChecker,
-		srv.responceHashSetter,
+		srv.responseHashSetter,
 		compress.CompressMiddleware,
 		srv.cryptoDecrypter)
 
@@ -88,7 +89,7 @@ func (s *HTTPServer) Shutdown(ctx context.Context) error {
 // IPResolver - middleware checks header X-Real-IP in the incoming request.
 func (s *HTTPServer) resolverIP(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.TrustedSubnet == nil {
+		if s.trustedSubnet == nil {
 			h.ServeHTTP(w, r)
 			return
 		}
@@ -107,12 +108,11 @@ func (s *HTTPServer) resolverIP(h http.Handler) http.Handler {
 			return
 		}
 
-		if !s.TrustedSubnet.Contains(ip) {
+		if !s.trustedSubnet.Contains(ip) {
 			w.WriteHeader(http.StatusForbidden)
-			s.log.Info("Trusted network does not contain the ip address value from the 'X-Real-IP' header")
+			s.log.Info("trusted network does not contain the ip address value from the 'X-Real-IP' header")
 			return
 		}
-
 	})
 }
 
@@ -191,7 +191,7 @@ func (s *HTTPServer) requestHashChecker(h http.Handler) http.Handler {
 }
 
 // ResponceHashSetter - middleware sets the hash in the server response.
-func (s *HTTPServer) responceHashSetter(h http.Handler) http.Handler {
+func (s *HTTPServer) responseHashSetter(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(s.hashkey) == 0 {
 			h.ServeHTTP(w, r)

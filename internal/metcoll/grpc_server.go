@@ -1,14 +1,25 @@
 package metcoll
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	_ "google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
@@ -104,19 +115,39 @@ func (ms *MetricService) convertMetric(pbm *pb.Metric) (*metrics.Metrics, error)
 }
 
 type GRPCServer struct {
-	grpcServer *grpc.Server
-	addr       string
-	ms         *MetricService
-	sl         *zap.SugaredLogger
+	grpcServer    *grpc.Server
+	addr          string
+	trustedSubnet *net.IPNet
+	ms            *MetricService
+	sl            *zap.SugaredLogger
+	hashkey       []byte
 }
 
 func NewGRPCServer(s Storage, cfg *configuration.Config, sl *zap.SugaredLogger) (*GRPCServer, error) {
-	return &GRPCServer{
-		grpcServer: grpc.NewServer(),
-		addr:       cfg.Address,
-		ms:         NewMetricService(s, sl),
-		sl:         sl,
-	}, nil
+	srv := &GRPCServer{
+		addr:          cfg.Address,
+		ms:            NewMetricService(s, sl),
+		sl:            sl,
+		trustedSubnet: parseTrustedSubnet(cfg.TrustedSubnet),
+		hashkey:       cfg.Key,
+	}
+
+	// Create the TLS credentials
+	creds, err := credentials.NewServerTLSFromFile(
+		"/Users/artem/Yandex.Disk.localized/Учеба/go-разработчик/metcoll/keys/cert.pem",
+		"/Users/artem/Yandex.Disk.localized/Учеба/go-разработчик/metcoll/keys/private.pem")
+	if err != nil {
+		return nil, fmt.Errorf("could not load TLS keys: %s", err)
+	}
+
+	opt := grpc.ChainUnaryInterceptor(
+		srv.requestLogger(sl),
+		srv.resolverIP(),
+		srv.hashChecker(),
+	)
+	srv.grpcServer = grpc.NewServer(grpc.Creds(creds), opt)
+
+	return srv, nil
 }
 
 func (s *GRPCServer) ListenAndServe() error {
@@ -136,4 +167,151 @@ func (s *GRPCServer) ListenAndServe() error {
 func (s *GRPCServer) Shutdown(ctx context.Context) error {
 	s.grpcServer.GracefulStop()
 	return nil
+}
+
+func (s *GRPCServer) requestLogger(sl *zap.SugaredLogger) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		start := time.Now()
+		resp, err := handler(ctx, req)
+		duration := time.Since(start)
+		if err != nil {
+			sl.Errorf("RPC request err: %v", err)
+		} else {
+			md, _ := metadata.FromIncomingContext(ctx)
+			size, err := responseSize(resp)
+			if err != nil {
+				sl.Errorf("grpc response size calculate, err:%w", err)
+			}
+			sl.Infof("RPC request method: %s, header: %v, body: %s, duration: %s, responseSize: %d",
+				info.FullMethod, md, req, duration, size,
+			)
+		}
+
+		return resp, nil
+	}
+}
+
+func (s *GRPCServer) resolverIP() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		if s.trustedSubnet == nil {
+			resp, err := handler(ctx, req)
+			if err != nil {
+				return nil, status.Errorf(codes.Unknown,
+					"handler in resolver ip interceptor was failed, err: %v", err)
+			}
+			return resp, nil
+		}
+
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			return nil, status.Error(codes.Aborted,
+				"'X-Real-IP' header is required")
+		}
+
+		ips := md.Get("X-Real-IP")
+		if len(ips) == 0 {
+			return nil, status.Error(codes.Aborted,
+				"'X-Real-IP' header not contain elemets")
+		}
+
+		ipStr := strings.TrimSpace(ips[0])
+		if strings.TrimSpace(ipStr) == "" {
+			return nil, status.Error(codes.Aborted,
+				"first element in 'X-Real-IP' header is empty")
+		}
+
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
+			return nil, status.Error(codes.Aborted,
+				"first element in 'X-Real-IP' header is not IP")
+		}
+
+		if !s.trustedSubnet.Contains(ip) {
+			return nil, status.Error(codes.Aborted,
+				"trusted network does not contain the first element in 'X-Real-IP' header")
+		}
+
+		resp, err := handler(ctx, req)
+		if err != nil {
+			return nil, status.Errorf(codes.Unknown,
+				"handler in resolver ip interceptor was failed, err: %v", err)
+		}
+		return resp, nil
+	}
+}
+
+func (s *GRPCServer) hashChecker() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		if len(s.hashkey) == 0 {
+			resp, err := handler(ctx, req)
+			if err != nil {
+				return nil, fmt.Errorf("unable to convert metrics to bytes, err: %w", err)
+			}
+			return resp, nil
+		}
+
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			return nil, status.Errorf(codes.Aborted,
+				"'%s' header is required", HashSHA256)
+		}
+
+		hashes := md.Get(HashSHA256)
+		if len(hashes) == 0 {
+			return nil, status.Errorf(codes.Aborted,
+				"request not contains values in header '%s'", HashSHA256)
+		}
+
+		hash := strings.TrimSpace(hashes[0])
+		if strings.TrimSpace(hash) == "" {
+			return nil, status.Errorf(codes.Aborted,
+				"first element in '%s' header is empty", HashSHA256)
+		}
+
+		bup, ok := req.(*pb.BatchUpdateRequest)
+		if !ok {
+			return nil, status.Errorf(codes.Aborted, "bad request")
+		}
+
+		b, err := convertToBytes(bup.Metrics)
+		if err != nil {
+			return nil, fmt.Errorf("unable to convert metrics to bytes, err: %w", err)
+		}
+		h := hmac.New(sha256.New, s.hashkey)
+		h.Write(b)
+
+		correctHash := hashBytesToString(h, nil)
+		header := metadata.New(map[string]string{HashSHA256: correctHash})
+		if err := grpc.SendHeader(ctx, header); err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to send '%s' header", HashSHA256)
+		}
+
+		if correctHash != hash {
+			return nil, status.Error(codes.Aborted, "incorrect hash")
+		}
+
+		resp, err := handler(ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("unable to convert metrics to bytes, err: %w", err)
+		}
+		return resp, nil
+	}
+}
+
+func convertToBytes(val any) ([]byte, error) {
+	var buff bytes.Buffer
+	enc := gob.NewEncoder(&buff)
+	err := enc.Encode(val)
+	if err != nil {
+		return nil, fmt.Errorf("an occured error when convert val to bytes, err: %w", err)
+	}
+	return buff.Bytes(), nil
+}
+
+func responseSize(val any) (int, error) {
+	b, err := convertToBytes(val)
+	if err != nil {
+		return 0, fmt.Errorf("an occured error when calculate val size, err: %w", err)
+	}
+	return binary.Size(b), nil
 }

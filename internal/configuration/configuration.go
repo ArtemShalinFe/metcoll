@@ -83,7 +83,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		FileStoragePath string `json:"store_file"`
 		Database        string `json:"database_dsn"`
 		StoreInterval   string `json:"store_interval"`
-		Key             []byte
+		HashKey         string `json:"hashkey"`
 		Restore         bool   `json:"restore"`
 		TrustedSubnet   string `json:"trusted_subnet"`
 		UseProtobuff    bool   `json:"use_protobuff"`
@@ -100,6 +100,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 	c.Database = v.Database
 	c.UseProtobuff = v.UseProtobuff
 	c.TrustedSubnet = v.TrustedSubnet
+	c.Key = []byte(v.HashKey)
 
 	si, err := time.ParseDuration(v.StoreInterval)
 	if err != nil {
@@ -142,6 +143,9 @@ func (c *Config) setFromConfigs(configCL, configENV, configFile *Config, path st
 	c.UseProtobuff = getConfigVar(
 		configCL.UseProtobuff, configENV.UseProtobuff, configFile.UseProtobuff, defaultUseProtobuff, false)
 
+	c.Key = getConfigByteVar(
+		configCL.Key, configENV.Key, configFile.Key)
+
 	c.ConfigFile = path
 }
 
@@ -179,6 +183,8 @@ func readConfigFromCL() *Config {
 	flag.BoolVar(&c.UseProtobuff, useProtobuffFlagName, defaultUseProtobuff, "use protobuf instead of http protocol")
 
 	flag.Parse()
+
+	c.Key = []byte(hashkey)
 
 	return c
 }
