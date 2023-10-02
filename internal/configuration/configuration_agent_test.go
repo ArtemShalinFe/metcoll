@@ -137,7 +137,8 @@ func Test_readConfigAgentFromFile(t *testing.T) {
 		"address": "localhost:8080",
 		"report_interval": "1s",
 		"poll_interval": "1s",
-		"crypto_key": "/path/to/key.pem"
+		"crypto_key": "/path/to/key.pem",
+		"hashkey": "nope"
 	}`)
 
 	jsonConfig2 := newAgentConfigFile(t,
@@ -145,17 +146,20 @@ func Test_readConfigAgentFromFile(t *testing.T) {
 		"address": "localhost:8090",
 		"report_interval": "1m",
 		"poll_interval": "1h",
-		"crypto_key": "/path/to/key.pem"
+		"crypto_key": "/path/to/key.pem",
+		"hashkey": "nope"
 	}`)
 
 	jsonConfigErr := newAgentConfigFile(t,
 		`{
 		"report_interval": "1masdasd",
+		"hashkey": "nope"
 	}`)
 
 	want := newConfigAgent()
 	want.ReportInterval = 1
 	want.PollInterval = 1
+	want.Key = []byte("nope")
 
 	reportInterval := 60
 	pollInterval := 3600
@@ -164,6 +168,7 @@ func Test_readConfigAgentFromFile(t *testing.T) {
 	want2.Server = localhost8090
 	want2.ReportInterval = reportInterval
 	want2.PollInterval = pollInterval
+	want2.Key = []byte("nope")
 
 	wantErr := newConfigAgent()
 

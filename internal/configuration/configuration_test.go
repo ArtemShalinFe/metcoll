@@ -101,7 +101,8 @@ func Test_readConfigFromFile(t *testing.T) {
 			"store_interval": "1s",
 			"store_file": "/tmp/metrics-db.json", 
 			"database_dsn": "", 
-			"crypto_key": "/path/to/key.pem"
+			"crypto_key": "/path/to/key.pem",
+			"hashkey": "nope"
 		}`)
 
 	jsonConfig2 := newConfigFile(t,
@@ -111,20 +112,24 @@ func Test_readConfigFromFile(t *testing.T) {
 			"store_interval": "1m", 
 			"store_file": "/tmp/metrics-db.json", 
 			"database_dsn": "", 
-			"crypto_key": "/path/to/key.pem"
+			"crypto_key": "/path/to/key.pem",
+			"hashkey": "nope"
 		}`)
 
 	jsonConfigErr := newConfigFile(t,
 		`{
 		"store_interval": "1masdasd",
+		"hashkey": "nope"
 	}`)
 
 	want := newConfig()
 	want.StoreInterval = 1
+	want.Key = []byte("nope")
 
 	want2 := newConfig()
 	want2.Address = "localhost:8090"
 	want2.StoreInterval = 60
+	want2.Key = []byte("nope")
 
 	wantErr := newConfig()
 
