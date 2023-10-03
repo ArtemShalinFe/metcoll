@@ -182,7 +182,7 @@ func NewGRPCServer(s Storage, cfg *configuration.Config, sl *zap.SugaredLogger) 
 	}
 
 	opt := grpc.ChainUnaryInterceptor(
-		srv.requestLogger(sl),
+		srv.requestLogger(),
 		srv.resolverIP(),
 		srv.hashChecker(),
 	)
@@ -221,20 +221,20 @@ func (s *GRPCServer) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (s *GRPCServer) requestLogger(sl *zap.SugaredLogger) grpc.UnaryServerInterceptor {
+func (s *GRPCServer) requestLogger() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		start := time.Now()
 		resp, err := handler(ctx, req)
 		duration := time.Since(start)
 		if err != nil {
-			sl.Errorf("RPC request err: %v", err)
+			s.sl.Errorf("RPC request err: %v", err)
 		} else {
 			md, _ := metadata.FromIncomingContext(ctx)
 			size, err := responseSize(resp)
 			if err != nil {
-				sl.Errorf("grpc response size calculate, err:%w", err)
+				s.sl.Errorf("grpc response size calculate, err:%w", err)
 			}
-			sl.Infof("RPC request method: %s, header: %v, body: %s, duration: %s, responseSize: %d",
+			s.sl.Infof("RPC request method: %s, header: %v, body: %s, duration: %s, responseSize: %d",
 				info.FullMethod, md, req, duration, size,
 			)
 		}

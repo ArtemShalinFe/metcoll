@@ -23,6 +23,10 @@ type dialer struct {
 	lis *bufconn.Listener
 }
 
+func (d *dialer) bufDialer(context.Context, string) (net.Conn, error) {
+	return d.lis.Dial()
+}
+
 func NewDialer(t *testing.T, stg Storage) (*dialer, error) {
 	const bufSize = 1024 * 1024
 	lis := bufconn.Listen(bufSize)
@@ -45,10 +49,6 @@ func NewDialer(t *testing.T, stg Storage) (*dialer, error) {
 	return &dialer{
 		lis: lis,
 	}, nil
-}
-
-func (d *dialer) bufDialer(context.Context, string) (net.Conn, error) {
-	return d.lis.Dial()
 }
 
 func TestMetricService_ReadMetric(t *testing.T) {

@@ -33,13 +33,13 @@ build-staticlint:
 .PHONY: go-tests
 go-tests:
 	go vet ./...
-	go test ./... -v -race -count=1 -coverpkg=./... -coverprofile=coverage.out 
+	go test ./... -v -race -count=1 -coverpkg=./... -coverprofile=coverage.out
 	go tool cover -html=coverage.out -o ./coverage.html
 
 .PHONY: go-tests-with-tags
 go-tests-with-tags:
 	go vet ./...
-	go test ./... --tags=usetempdir -v -race -count=1 -coverpkg=./... -coverprofile=coverage.out 
+	go test ./... --tags=usetempdir -v -race -count=1 -coverpkg=./... -coverprofile=coverage.out -covermode=atomic 
 	go tool cover -html=coverage.out -o ./coverage.html
 
 

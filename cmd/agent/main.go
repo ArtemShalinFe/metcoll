@@ -70,7 +70,7 @@ func run() error {
 		}
 	}(componentsErrs)
 
-	client, err := metcoll.InitClient(cfg, sl)
+	client, err := metcoll.InitClient(ctx, cfg, sl)
 	if err != nil {
 		return fmt.Errorf("cannot init metcoll client err: %w", err)
 	}

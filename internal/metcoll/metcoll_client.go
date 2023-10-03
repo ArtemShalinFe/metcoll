@@ -14,9 +14,9 @@ type MetricUpdater interface {
 	BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Metrics, result chan<- error)
 }
 
-func InitClient(cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (MetricUpdater, error) {
+func InitClient(ctx context.Context, cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (MetricUpdater, error) {
 	if cfg.UseProtobuff {
-		grpcClient, err := NewGRPCClient(cfg, sl)
+		grpcClient, err := NewGRPCClient(ctx, cfg, sl)
 		if err != nil {
 			return nil, fmt.Errorf("an occured error when init grpc server, err: %w", err)
 		}

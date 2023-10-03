@@ -21,6 +21,7 @@ import (
 )
 
 type GRPCClient struct {
+	cc       grpc.ClientConnInterface
 	sl       *zap.SugaredLogger
 	host     string
 	clientIP string
@@ -30,7 +31,8 @@ type GRPCClient struct {
 	certPath string
 }
 
-func NewGRPCClient(cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (*GRPCClient, error) {
+func NewGRPCClient(ctx context.Context, cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (*GRPCClient, error) {
+
 	c := &GRPCClient{
 		host:     cfg.Server,
 		clientIP: localIP(),
@@ -38,6 +40,14 @@ func NewGRPCClient(cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (*GRPC
 		sl:       sl,
 		certPath: cfg.CertFilePath,
 	}
+
+	cc, err := c.getConn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create grpc client connect, err: %w", err)
+
+	}
+
+	c.cc = cc
 
 	return c, nil
 }
@@ -58,11 +68,11 @@ func getClientCreds(certFilePath string) (credentials.TransportCredentials, erro
 	}
 }
 
-func (c *GRPCClient) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Metrics, result chan<- error) {
+func (c *GRPCClient) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 	creds, err := getClientCreds(c.certPath)
 	if err != nil {
-		result <- fmt.Errorf("an occured error when getting client credentials: %v", err)
-		return
+		return nil, fmt.Errorf("an occured error when getting client credentials: %v", err)
+
 	}
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(creds))
@@ -80,13 +90,17 @@ func (c *GRPCClient) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metric
 
 	opts = append(opts, chain)
 
-	conn, err := grpc.Dial(c.host, opts...)
+	conn, err := grpc.DialContext(ctx, c.host, opts...)
 	if err != nil {
-		result <- fmt.Errorf("server is not available at %s, err: %w", c.host, err)
-		return
+		return nil, fmt.Errorf("server is not available at %s, err: %w", c.host, err)
+
 	}
-	defer conn.Close()
-	mc := pb.NewMetcollClient(conn)
+
+	return conn, nil
+}
+
+func (c *GRPCClient) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Metrics, result chan<- error) {
+	mc := pb.NewMetcollClient(c.cc)
 
 	headers := map[string]string{
 		"X-Real-IP": c.clientIP,
