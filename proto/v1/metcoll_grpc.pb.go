@@ -19,14 +19,18 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Metcoll_Updates_FullMethodName = "/metcoll.Metcoll/Updates"
-	Metcoll_Update_FullMethodName  = "/metcoll.Metcoll/Update"
+	Metcoll_MetricList_FullMethodName = "/metcoll.Metcoll/MetricList"
+	Metcoll_ReadMetric_FullMethodName = "/metcoll.Metcoll/ReadMetric"
+	Metcoll_Updates_FullMethodName    = "/metcoll.Metcoll/Updates"
+	Metcoll_Update_FullMethodName     = "/metcoll.Metcoll/Update"
 )
 
 // MetcollClient is the client API for Metcoll service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MetcollClient interface {
+	MetricList(ctx context.Context, in *MetricListRequest, opts ...grpc.CallOption) (*MetricListResponse, error)
+	ReadMetric(ctx context.Context, in *ReadMetricRequest, opts ...grpc.CallOption) (*ReadMetricResponse, error)
 	Updates(ctx context.Context, in *BatchUpdateRequest, opts ...grpc.CallOption) (*BatchUpdateResponse, error)
 	Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*UpdateResponse, error)
 }
@@ -37,6 +41,24 @@ type metcollClient struct {
 
 func NewMetcollClient(cc grpc.ClientConnInterface) MetcollClient {
 	return &metcollClient{cc}
+}
+
+func (c *metcollClient) MetricList(ctx context.Context, in *MetricListRequest, opts ...grpc.CallOption) (*MetricListResponse, error) {
+	out := new(MetricListResponse)
+	err := c.cc.Invoke(ctx, Metcoll_MetricList_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *metcollClient) ReadMetric(ctx context.Context, in *ReadMetricRequest, opts ...grpc.CallOption) (*ReadMetricResponse, error) {
+	out := new(ReadMetricResponse)
+	err := c.cc.Invoke(ctx, Metcoll_ReadMetric_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *metcollClient) Updates(ctx context.Context, in *BatchUpdateRequest, opts ...grpc.CallOption) (*BatchUpdateResponse, error) {
@@ -61,6 +83,8 @@ func (c *metcollClient) Update(ctx context.Context, in *UpdateRequest, opts ...g
 // All implementations must embed UnimplementedMetcollServer
 // for forward compatibility
 type MetcollServer interface {
+	MetricList(context.Context, *MetricListRequest) (*MetricListResponse, error)
+	ReadMetric(context.Context, *ReadMetricRequest) (*ReadMetricResponse, error)
 	Updates(context.Context, *BatchUpdateRequest) (*BatchUpdateResponse, error)
 	Update(context.Context, *UpdateRequest) (*UpdateResponse, error)
 	mustEmbedUnimplementedMetcollServer()
@@ -70,6 +94,12 @@ type MetcollServer interface {
 type UnimplementedMetcollServer struct {
 }
 
+func (UnimplementedMetcollServer) MetricList(context.Context, *MetricListRequest) (*MetricListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MetricList not implemented")
+}
+func (UnimplementedMetcollServer) ReadMetric(context.Context, *ReadMetricRequest) (*ReadMetricResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReadMetric not implemented")
+}
 func (UnimplementedMetcollServer) Updates(context.Context, *BatchUpdateRequest) (*BatchUpdateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Updates not implemented")
 }
@@ -87,6 +117,42 @@ type UnsafeMetcollServer interface {
 
 func RegisterMetcollServer(s grpc.ServiceRegistrar, srv MetcollServer) {
 	s.RegisterService(&Metcoll_ServiceDesc, srv)
+}
+
+func _Metcoll_MetricList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MetricListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MetcollServer).MetricList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Metcoll_MetricList_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MetcollServer).MetricList(ctx, req.(*MetricListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Metcoll_ReadMetric_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReadMetricRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MetcollServer).ReadMetric(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Metcoll_ReadMetric_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MetcollServer).ReadMetric(ctx, req.(*ReadMetricRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Metcoll_Updates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -132,6 +198,14 @@ var Metcoll_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "metcoll.Metcoll",
 	HandlerType: (*MetcollServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "MetricList",
+			Handler:    _Metcoll_MetricList_Handler,
+		},
+		{
+			MethodName: "ReadMetric",
+			Handler:    _Metcoll_ReadMetric_Handler,
+		},
 		{
 			MethodName: "Updates",
 			Handler:    _Metcoll_Updates_Handler,

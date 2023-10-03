@@ -50,6 +50,7 @@ type Config struct {
 	Restore          bool   `env:"RESTORE" json:"restore"`
 	TrustedSubnet    string `env:"TRUSTED_SUBNET" json:"trusted_subnet"`
 	UseProtobuff     bool   `env:"USE_PROTOBUFF" json:"use_protobuff"`
+	CertFilePath     string `env:"CERTIFICATE" json:"certificate"`
 }
 
 // Parse - return parsed config.
@@ -87,6 +88,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		Restore         bool   `json:"restore"`
 		TrustedSubnet   string `json:"trusted_subnet"`
 		UseProtobuff    bool   `json:"use_protobuff"`
+		CertFilePath    string `json:"certificate"`
 	}
 
 	var v ConfigJSON
@@ -101,6 +103,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 	c.UseProtobuff = v.UseProtobuff
 	c.TrustedSubnet = v.TrustedSubnet
 	c.Key = []byte(v.HashKey)
+	c.CertFilePath = v.CertFilePath
 
 	si, err := time.ParseDuration(v.StoreInterval)
 	if err != nil {
@@ -143,8 +146,9 @@ func (c *Config) setFromConfigs(configCL, configENV, configFile *Config, path st
 	c.UseProtobuff = getConfigVar(
 		configCL.UseProtobuff, configENV.UseProtobuff, configFile.UseProtobuff, defaultUseProtobuff, false)
 
-	c.Key = getConfigByteVar(
-		configCL.Key, configENV.Key, configFile.Key)
+	c.Key = getConfigByteVar(configCL.Key, configENV.Key, configFile.Key)
+
+	c.CertFilePath = getConfigVar(configCL.CertFilePath, configENV.CertFilePath, configFile.CertFilePath, "", "")
 
 	c.ConfigFile = path
 }
@@ -181,6 +185,7 @@ func readConfigFromCL() *Config {
 	flag.StringVar(&c.PrivateCryptoKey, cryptoKeyFlagName, defaultCryptoKeyPath, "path to privatekey.pem")
 	flag.StringVar(&c.TrustedSubnet, trustedSubnetFlagName, defaultTrustedSubnet, "trusted subnet, example 192.168.31.1")
 	flag.BoolVar(&c.UseProtobuff, useProtobuffFlagName, defaultUseProtobuff, "use protobuf instead of http protocol")
+	flag.StringVar(&c.CertFilePath, certFileFlagName, defaultCertFilePath, "absolute path to certificate (x509)")
 
 	flag.Parse()
 

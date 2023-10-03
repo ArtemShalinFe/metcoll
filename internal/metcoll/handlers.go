@@ -1,4 +1,4 @@
-package handlers
+package metcoll
 
 import (
 	"context"
@@ -66,8 +66,8 @@ func NewHandler(s Storage, l *zap.SugaredLogger) *Handler {
 	}
 }
 
-func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) {
-	body := `
+func templateMetricList() string {
+	return `
 	<html>
 	<head>
 		<title>Metric list</title>
@@ -77,7 +77,9 @@ func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) 
 		%s
 	</body>
 	</html>`
+}
 
+func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) {
 	ms, err := h.storage.GetDataList(ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -89,7 +91,7 @@ func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) 
 		list += fmt.Sprintf(`<p>%s</p>`, v)
 	}
 
-	resp := []byte(fmt.Sprintf(body, list))
+	resp := []byte(fmt.Sprintf(templateMetricList(), list))
 
 	w.Header().Set(contentType, "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)

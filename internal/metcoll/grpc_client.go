@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
 
@@ -24,6 +25,9 @@ type GRPCClient struct {
 	host     string
 	clientIP string
 	hashkey  []byte
+
+	// certpath - absolute path to cert.crt file
+	certPath string
 }
 
 func NewGRPCClient(cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (*GRPCClient, error) {
@@ -32,20 +36,34 @@ func NewGRPCClient(cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (*GRPC
 		clientIP: localIP(),
 		hashkey:  cfg.Key,
 		sl:       sl,
+		certPath: cfg.CertFilePath,
 	}
 
 	return c, nil
 }
 
+func getClientCreds(certFilePath string) (credentials.TransportCredentials, error) {
+	if certFilePath != "" {
+		creds, err := credentials.NewClientTLSFromFile(
+			certFilePath,
+			"")
+		if err != nil {
+			return nil, fmt.Errorf("failed to load credentials: %v", err)
+
+		}
+		return creds, nil
+	} else {
+		creds := insecure.NewCredentials()
+		return creds, nil
+	}
+}
+
 func (c *GRPCClient) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Metrics, result chan<- error) {
-	creds, err := credentials.NewClientTLSFromFile(
-		"/Users/artem/Yandex.Disk.localized/Учеба/go-разработчик/metcoll/keys/cert.pem",
-		"localhost")
+	creds, err := getClientCreds(c.certPath)
 	if err != nil {
-		result <- fmt.Errorf("failed to load credentials: %v", err)
+		result <- fmt.Errorf("an occured error when getting client credentials: %v", err)
 		return
 	}
-
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(creds))
 
@@ -79,7 +97,7 @@ func (c *GRPCClient) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metric
 		var request pb.BatchUpdateRequest
 
 		for _, mtrs := range m {
-			pbm := c.convertMetric(mtrs)
+			pbm := convertPBMetric(mtrs)
 			request.Metrics = append(request.Metrics, pbm)
 		}
 
@@ -109,7 +127,7 @@ func (c *GRPCClient) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metric
 	}
 }
 
-func (c *GRPCClient) convertMetric(m *metrics.Metrics) *pb.Metric {
+func convertPBMetric(m *metrics.Metrics) *pb.Metric {
 	var mt pb.Metric
 	mt.ID = m.ID
 

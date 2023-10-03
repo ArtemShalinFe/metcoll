@@ -25,15 +25,36 @@ message BatchUpdateRequest {
   repeated Metric metrics = 1;
 }
 
+message ReadMetricRequest {
+  Metric metric = 1;
+}
+
+message MetricListRequest {
+  Metric metric = 1;
+}
+
 message BatchUpdateResponse {
   string error = 1;
 }
 
 message UpdateResponse {
-  string error = 1;
+  Metric metric = 1;
+  string error = 2;
+}
+
+message ReadMetricResponse {
+  Metric metric = 1;
+  string error = 2;
+}
+
+message MetricListResponse {
+  string HTMLPage = 1;
+  string error = 2;
 }
 
 service Metcoll {
+  rpc MetricList(MetricListRequest) returns (MetricListResponse);
+  rpc ReadMetric(ReadMetricRequest) returns (ReadMetricResponse);
   rpc Updates(BatchUpdateRequest) returns (BatchUpdateResponse);
   rpc Update(UpdateRequest) returns (UpdateResponse);
 }

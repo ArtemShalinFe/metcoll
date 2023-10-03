@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -48,7 +49,7 @@ func (ms *MetricService) Updates(ctx context.Context, request *pb.BatchUpdateReq
 	for i := 0; i < len(request.GetMetrics()); i++ {
 		m := request.Metrics[i]
 
-		mtr, err := ms.convertMetric(m)
+		mtr, err := convertMetric(m)
 		if err != nil {
 			response.Error = err.Error()
 			return &response, nil
@@ -82,7 +83,7 @@ func (ms *MetricService) Updates(ctx context.Context, request *pb.BatchUpdateReq
 func (ms *MetricService) Update(ctx context.Context, request *pb.UpdateRequest) (*pb.UpdateResponse, error) {
 	var response pb.UpdateResponse
 
-	mtr, err := ms.convertMetric(request.GetMetric())
+	mtr, err := convertMetric(request.GetMetric())
 	if err != nil {
 		response.Error = err.Error()
 		return &response, nil
@@ -98,19 +99,62 @@ func (ms *MetricService) Update(ctx context.Context, request *pb.UpdateRequest) 
 		}
 	}
 
+	mpb := convertPBMetric(mtr)
+	response.Metric = mpb
+
 	return &response, nil
 }
 
-func (ms *MetricService) convertMetric(pbm *pb.Metric) (*metrics.Metrics, error) {
+func (ms *MetricService) ReadMetric(ctx context.Context, request *pb.ReadMetricRequest) (*pb.ReadMetricResponse, error) {
+	var response pb.ReadMetricResponse
+
+	mtr, err := convertMetric(request.GetMetric())
+	if err != nil {
+		response.Error = err.Error()
+		return &response, nil
+	}
+
+	if err := mtr.Get(ctx, ms.storage); err != nil {
+		if !errors.Is(err, storage.ErrNoRows) {
+			ms.log.Errorf("an error occurred while reading the metric, err: %w", err)
+			response.Error = "an error occurred while reading the metric"
+			return &response, nil
+		}
+	}
+
+	mpb := convertPBMetric(mtr)
+	response.Metric = mpb
+
+	return &response, nil
+}
+
+func (ms *MetricService) MetricList(ctx context.Context, request *pb.MetricListRequest) (*pb.MetricListResponse, error) {
+	var response pb.MetricListResponse
+
+	mts, err := ms.storage.GetDataList(ctx)
+	if err != nil {
+		ms.log.Errorf("an error occurred while getting metric list, err: %w", err)
+		response.Error = "an error occurred while getting metric list"
+		return &response, nil
+	}
+
+	list := ""
+	for _, v := range mts {
+		list += fmt.Sprintf(`<p>%s</p>`, v)
+	}
+
+	response.HTMLPage = fmt.Sprintf(templateMetricList(), list)
+	return &response, nil
+}
+
+func convertMetric(pbm *pb.Metric) (*metrics.Metrics, error) {
 	switch pbm.MType {
 	case pb.Metric_COUNTER:
 		return metrics.NewCounterMetric(pbm.GetID(), pbm.GetDelta()), nil
 	case pb.Metric_GAUGE:
 		return metrics.NewGaugeMetric(pbm.GetID(), pbm.GetValue()), nil
 	default:
-		t := "metric %s has unknow type: %s"
-		ms.log.Infof(t, pbm.GetID(), pbm.GetMType())
-		return nil, fmt.Errorf(t, pbm.GetID(), pbm.GetMType())
+		return nil, fmt.Errorf("metric %s has unknow type: %s", pbm.GetID(), pbm.GetMType())
 	}
 }
 
@@ -132,12 +176,9 @@ func NewGRPCServer(s Storage, cfg *configuration.Config, sl *zap.SugaredLogger) 
 		hashkey:       cfg.Key,
 	}
 
-	// Create the TLS credentials
-	creds, err := credentials.NewServerTLSFromFile(
-		"/Users/artem/Yandex.Disk.localized/Учеба/go-разработчик/metcoll/keys/cert.pem",
-		"/Users/artem/Yandex.Disk.localized/Учеба/go-разработчик/metcoll/keys/private.pem")
+	creds, err := getServerCreds(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("could not load TLS keys: %s", err)
+		return nil, err
 	}
 
 	opt := grpc.ChainUnaryInterceptor(
@@ -150,6 +191,17 @@ func NewGRPCServer(s Storage, cfg *configuration.Config, sl *zap.SugaredLogger) 
 	return srv, nil
 }
 
+func (s *GRPCServer) RegisterService(desc *grpc.ServiceDesc, impl any) {
+	s.grpcServer.RegisterService(desc, impl)
+}
+
+func (s *GRPCServer) Serve(lis net.Listener) error {
+	if err := s.grpcServer.Serve(lis); err != nil {
+		return fmt.Errorf("an occured error when server serve request, err: %v", err)
+	}
+	return nil
+}
+
 func (s *GRPCServer) ListenAndServe() error {
 	listen, err := net.Listen("tcp", s.addr)
 	if err != nil {
@@ -158,7 +210,7 @@ func (s *GRPCServer) ListenAndServe() error {
 	pb.RegisterMetcollServer(s.grpcServer, s.ms)
 
 	if err := s.grpcServer.Serve(listen); err != nil {
-		return fmt.Errorf("grpc server serve err: %w", err)
+		return fmt.Errorf("an occured error when grpc server serve, err: %w", err)
 	}
 
 	return nil
@@ -295,6 +347,22 @@ func (s *GRPCServer) hashChecker() grpc.UnaryServerInterceptor {
 			return nil, fmt.Errorf("unable to convert metrics to bytes, err: %w", err)
 		}
 		return resp, nil
+	}
+}
+
+func getServerCreds(cfg *configuration.Config) (credentials.TransportCredentials, error) {
+	if cfg.CertFilePath != "" && cfg.PrivateCryptoKey != "" {
+		creds, err := credentials.NewServerTLSFromFile(
+			cfg.CertFilePath,
+			cfg.PrivateCryptoKey,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("an occured error when loading TLS keys: %s", err)
+		}
+		return creds, nil
+	} else {
+		creds := insecure.NewCredentials()
+		return creds, nil
 	}
 }
 

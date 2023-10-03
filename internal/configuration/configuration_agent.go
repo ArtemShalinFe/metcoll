@@ -33,6 +33,9 @@ const (
 
 	cryptoKeyFlagName    = "crypto-key"
 	defaultCryptoKeyPath = ""
+
+	certFileFlagName    = "s"
+	defaultCertFilePath = ""
 )
 
 // ConfigAgent contains configuration for agent.
@@ -41,10 +44,11 @@ type ConfigAgent struct {
 	Path            string `env:"CONFIG"`
 	PublicCryptoKey string `env:"CRYPTO_KEY" json:"crypto_key"`
 	Key             []byte
-	PollInterval    int  `env:"POLL_INTERVAL" json:"poll_interval,omitempty"`
-	ReportInterval  int  `env:"REPORT_INTERVAL" json:"report_interval,omitempty"`
-	Limit           int  `env:"RATE_LIMIT"`
-	UseProtobuff    bool `env:"USE_PROTOBUFF" json:"use_protobuff"`
+	PollInterval    int    `env:"POLL_INTERVAL" json:"poll_interval,omitempty"`
+	ReportInterval  int    `env:"REPORT_INTERVAL" json:"report_interval,omitempty"`
+	Limit           int    `env:"RATE_LIMIT"`
+	UseProtobuff    bool   `env:"USE_PROTOBUFF" json:"use_protobuff"`
+	CertFilePath    string `env:"CERTIFICATE" json:"certificate"`
 }
 
 func newConfigAgent() *ConfigAgent {
@@ -102,8 +106,10 @@ func (c *ConfigAgent) setFromConfigs(configCL, configENV, configFile *ConfigAgen
 	c.UseProtobuff = getConfigVar(
 		configCL.UseProtobuff, configENV.UseProtobuff, configFile.UseProtobuff, defaultUseProtobuff, false)
 
-	c.Key = getConfigByteVar(
-		configCL.Key, configENV.Key, configFile.Key)
+	c.Key = getConfigByteVar(configCL.Key, configENV.Key, configFile.Key)
+
+	c.CertFilePath = getConfigVar(
+		configCL.CertFilePath, configENV.CertFilePath, configFile.CertFilePath, defaultCryptoKeyPath, "")
 
 	c.Path = path
 }
@@ -116,6 +122,7 @@ func (c *ConfigAgent) UnmarshalJSON(data []byte) error {
 		ReportInterval string `json:"report_interval,omitempty"`
 		UseProtobuff   bool   `json:"use_protobuff"`
 		HashKey        string `json:"hashkey"`
+		CertFilePath   string `json:"certificate"`
 	}
 
 	var v ConfigAgentJSON
@@ -137,6 +144,7 @@ func (c *ConfigAgent) UnmarshalJSON(data []byte) error {
 	c.ReportInterval = int(ri.Seconds())
 	c.UseProtobuff = v.UseProtobuff
 	c.Key = []byte(v.HashKey)
+	c.CertFilePath = v.CertFilePath
 
 	return nil
 }
@@ -177,6 +185,7 @@ func readConfigAgentFromCL() *ConfigAgent {
 	flag.IntVar(&c.Limit, limitFlagName, defaultLimit, "worker limit")
 	flag.StringVar(&c.PublicCryptoKey, cryptoKeyFlagName, defaultCryptoKeyPath, "path to publickey.pem")
 	flag.BoolVar(&c.UseProtobuff, useProtobuffFlagName, defaultUseProtobuff, "use protobuf instead of http protocol")
+	flag.StringVar(&c.CertFilePath, certFileFlagName, defaultCertFilePath, "absolute path to certificate (x509)")
 
 	flag.Parse()
 

@@ -12,14 +12,11 @@ import (
 	"net/http"
 	"strings"
 
-	"go.uber.org/zap"
-	_ "google.golang.org/grpc/encoding/gzip"
-
 	"github.com/ArtemShalinFe/metcoll/internal/compress"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/crypto"
-	"github.com/ArtemShalinFe/metcoll/internal/handlers"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
+	"go.uber.org/zap"
 )
 
 type HTTPServer struct {
@@ -58,8 +55,8 @@ func NewHTTPServer(ctx context.Context, stg Storage, cfg *configuration.Config, 
 		cfg.Key,
 	}
 
-	srv.httpServer.Handler = handlers.NewRouter(ctx,
-		handlers.NewHandler(stg, sl),
+	srv.httpServer.Handler = NewRouter(ctx,
+		NewHandler(stg, sl),
 		srv.resolverIP,
 		l.RequestLogger,
 		srv.requestHashChecker,

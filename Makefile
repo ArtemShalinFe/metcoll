@@ -36,6 +36,13 @@ go-tests:
 	go test ./... -v -race -count=1 -coverpkg=./... -coverprofile=coverage.out 
 	go tool cover -html=coverage.out -o ./coverage.html
 
+.PHONY: go-tests-with-tags
+go-tests-with-tags:
+	go vet ./...
+	go test ./... --tags=usetempdir -v -race -count=1 -coverpkg=./... -coverprofile=coverage.out 
+	go tool cover -html=coverage.out -o ./coverage.html
+
+
 .PHONY: unit-tests
 unit-tests:
 	go vet ./...
@@ -67,8 +74,7 @@ ya-tests:
 .PHONY: mocks
 mocks:
 	mockgen -source=internal/metrics/metrics.go -destination=internal/metrics/mock_metrics.go -package metrics
-	mockgen -source=internal/handlers/handlers.go -destination=internal/handlers/mock_handlers.go -package handlers
-
+	mockgen -source=internal/metcoll/handlers.go -destination=internal/handlers/mock_handlers.go -package handlers
 
 .PHONY: lint
 lint:
@@ -89,3 +95,8 @@ cryptokeys:
 	mv $(ROOT_DIR)/rsagen/cmd/rsagen $(ROOT_DIR)/keys
 	$(ROOT_DIR)/keys/rsagen -o "$(ROOT_DIR)/keys" -b "10000"
 	rm -f $(ROOT_DIR)/keys/rsagen
+
+.PHONY: protoc
+protoc:
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative proto/v1/metcoll.proto
+	
