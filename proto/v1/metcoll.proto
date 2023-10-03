@@ -30,7 +30,6 @@ message ReadMetricRequest {
 }
 
 message MetricListRequest {
-  Metric metric = 1;
 }
 
 message BatchUpdateResponse {

@@ -3,6 +3,7 @@ package metcoll
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	reflect "reflect"
 	"testing"
@@ -48,6 +49,106 @@ func NewDialer(t *testing.T, stg Storage) (*dialer, error) {
 
 func (d *dialer) bufDialer(context.Context, string) (net.Conn, error) {
 	return d.lis.Dial()
+}
+
+func TestMetricService_ReadMetric(t *testing.T) {
+	ctx := context.Background()
+
+	ctrl := gomock.NewController(t)
+	stg := NewMockStorage(ctrl)
+	stg.EXPECT().GetInt64Value(gomock.Any(), metricc).
+		Return(int64(11), nil)
+
+	stg.EXPECT().GetFloat64Value(gomock.Any(), metricg).
+		Return(float64(31.1), nil)
+
+	stg.EXPECT().GetInt64Value(gomock.Any(), metricc).
+		Return(int64(0), errors.New("unknow int64 error"))
+
+	stg.EXPECT().GetFloat64Value(gomock.Any(), metricg).
+		Return(float64(0), errors.New("unknow float64 error"))
+
+	d, err := NewDialer(t, stg)
+	if err != nil {
+		t.Errorf("an occured error when creating a new dialer, err: %v", err)
+	}
+
+	type args struct {
+		metric *metrics.Metrics
+	}
+	tests := []struct {
+		name         string
+		args         args
+		want         *pb.ReadMetricResponse
+		wantPBMetric *pb.Metric
+		wantErr      bool
+	}{
+		{
+			name: "#1",
+			args: args{
+				metric: metrics.NewCounterMetric(metricc, 11),
+			},
+			want: &pb.ReadMetricResponse{},
+			wantPBMetric: &pb.Metric{
+				ID:    metricc,
+				MType: pb.Metric_COUNTER,
+				Delta: 11,
+			},
+			wantErr: false,
+		},
+		{
+			name: "#2",
+			args: args{
+				metric: metrics.NewGaugeMetric(metricg, 31.1),
+			},
+			want: &pb.ReadMetricResponse{},
+			wantPBMetric: &pb.Metric{
+				ID:    metricg,
+				MType: pb.Metric_GAUGE,
+				Value: 31.1,
+			},
+			wantErr: false,
+		},
+		{
+			name: "#3",
+			args: args{
+				metric: metrics.NewCounterMetric(metricc, 11),
+			},
+			want:    &pb.ReadMetricResponse{},
+			wantErr: true,
+		},
+		{
+			name: "#4",
+			args: args{
+				metric: metrics.NewGaugeMetric(metricg, 31.1),
+			},
+			want:    &pb.ReadMetricResponse{},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(d.bufDialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				t.Errorf("failed to dial bufnet: %v", err)
+			}
+			defer conn.Close()
+			client := pb.NewMetcollClient(conn)
+
+			req := &pb.ReadMetricRequest{Metric: convertPBMetric(tt.args.metric)}
+			got, err := client.ReadMetric(ctx, req)
+			if err != nil && !tt.wantErr {
+				t.Errorf("response MetcollClient.ReadMetric() = %v, want %v", got, tt.want)
+			}
+
+			if !tt.wantErr && tt.wantPBMetric != nil {
+				if !reflect.DeepEqual(got.Metric, tt.wantPBMetric) {
+					t.Errorf("response Metric not equals, got = %v, want %v", got, tt.want)
+				}
+			}
+		})
+	}
 }
 
 func TestMetricService_Update(t *testing.T) {
@@ -257,6 +358,67 @@ func TestMetricService_Updates(t *testing.T) {
 			got, err := client.Updates(ctx, &req)
 			if err != nil && !tt.wantErr {
 				t.Errorf("response MetcollClient.Update() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMetricService_MetricList(t *testing.T) {
+	ctx := context.Background()
+
+	ctrl := gomock.NewController(t)
+	stg := NewMockStorage(ctrl)
+
+	var data []string
+	data = append(data, fmt.Sprintf("%s %d", metricc, 1), fmt.Sprintf("%s %f", metricg, 1.2))
+
+	stg.EXPECT().GetDataList(gomock.Any()).Times(1).Return(data, nil)
+	stg.EXPECT().GetDataList(gomock.Any()).Times(1).Return(nil, errors.New("any data list error"))
+
+	d, err := NewDialer(t, stg)
+	if err != nil {
+		t.Errorf("an occured error when creating a new dialer, err: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		req     *pb.MetricListRequest
+		want    *pb.MetricListResponse
+		wantErr bool
+	}{
+		{
+			name: "#1",
+			req:  &pb.MetricListRequest{},
+			want: &pb.MetricListResponse{
+				HTMLPage: "\n\t<html>\n\t<head>\n\t\t<title>Metric list</title>\n\t</head>\n\t<body>\n\t\t<h1>Metric list</h1>\n\t\t<p>metricc 1</p><p>metricg 1.200000</p>\n\t</body>\n\t</html>",
+			},
+			wantErr: false,
+		},
+		{
+			name: "#2",
+			req:  &pb.MetricListRequest{},
+			want: &pb.MetricListResponse{
+				HTMLPage: "",
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(d.bufDialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				t.Errorf("failed to dial bufnet: %v", err)
+			}
+			defer conn.Close()
+			client := pb.NewMetcollClient(conn)
+			got, err := client.MetricList(ctx, tt.req)
+			if err != nil && !tt.wantErr {
+				t.Errorf("response MetcollClient.MetricList() = %v, want %v", got, tt.want)
+			}
+
+			if !tt.wantErr && !reflect.DeepEqual(got.HTMLPage, tt.want.HTMLPage) {
+				t.Errorf("response MetricList not equals, got = %v, want %v", got, tt.want)
 			}
 		})
 	}
