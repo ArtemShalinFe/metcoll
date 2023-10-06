@@ -2,6 +2,8 @@ package metcoll
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net"
@@ -15,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	_ "google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -26,13 +29,26 @@ func (d *dialer) bufDialer(context.Context, string) (net.Conn, error) {
 	return d.lis.Dial()
 }
 
+var hashKey = []byte("secretKeyForHash")
+
+func testConfig(t *testing.T) *configuration.Config {
+	cfg := &configuration.Config{}
+	cfg.Key = hashKey
+
+	IP, err := localIP()
+	if err != nil {
+		t.Errorf("an occured error when getting current IP for tests, err: %v", err)
+	}
+
+	cfg.TrustedSubnet = IP
+	return cfg
+}
+
 func NewDialer(t *testing.T, stg Storage) (*dialer, error) {
 	const bufSize = 1024 * 1024
 	lis := bufconn.Listen(bufSize)
 
-	cfg := &configuration.Config{}
-
-	s, err := NewGRPCServer(stg, cfg, zap.S())
+	s, err := NewGRPCServer(stg, testConfig(t), zap.S())
 	if err != nil {
 		t.Fatalf("an occured error when initial grpc server, err: %v", err)
 	}
@@ -48,6 +64,28 @@ func NewDialer(t *testing.T, stg Storage) (*dialer, error) {
 	return &dialer{
 		lis: lis,
 	}, nil
+}
+
+func headersForRequest(t *testing.T, b []byte) map[string]string {
+	t.Helper()
+
+	clientIP, err := localIP()
+	if err != nil {
+		t.Errorf("an occured error when getting current IP for request headers, err: %v", err)
+	}
+
+	headers := map[string]string{
+		"X-Real-IP": clientIP,
+		HashSHA256:  "",
+	}
+	if len(hashKey) != 0 && len(b) > 0 {
+		h := hmac.New(sha256.New, hashKey)
+		h.Write(b)
+		headers[HashSHA256] = hashBytesToString(h, nil)
+	} else {
+		headers[HashSHA256] = ""
+	}
+	return headers
 }
 
 func TestMetricService_ReadMetric(t *testing.T) {
@@ -136,7 +174,14 @@ func TestMetricService_ReadMetric(t *testing.T) {
 			client := NewMetcollClient(conn)
 
 			req := &ReadMetricRequest{Metric: convertPBMetric(tt.args.metric)}
-			got, err := client.ReadMetric(ctx, req)
+			b, err := convertToBytes(req.Metric)
+			if err != nil {
+				t.Errorf("unable to convert metrics to bytes, err: %v", err)
+
+			}
+			headers := headersForRequest(t, b)
+			mctx := metadata.NewOutgoingContext(ctx, metadata.New(headers))
+			got, err := client.ReadMetric(mctx, req)
 			if err != nil && !tt.wantErr {
 				t.Errorf("response MetcollClient.ReadMetric() = %v, want %v", got, tt.want)
 			}
@@ -247,7 +292,14 @@ func TestMetricService_Update(t *testing.T) {
 			client := NewMetcollClient(conn)
 
 			req := &UpdateRequest{Metric: convertPBMetric(tt.args.metric)}
-			got, err := client.Update(ctx, req)
+			b, err := convertToBytes(req.Metric)
+			if err != nil {
+				t.Errorf("unable to convert metrics to bytes, err: %v", err)
+
+			}
+			headers := headersForRequest(t, b)
+			mctx := metadata.NewOutgoingContext(ctx, metadata.New(headers))
+			got, err := client.Update(mctx, req)
 			if err != nil && !tt.wantErr {
 				t.Errorf("response MetcollClient.Update() = %v, want %v", got, tt.want)
 			}
@@ -354,7 +406,14 @@ func TestMetricService_Updates(t *testing.T) {
 				req.Metrics = append(req.Metrics, pbm)
 			}
 
-			got, err := client.Updates(ctx, &req)
+			b, err := convertToBytes(req.Metrics)
+			if err != nil {
+				t.Errorf("unable to convert metrics to bytes, err: %v", err)
+
+			}
+			headers := headersForRequest(t, b)
+			mctx := metadata.NewOutgoingContext(ctx, metadata.New(headers))
+			got, err := client.Updates(mctx, &req)
 			if err != nil && !tt.wantErr {
 				t.Errorf("response MetcollClient.Update() = %v, want %v", got, tt.want)
 			}
@@ -411,7 +470,11 @@ func TestMetricService_MetricList(t *testing.T) {
 			}
 			defer conn.Close()
 			client := NewMetcollClient(conn)
-			got, err := client.MetricList(ctx, tt.req)
+
+			var b []byte
+			headers := headersForRequest(t, b)
+			mctx := metadata.NewOutgoingContext(ctx, metadata.New(headers))
+			got, err := client.MetricList(mctx, tt.req)
 			if err != nil && !tt.wantErr {
 				t.Errorf("response MetcollClient.MetricList() = %v, want %v", got, tt.want)
 			}

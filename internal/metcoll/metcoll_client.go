@@ -17,7 +17,6 @@ type MetricUpdater interface {
 func InitClient(ctx context.Context, cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (MetricUpdater, error) {
 	if cfg.UseProtobuff {
 		grpcClient, err := NewGRPCClient(ctx, cfg, sl)
-
 		if err != nil {
 			return nil, fmt.Errorf("an occured error when init grpc client, err: %w", err)
 		}

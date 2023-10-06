@@ -314,24 +314,13 @@ func (s *GRPCServer) hashChecker() grpc.UnaryServerInterceptor {
 		}
 
 		hash := strings.TrimSpace(hashes[0])
-		if strings.TrimSpace(hash) == "" {
-			return nil, status.Errorf(codes.Aborted,
-				"first element in '%s' header is empty", HashSHA256)
-		}
 
-		bup, ok := req.(*BatchUpdateRequest)
-		if !ok {
-			return nil, status.Errorf(codes.Aborted, "bad request")
-		}
-
-		b, err := convertToBytes(bup.Metrics)
+		correctHash, err := s.correctRequestHash(req)
 		if err != nil {
-			return nil, fmt.Errorf("unable to convert metrics to bytes, err: %w", err)
+			return nil, status.Errorf(codes.Aborted,
+				"an occured error when getting correct request hash, err: %v", err)
 		}
-		h := hmac.New(sha256.New, s.hashkey)
-		h.Write(b)
 
-		correctHash := hashBytesToString(h, nil)
 		header := metadata.New(map[string]string{HashSHA256: correctHash})
 		if err := grpc.SendHeader(ctx, header); err != nil {
 			return nil, status.Errorf(codes.Internal, "unable to send '%s' header", HashSHA256)
@@ -346,6 +335,41 @@ func (s *GRPCServer) hashChecker() grpc.UnaryServerInterceptor {
 			return nil, fmt.Errorf("unable to convert metrics to bytes, err: %w", err)
 		}
 		return resp, nil
+	}
+}
+
+func (s *GRPCServer) messageHash(message any) (string, error) {
+	b, err := convertToBytes(message)
+	if err != nil {
+		return "", fmt.Errorf("unable to convert message to bytes, err: %w", err)
+	}
+	h := hmac.New(sha256.New, s.hashkey)
+	h.Write(b)
+	return hashBytesToString(h, nil), nil
+}
+
+func (s *GRPCServer) correctRequestHash(req any) (string, error) {
+	switch r := req.(type) {
+	case *BatchUpdateRequest:
+		correctHash, err := s.messageHash(r.GetMetrics())
+		if err != nil {
+			return "", fmt.Errorf("batch update - bad request, err: %v", err)
+		}
+		return correctHash, nil
+	case *UpdateRequest:
+		correctHash, err := s.messageHash(r.GetMetric())
+		if err != nil {
+			return "", fmt.Errorf("update - bad request, err: %v", err)
+		}
+		return correctHash, nil
+	case *ReadMetricRequest:
+		correctHash, err := s.messageHash(r.GetMetric())
+		if err != nil {
+			return "", fmt.Errorf("read - bad request, err: %v", err)
+		}
+		return correctHash, nil
+	default:
+		return "", nil
 	}
 }
 
