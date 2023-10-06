@@ -72,9 +72,10 @@ ya-tests:
 	rm /tmp/test-db.json
 
 .PHONY: mocks
-mocks:
+mocks: protoc
 	mockgen -source=internal/metrics/metrics.go -destination=internal/metrics/mock_metrics.go -package metrics
-	mockgen -source=internal/metcoll/handlers.go -destination=internal/handlers/mock_handlers.go -package handlers
+	mockgen -source=internal/metcoll/handlers.go -destination=internal/metcoll/mock_handlers.go -package metcoll
+	mockgen -source=internal/metcoll/metcoll_grpc.pb.go -destination=internal/metcoll/mock_grpc_pb.go -package metcoll
 
 .PHONY: lint
 lint:
@@ -98,5 +99,7 @@ cryptokeys:
 
 .PHONY: protoc
 protoc:
-	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative proto/v1/metcoll.proto
+	protoc proto/v1/*.proto  --proto_path=proto/v1 \
+	--go_out=internal/metcoll --go_opt=module=github.com/ArtemShalinFe/metcoll/internal/metcoll \
+	--go-grpc_out=internal/metcoll --go-grpc_opt=module=github.com/ArtemShalinFe/metcoll/internal/metcoll
 	

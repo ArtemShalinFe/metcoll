@@ -17,7 +17,6 @@ import (
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
-	pb "github.com/ArtemShalinFe/metcoll/proto/v1"
 )
 
 type GRPCClient struct {
@@ -32,50 +31,61 @@ type GRPCClient struct {
 }
 
 func NewGRPCClient(ctx context.Context, cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (*GRPCClient, error) {
+	clientIP, err := localIP()
+	if err != nil {
+		return nil, fmt.Errorf("an occured error when grpc agent getting local IP, err: %w", err)
+	}
 
 	c := &GRPCClient{
 		host:     cfg.Server,
-		clientIP: localIP(),
+		clientIP: clientIP,
 		hashkey:  cfg.Key,
 		sl:       sl,
 		certPath: cfg.CertFilePath,
 	}
 
-	cc, err := c.getConn(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create grpc client connect, err: %w", err)
-
-	}
-
-	c.cc = cc
-
 	return c, nil
 }
 
 func getClientCreds(certFilePath string) (credentials.TransportCredentials, error) {
-	if certFilePath != "" {
-		creds, err := credentials.NewClientTLSFromFile(
-			certFilePath,
-			"")
-		if err != nil {
-			return nil, fmt.Errorf("failed to load credentials: %v", err)
-
-		}
-		return creds, nil
-	} else {
+	if certFilePath == "" {
 		creds := insecure.NewCredentials()
 		return creds, nil
 	}
-}
 
-func (c *GRPCClient) getConn(ctx context.Context) (*grpc.ClientConn, error) {
-	creds, err := getClientCreds(c.certPath)
+	creds, err := credentials.NewClientTLSFromFile(
+		certFilePath,
+		"")
 	if err != nil {
-		return nil, fmt.Errorf("an occured error when getting client credentials: %v", err)
+		return nil, fmt.Errorf("failed to load credentials: %v", err)
 
 	}
-	var opts []grpc.DialOption
+	return creds, nil
+}
+
+func (c *GRPCClient) setupConn(ctx context.Context) error {
+	opts := c.getDialOpts()
+
+	creds, err := getClientCreds(c.certPath)
+	if err != nil {
+		return fmt.Errorf("an occured error when getting client credentials: %v", err)
+
+	}
+
 	opts = append(opts, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.DialContext(ctx, c.host, opts...)
+	if err != nil {
+		return fmt.Errorf("server is not available at %s, err: %w", c.host, err)
+
+	}
+
+	c.cc = conn
+
+	return nil
+}
+
+func (c *GRPCClient) getDialOpts() []grpc.DialOption {
+	var opts []grpc.DialOption
 
 	retryopts := []grpc_retry.CallOption{
 		grpc_retry.WithBackoff(grpc_retry.BackoffLinear(2 * time.Second)),
@@ -90,17 +100,11 @@ func (c *GRPCClient) getConn(ctx context.Context) (*grpc.ClientConn, error) {
 
 	opts = append(opts, chain)
 
-	conn, err := grpc.DialContext(ctx, c.host, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("server is not available at %s, err: %w", c.host, err)
-
-	}
-
-	return conn, nil
+	return opts
 }
 
 func (c *GRPCClient) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metrics.Metrics, result chan<- error) {
-	mc := pb.NewMetcollClient(c.cc)
+	mc := NewMetcollClient(c.cc)
 
 	headers := map[string]string{
 		"X-Real-IP": c.clientIP,
@@ -108,7 +112,7 @@ func (c *GRPCClient) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metric
 	}
 
 	for m := range mcs {
-		var request pb.BatchUpdateRequest
+		var request BatchUpdateRequest
 
 		for _, mtrs := range m {
 			pbm := convertPBMetric(mtrs)
@@ -141,19 +145,19 @@ func (c *GRPCClient) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metric
 	}
 }
 
-func convertPBMetric(m *metrics.Metrics) *pb.Metric {
-	var mt pb.Metric
-	mt.ID = m.ID
+func convertPBMetric(m *metrics.Metrics) *Metric {
+	var mt Metric
+	mt.Id = m.ID
 
 	switch m.MType {
 	case metrics.CounterMetric:
-		mt.MType = pb.Metric_COUNTER
+		mt.Type = Metric_COUNTER
 		mt.Delta = *m.Delta
 	case metrics.GaugeMetric:
-		mt.MType = pb.Metric_GAUGE
+		mt.Type = Metric_GAUGE
 		mt.Value = *m.Value
 	default:
-		mt.MType = pb.Metric_UNKNOWN
+		mt.Type = Metric_UNKNOWN
 	}
 
 	return &mt

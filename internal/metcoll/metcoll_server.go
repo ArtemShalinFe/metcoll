@@ -8,12 +8,12 @@ import (
 	"go.uber.org/zap"
 )
 
-type MetcollServer interface {
+type MetricServer interface {
 	ListenAndServe() error
 	Shutdown(ctx context.Context) error
 }
 
-func InitServer(ctx context.Context, stg Storage, cfg *configuration.Config, sl *zap.SugaredLogger) (MetcollServer, error) {
+func InitServer(ctx context.Context, stg Storage, cfg *configuration.Config, sl *zap.SugaredLogger) (MetricServer, error) {
 	if cfg.UseProtobuff {
 		grpcServer, err := NewGRPCServer(stg, cfg, sl)
 		if err != nil {

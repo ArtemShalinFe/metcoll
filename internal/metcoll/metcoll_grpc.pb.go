@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.3.0
 // - protoc             v4.24.3
-// source: proto/v1/metcoll.proto
+// source: metcoll.proto
 
-package v1
+package metcoll
 
 import (
 	context "context"
@@ -216,5 +216,5 @@ var Metcoll_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/v1/metcoll.proto",
+	Metadata: "metcoll.proto",
 }

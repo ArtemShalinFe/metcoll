@@ -10,7 +10,6 @@ import (
 
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
-	pb "github.com/ArtemShalinFe/metcoll/proto/v1"
 	gomock "go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -39,7 +38,7 @@ func NewDialer(t *testing.T, stg Storage) (*dialer, error) {
 	}
 	srv := NewMetricService(stg, zap.S())
 
-	pb.RegisterMetcollServer(s, srv)
+	RegisterMetcollServer(s, srv)
 	go func() {
 		if err := s.Serve(lis); err != nil {
 			t.Errorf("server exited with error: %v", err)
@@ -79,8 +78,8 @@ func TestMetricService_ReadMetric(t *testing.T) {
 	tests := []struct {
 		name         string
 		args         args
-		want         *pb.ReadMetricResponse
-		wantPBMetric *pb.Metric
+		want         *ReadMetricResponse
+		wantPBMetric *Metric
 		wantErr      bool
 	}{
 		{
@@ -88,10 +87,10 @@ func TestMetricService_ReadMetric(t *testing.T) {
 			args: args{
 				metric: metrics.NewCounterMetric(metricc, 11),
 			},
-			want: &pb.ReadMetricResponse{},
-			wantPBMetric: &pb.Metric{
-				ID:    metricc,
-				MType: pb.Metric_COUNTER,
+			want: &ReadMetricResponse{},
+			wantPBMetric: &Metric{
+				Id:    metricc,
+				Type:  Metric_COUNTER,
 				Delta: 11,
 			},
 			wantErr: false,
@@ -101,10 +100,10 @@ func TestMetricService_ReadMetric(t *testing.T) {
 			args: args{
 				metric: metrics.NewGaugeMetric(metricg, 31.1),
 			},
-			want: &pb.ReadMetricResponse{},
-			wantPBMetric: &pb.Metric{
-				ID:    metricg,
-				MType: pb.Metric_GAUGE,
+			want: &ReadMetricResponse{},
+			wantPBMetric: &Metric{
+				Id:    metricg,
+				Type:  Metric_GAUGE,
 				Value: 31.1,
 			},
 			wantErr: false,
@@ -114,7 +113,7 @@ func TestMetricService_ReadMetric(t *testing.T) {
 			args: args{
 				metric: metrics.NewCounterMetric(metricc, 11),
 			},
-			want:    &pb.ReadMetricResponse{},
+			want:    &ReadMetricResponse{},
 			wantErr: true,
 		},
 		{
@@ -122,7 +121,7 @@ func TestMetricService_ReadMetric(t *testing.T) {
 			args: args{
 				metric: metrics.NewGaugeMetric(metricg, 31.1),
 			},
-			want:    &pb.ReadMetricResponse{},
+			want:    &ReadMetricResponse{},
 			wantErr: true,
 		},
 	}
@@ -134,9 +133,9 @@ func TestMetricService_ReadMetric(t *testing.T) {
 				t.Errorf("failed to dial bufnet: %v", err)
 			}
 			defer conn.Close()
-			client := pb.NewMetcollClient(conn)
+			client := NewMetcollClient(conn)
 
-			req := &pb.ReadMetricRequest{Metric: convertPBMetric(tt.args.metric)}
+			req := &ReadMetricRequest{Metric: convertPBMetric(tt.args.metric)}
 			got, err := client.ReadMetric(ctx, req)
 			if err != nil && !tt.wantErr {
 				t.Errorf("response MetcollClient.ReadMetric() = %v, want %v", got, tt.want)
@@ -179,8 +178,8 @@ func TestMetricService_Update(t *testing.T) {
 	tests := []struct {
 		name         string
 		args         args
-		want         *pb.UpdateResponse
-		wantPBMetric *pb.Metric
+		want         *UpdateResponse
+		wantPBMetric *Metric
 		wantErr      bool
 	}{
 		{
@@ -188,10 +187,10 @@ func TestMetricService_Update(t *testing.T) {
 			args: args{
 				metric: metrics.NewCounterMetric(metricc, 11),
 			},
-			want: &pb.UpdateResponse{},
-			wantPBMetric: &pb.Metric{
-				ID:    metricc,
-				MType: pb.Metric_COUNTER,
+			want: &UpdateResponse{},
+			wantPBMetric: &Metric{
+				Id:    metricc,
+				Type:  Metric_COUNTER,
 				Delta: 11,
 			},
 			wantErr: false,
@@ -201,10 +200,10 @@ func TestMetricService_Update(t *testing.T) {
 			args: args{
 				metric: metrics.NewCounterMetric(metricc, 11),
 			},
-			want: &pb.UpdateResponse{},
-			wantPBMetric: &pb.Metric{
-				ID:    metricc,
-				MType: pb.Metric_COUNTER,
+			want: &UpdateResponse{},
+			wantPBMetric: &Metric{
+				Id:    metricc,
+				Type:  Metric_COUNTER,
 				Delta: 22,
 			},
 			wantErr: false,
@@ -214,7 +213,7 @@ func TestMetricService_Update(t *testing.T) {
 			args: args{
 				metric: metrics.NewGaugeMetric(metricg, 31.1),
 			},
-			want:    &pb.UpdateResponse{},
+			want:    &UpdateResponse{},
 			wantErr: false,
 		},
 		{
@@ -225,7 +224,7 @@ func TestMetricService_Update(t *testing.T) {
 					MType: "unknow",
 				},
 			},
-			want:    &pb.UpdateResponse{},
+			want:    &UpdateResponse{},
 			wantErr: true,
 		},
 		{
@@ -233,7 +232,7 @@ func TestMetricService_Update(t *testing.T) {
 			args: args{
 				metric: metrics.NewGaugeMetric(metricg, 32.1),
 			},
-			want:    &pb.UpdateResponse{},
+			want:    &UpdateResponse{},
 			wantErr: true,
 		},
 	}
@@ -245,9 +244,9 @@ func TestMetricService_Update(t *testing.T) {
 				t.Errorf("failed to dial bufnet: %v", err)
 			}
 			defer conn.Close()
-			client := pb.NewMetcollClient(conn)
+			client := NewMetcollClient(conn)
 
-			req := &pb.UpdateRequest{Metric: convertPBMetric(tt.args.metric)}
+			req := &UpdateRequest{Metric: convertPBMetric(tt.args.metric)}
 			got, err := client.Update(ctx, req)
 			if err != nil && !tt.wantErr {
 				t.Errorf("response MetcollClient.Update() = %v, want %v", got, tt.want)
@@ -311,7 +310,7 @@ func TestMetricService_Updates(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *pb.UpdateResponse
+		want    *UpdateResponse
 		wantErr bool
 	}{
 		{
@@ -319,7 +318,7 @@ func TestMetricService_Updates(t *testing.T) {
 			args: args{
 				metrics: ms,
 			},
-			want:    &pb.UpdateResponse{},
+			want:    &UpdateResponse{},
 			wantErr: false,
 		},
 		{
@@ -327,7 +326,7 @@ func TestMetricService_Updates(t *testing.T) {
 			args: args{
 				metrics: gaugeMetrics,
 			},
-			want:    &pb.UpdateResponse{},
+			want:    &UpdateResponse{},
 			wantErr: true,
 		},
 		{
@@ -335,7 +334,7 @@ func TestMetricService_Updates(t *testing.T) {
 			args: args{
 				metrics: counterMetrics,
 			},
-			want:    &pb.UpdateResponse{},
+			want:    &UpdateResponse{},
 			wantErr: true,
 		},
 	}
@@ -347,9 +346,9 @@ func TestMetricService_Updates(t *testing.T) {
 				t.Errorf("failed to dial bufnet: %v", err)
 			}
 			defer conn.Close()
-			client := pb.NewMetcollClient(conn)
+			client := NewMetcollClient(conn)
 
-			var req pb.BatchUpdateRequest
+			var req BatchUpdateRequest
 			for _, mtrs := range tt.args.metrics {
 				pbm := convertPBMetric(mtrs)
 				req.Metrics = append(req.Metrics, pbm)
@@ -382,23 +381,23 @@ func TestMetricService_MetricList(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		req     *pb.MetricListRequest
-		want    *pb.MetricListResponse
+		req     *MetricListRequest
+		want    *MetricListResponse
 		wantErr bool
 	}{
 		{
 			name: "#1",
-			req:  &pb.MetricListRequest{},
-			want: &pb.MetricListResponse{
-				HTMLPage: "\n\t<html>\n\t<head>\n\t\t<title>Metric list</title>\n\t</head>\n\t<body>\n\t\t<h1>Metric list</h1>\n\t\t<p>metricc 1</p><p>metricg 1.200000</p>\n\t</body>\n\t</html>",
+			req:  &MetricListRequest{},
+			want: &MetricListResponse{
+				Htmlpage: "\n\t<html>\n\t<head>\n\t\t<title>Metric list</title>\n\t</head>\n\t<body>\n\t\t<h1>Metric list</h1>\n\t\t<p>metricc 1</p><p>metricg 1.200000</p>\n\t</body>\n\t</html>",
 			},
 			wantErr: false,
 		},
 		{
 			name: "#2",
-			req:  &pb.MetricListRequest{},
-			want: &pb.MetricListResponse{
-				HTMLPage: "",
+			req:  &MetricListRequest{},
+			want: &MetricListResponse{
+				Htmlpage: "",
 			},
 			wantErr: true,
 		},
@@ -411,13 +410,13 @@ func TestMetricService_MetricList(t *testing.T) {
 				t.Errorf("failed to dial bufnet: %v", err)
 			}
 			defer conn.Close()
-			client := pb.NewMetcollClient(conn)
+			client := NewMetcollClient(conn)
 			got, err := client.MetricList(ctx, tt.req)
 			if err != nil && !tt.wantErr {
 				t.Errorf("response MetcollClient.MetricList() = %v, want %v", got, tt.want)
 			}
 
-			if !tt.wantErr && !reflect.DeepEqual(got.HTMLPage, tt.want.HTMLPage) {
+			if !tt.wantErr && !reflect.DeepEqual(got.Htmlpage, tt.want.Htmlpage) {
 				t.Errorf("response MetricList not equals, got = %v, want %v", got, tt.want)
 			}
 		})

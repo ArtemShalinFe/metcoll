@@ -25,11 +25,10 @@ import (
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
-	pb "github.com/ArtemShalinFe/metcoll/proto/v1"
 )
 
 type MetricService struct {
-	pb.UnimplementedMetcollServer
+	UnimplementedMetcollServer
 	storage Storage
 	log     *zap.SugaredLogger
 }
@@ -41,8 +40,8 @@ func NewMetricService(s Storage, sl *zap.SugaredLogger) *MetricService {
 	}
 }
 
-func (ms *MetricService) Updates(ctx context.Context, request *pb.BatchUpdateRequest) (*pb.BatchUpdateResponse, error) {
-	var response pb.BatchUpdateResponse
+func (ms *MetricService) Updates(ctx context.Context, request *BatchUpdateRequest) (*BatchUpdateResponse, error) {
+	var response BatchUpdateResponse
 
 	mtrs := make([]*metrics.Metrics, len(request.GetMetrics()))
 
@@ -80,8 +79,8 @@ func (ms *MetricService) Updates(ctx context.Context, request *pb.BatchUpdateReq
 	return &response, nil
 }
 
-func (ms *MetricService) Update(ctx context.Context, request *pb.UpdateRequest) (*pb.UpdateResponse, error) {
-	var response pb.UpdateResponse
+func (ms *MetricService) Update(ctx context.Context, request *UpdateRequest) (*UpdateResponse, error) {
+	var response UpdateResponse
 
 	mtr, err := convertMetric(request.GetMetric())
 	if err != nil {
@@ -105,8 +104,8 @@ func (ms *MetricService) Update(ctx context.Context, request *pb.UpdateRequest) 
 	return &response, nil
 }
 
-func (ms *MetricService) ReadMetric(ctx context.Context, request *pb.ReadMetricRequest) (*pb.ReadMetricResponse, error) {
-	var response pb.ReadMetricResponse
+func (ms *MetricService) ReadMetric(ctx context.Context, request *ReadMetricRequest) (*ReadMetricResponse, error) {
+	var response ReadMetricResponse
 
 	mtr, err := convertMetric(request.GetMetric())
 	if err != nil {
@@ -128,8 +127,8 @@ func (ms *MetricService) ReadMetric(ctx context.Context, request *pb.ReadMetricR
 	return &response, nil
 }
 
-func (ms *MetricService) MetricList(ctx context.Context, request *pb.MetricListRequest) (*pb.MetricListResponse, error) {
-	var response pb.MetricListResponse
+func (ms *MetricService) MetricList(ctx context.Context, request *MetricListRequest) (*MetricListResponse, error) {
+	var response MetricListResponse
 
 	mts, err := ms.storage.GetDataList(ctx)
 	if err != nil {
@@ -143,18 +142,18 @@ func (ms *MetricService) MetricList(ctx context.Context, request *pb.MetricListR
 		list += fmt.Sprintf(`<p>%s</p>`, v)
 	}
 
-	response.HTMLPage = fmt.Sprintf(templateMetricList(), list)
+	response.Htmlpage = fmt.Sprintf(templateMetricList(), list)
 	return &response, nil
 }
 
-func convertMetric(pbm *pb.Metric) (*metrics.Metrics, error) {
-	switch pbm.MType {
-	case pb.Metric_COUNTER:
-		return metrics.NewCounterMetric(pbm.GetID(), pbm.GetDelta()), nil
-	case pb.Metric_GAUGE:
-		return metrics.NewGaugeMetric(pbm.GetID(), pbm.GetValue()), nil
+func convertMetric(pbm *Metric) (*metrics.Metrics, error) {
+	switch pbm.Type {
+	case Metric_COUNTER:
+		return metrics.NewCounterMetric(pbm.GetId(), pbm.GetDelta()), nil
+	case Metric_GAUGE:
+		return metrics.NewGaugeMetric(pbm.GetId(), pbm.GetValue()), nil
 	default:
-		return nil, fmt.Errorf("metric %s has unknow type: %s", pbm.GetID(), pbm.GetMType())
+		return nil, fmt.Errorf("metric %s has unknow type: %s", pbm.GetId(), pbm.GetType())
 	}
 }
 
@@ -207,7 +206,7 @@ func (s *GRPCServer) ListenAndServe() error {
 	if err != nil {
 		return fmt.Errorf("an occured error when trying listen address %s, err: %w", s.addr, err)
 	}
-	pb.RegisterMetcollServer(s.grpcServer, s.ms)
+	RegisterMetcollServer(s.grpcServer, s.ms)
 
 	if err := s.grpcServer.Serve(listen); err != nil {
 		return fmt.Errorf("an occured error when grpc server serve, err: %w", err)
@@ -320,7 +319,7 @@ func (s *GRPCServer) hashChecker() grpc.UnaryServerInterceptor {
 				"first element in '%s' header is empty", HashSHA256)
 		}
 
-		bup, ok := req.(*pb.BatchUpdateRequest)
+		bup, ok := req.(*BatchUpdateRequest)
 		if !ok {
 			return nil, status.Errorf(codes.Aborted, "bad request")
 		}

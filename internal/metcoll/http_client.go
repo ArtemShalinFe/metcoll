@@ -69,13 +69,18 @@ func NewHTTPClient(cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (*Clie
 		publicKey = publicCryptoKey
 	}
 
+	clientIP, err := localIP()
+	if err != nil {
+		return nil, fmt.Errorf("an occured error when agent getting local IP, err: %w", err)
+	}
+
 	c := &Client{
 		host:       cfg.Server,
 		httpClient: retryClient,
 		sl:         sl,
 		hashkey:    cfg.Key,
 		publicKey:  publicKey,
-		clientIP:   localIP(),
+		clientIP:   clientIP,
 	}
 
 	return c, nil
@@ -148,20 +153,20 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 	return req, nil
 }
 
-// GetLocalIP returns the non loopback local IP of the host
-func localIP() string {
-	addrs, err := net.InterfaceAddrs()
+// localIP returns preferred outbound ip of this machine
+func localIP() (string, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("an occured erorr while getting local IP, err: %w", err)
 	}
-	for _, address := range addrs {
-		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				return ipnet.IP.String()
-			}
-		}
+	defer conn.Close()
+
+	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		return "", fmt.Errorf("unknow local IP address")
 	}
-	return ""
+
+	return localAddr.IP.To4().String(), nil
 }
 
 func (c *Client) batchUpdate(ctx context.Context, metrics []*metrics.Metrics) error {

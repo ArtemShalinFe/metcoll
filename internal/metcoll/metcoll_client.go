@@ -17,14 +17,19 @@ type MetricUpdater interface {
 func InitClient(ctx context.Context, cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (MetricUpdater, error) {
 	if cfg.UseProtobuff {
 		grpcClient, err := NewGRPCClient(ctx, cfg, sl)
+
 		if err != nil {
-			return nil, fmt.Errorf("an occured error when init grpc server, err: %w", err)
+			return nil, fmt.Errorf("an occured error when init grpc client, err: %w", err)
+		}
+		grpcClient.setupConn(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("an occured error when setup conn to grpc server, err: %w", err)
 		}
 		return grpcClient, nil
 	} else {
 		httpClient, err := NewHTTPClient(cfg, sl)
 		if err != nil {
-			return nil, fmt.Errorf("an occured error when init http server, err: %w", err)
+			return nil, fmt.Errorf("an occured error when init http client, err: %w", err)
 		}
 		return httpClient, nil
 	}
