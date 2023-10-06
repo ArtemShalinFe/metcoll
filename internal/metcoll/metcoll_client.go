@@ -21,7 +21,8 @@ func InitClient(ctx context.Context, cfg *configuration.ConfigAgent, sl *zap.Sug
 		if err != nil {
 			return nil, fmt.Errorf("an occured error when init grpc client, err: %w", err)
 		}
-		grpcClient.setupConn(ctx)
+
+		err = grpcClient.setupConn(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("an occured error when setup conn to grpc server, err: %w", err)
 		}
