@@ -1,4 +1,4 @@
-package handlers
+package metcoll
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/ArtemShalinFe/metcoll/internal/compress"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
@@ -854,7 +855,7 @@ func ExampleHandler_CollectMetricList() {
 	//	</head>
 	//	<body>
 	//		<h1>Metric list</h1>
-	//		<p>metric 1.2</p><p>metric 2</p>
+	//		<p>metric 1.2</p><p>metric 4</p>
 	//	</body>
 	//	</html>
 }
@@ -972,8 +973,20 @@ func testServer() (*httptest.Server, error) {
 		return nil, fmt.Errorf("server cannot init storage err: %w", err)
 	}
 
+	srv, err := NewHTTPServer(ctx, s, cfg, sl)
+	if err != nil {
+		return nil, fmt.Errorf("cannot init http server, err: %w", err)
+	}
+
 	h := NewHandler(s, sl)
-	r := NewRouter(ctx, h, l.RequestLogger)
+	r := NewRouter(ctx,
+		NewHandler(s, sl),
+		srv.resolverIP,
+		l.RequestLogger,
+		srv.requestHashChecker,
+		srv.responseHashSetter,
+		compress.CompressMiddleware,
+		srv.cryptoDecrypter)
 
 	h.CollectMetricList(ctx, httptest.NewRecorder())
 

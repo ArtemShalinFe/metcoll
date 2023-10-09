@@ -2,31 +2,33 @@ package metcoll
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strings"
 
-	"go.uber.org/zap"
-
+	"github.com/ArtemShalinFe/metcoll/internal/compress"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
 	"github.com/ArtemShalinFe/metcoll/internal/crypto"
+	"github.com/ArtemShalinFe/metcoll/internal/logger"
+	"go.uber.org/zap"
 )
 
-type Server struct {
-	*http.Server
-	log        *zap.SugaredLogger
-	privateKey []byte
-	hashkey    []byte
+type HTTPServer struct {
+	httpServer    *http.Server
+	log           *zap.SugaredLogger
+	trustedSubnet *net.IPNet
+	privateKey    []byte
+	hashkey       []byte
 }
 
-// NewServer - Object Constructor.
-func NewServer(cfg *configuration.Config, logger *zap.SugaredLogger) (*Server, error) {
-	s := http.Server{
-		Addr: cfg.Address,
-	}
-
+// NewHTTPServer - Object Constructor.
+func NewHTTPServer(ctx context.Context, stg Storage, cfg *configuration.Config, sl *zap.SugaredLogger) (*HTTPServer, error) {
 	var privateKey []byte
 	if cfg.PrivateCryptoKey != "" {
 		privateCryptoKey, err := crypto.GetKeyBytes(cfg.PrivateCryptoKey)
@@ -36,15 +38,83 @@ func NewServer(cfg *configuration.Config, logger *zap.SugaredLogger) (*Server, e
 		privateKey = privateCryptoKey
 	}
 
-	return &Server{
+	l, err := logger.NewMiddlewareLogger(sl)
+	if err != nil {
+		return nil, fmt.Errorf("cannot init middleware logger err: %w ", err)
+	}
+
+	s := http.Server{
+		Addr: cfg.Address,
+	}
+
+	srv := &HTTPServer{
 		&s,
-		logger,
+		sl,
+		parseTrustedSubnet(cfg.TrustedSubnet),
 		privateKey,
 		cfg.Key,
-	}, nil
+	}
+
+	srv.httpServer.Handler = NewRouter(ctx,
+		NewHandler(stg, sl),
+		srv.resolverIP,
+		l.RequestLogger,
+		srv.requestHashChecker,
+		srv.responseHashSetter,
+		compress.CompressMiddleware,
+		srv.cryptoDecrypter)
+
+	return srv, nil
 }
 
-func (s *Server) CryptoDecrypter(h http.Handler) http.Handler {
+func (s *HTTPServer) ListenAndServe() error {
+	if err := s.httpServer.ListenAndServe(); err != nil {
+		if !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("http server listen and serve err: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *HTTPServer) Shutdown(ctx context.Context) error {
+	if err := s.httpServer.Shutdown(ctx); err != nil {
+		return fmt.Errorf("http server shutdown err: %w", err)
+	}
+	return nil
+}
+
+// IPResolver - middleware checks header X-Real-IP in the incoming request.
+func (s *HTTPServer) resolverIP(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.trustedSubnet == nil {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		ipStr := strings.TrimSpace(r.Header.Get("X-Real-IP"))
+		if strings.TrimSpace(ipStr) == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			s.log.Info("header X-Real-IP is empty")
+			return
+		}
+
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			s.log.Info("failed parse ip from http header")
+			return
+		}
+
+		if !s.trustedSubnet.Contains(ip) {
+			w.WriteHeader(http.StatusForbidden)
+			s.log.Info("trusted network does not contain the ip address value from the 'X-Real-IP' header")
+			return
+		}
+	})
+}
+
+// CryptoDecrypter - middleware decrypt the incoming request.
+func (s *HTTPServer) cryptoDecrypter(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(s.privateKey) == 0 {
 			h.ServeHTTP(w, r)
@@ -80,7 +150,7 @@ func (s *Server) CryptoDecrypter(h http.Handler) http.Handler {
 }
 
 // RequestHashChecker - middleware checks the hash in the incoming request.
-func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
+func (s *HTTPServer) requestHashChecker(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(s.hashkey) == 0 {
 			h.ServeHTTP(w, r)
@@ -118,14 +188,14 @@ func (s *Server) RequestHashChecker(h http.Handler) http.Handler {
 }
 
 // ResponceHashSetter - middleware sets the hash in the server response.
-func (s *Server) ResponceHashSetter(h http.Handler) http.Handler {
+func (s *HTTPServer) responseHashSetter(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(s.hashkey) == 0 {
 			h.ServeHTTP(w, r)
 			return
 		}
 
-		hsw := NewResponseHashSetter(w, s.hashkey)
+		hsw := newResponseHashSetter(w, s.hashkey)
 
 		h.ServeHTTP(hsw, r)
 	})
@@ -137,7 +207,7 @@ type ResponseHashWriter struct {
 }
 
 // NewResponseHashSetter - Object Constructor.
-func NewResponseHashSetter(w http.ResponseWriter, hashkey []byte) *ResponseHashWriter {
+func newResponseHashSetter(w http.ResponseWriter, hashkey []byte) *ResponseHashWriter {
 	return &ResponseHashWriter{
 		ResponseWriter: w,
 		hashkey:        hashkey,
@@ -156,4 +226,25 @@ func (r *ResponseHashWriter) Write(b []byte) (int, error) {
 	}
 
 	return n, nil
+}
+
+func parseTrustedSubnet(trustedSubnet string) *net.IPNet {
+	if trustedSubnet == "" {
+		return nil
+	}
+
+	ip := net.ParseIP(trustedSubnet)
+	if ip == nil {
+		return nil
+	}
+	mask := ip.DefaultMask()
+	if mask == nil {
+		return nil
+	}
+	tn := &net.IPNet{
+		IP:   ip,
+		Mask: mask,
+	}
+
+	return tn
 }

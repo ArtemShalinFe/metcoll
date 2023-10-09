@@ -19,6 +19,7 @@ func TestConfig_String(t *testing.T) {
 		Key             []byte
 		StoreInterval   int
 		Restore         bool
+		UseProtobuff    bool
 	}
 	tests := []struct {
 		name   string
@@ -34,8 +35,9 @@ func TestConfig_String(t *testing.T) {
 				Database:        "somedsn",
 				StoreInterval:   1,
 				Restore:         false,
+				UseProtobuff:    true,
 			},
-			want: "Addres: nope, StoreInterval: 1, Restore: false, DSN: somedsn, FS path: test, Path: ",
+			want: "Addres: nope, StoreInterval: 1, Restore: false, DSN: somedsn, FS path: test, Config: , Protobuff: true",
 		},
 	}
 	for _, tt := range tests {
@@ -47,6 +49,7 @@ func TestConfig_String(t *testing.T) {
 				Key:             tt.fields.Key,
 				StoreInterval:   tt.fields.StoreInterval,
 				Restore:         tt.fields.Restore,
+				UseProtobuff:    tt.fields.UseProtobuff,
 			}
 			if got := c.String(); got != tt.want {
 				t.Errorf("Config.String() = %v, want %v", got, tt.want)
@@ -98,7 +101,8 @@ func Test_readConfigFromFile(t *testing.T) {
 			"store_interval": "1s",
 			"store_file": "/tmp/metrics-db.json", 
 			"database_dsn": "", 
-			"crypto_key": "/path/to/key.pem"
+			"crypto_key": "/path/to/key.pem",
+			"hashkey": "nope"
 		}`)
 
 	jsonConfig2 := newConfigFile(t,
@@ -108,20 +112,24 @@ func Test_readConfigFromFile(t *testing.T) {
 			"store_interval": "1m", 
 			"store_file": "/tmp/metrics-db.json", 
 			"database_dsn": "", 
-			"crypto_key": "/path/to/key.pem"
+			"crypto_key": "/path/to/key.pem",
+			"hashkey": "nope"
 		}`)
 
 	jsonConfigErr := newConfigFile(t,
 		`{
 		"store_interval": "1masdasd",
+		"hashkey": "nope"
 	}`)
 
 	want := newConfig()
 	want.StoreInterval = 1
+	want.Key = []byte("nope")
 
 	want2 := newConfig()
 	want2.Address = "localhost:8090"
 	want2.StoreInterval = 60
+	want2.Key = []byte("nope")
 
 	wantErr := newConfig()
 
@@ -187,7 +195,7 @@ func TestConfig_setFromConfigs(t *testing.T) {
 		Key:             []byte(defaultHashKey),
 		StoreInterval:   defaultStoreInterval,
 		Restore:         fc.Restore,
-		Path:            "",
+		ConfigFile:      "",
 	}
 
 	type args struct {

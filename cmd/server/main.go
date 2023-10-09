@@ -3,11 +3,10 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -15,10 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ArtemShalinFe/metcoll/internal/build"
-	"github.com/ArtemShalinFe/metcoll/internal/compress"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
-	"github.com/ArtemShalinFe/metcoll/internal/handlers"
-	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metcoll"
 	"github.com/ArtemShalinFe/metcoll/internal/storage"
 )
@@ -45,6 +41,13 @@ func run() error {
 
 	defer cancelCtx()
 
+	componentsErrs := make(chan error, 1)
+	wg := &sync.WaitGroup{}
+	defer func() {
+		wg.Wait()
+	}()
+
+	// init logger
 	zl, err := zap.NewProduction()
 	if err != nil {
 		return fmt.Errorf("cannot init zap-logger err: %w ", err)
@@ -53,40 +56,34 @@ func run() error {
 
 	sl.Info(build.NewBuild())
 
-	l, err := logger.NewMiddlewareLogger(sl)
-	if err != nil {
-		return fmt.Errorf("cannot init middleware logger err: %w ", err)
-	}
-
-	cfg, err := configuration.Parse()
-	if err != nil {
-		return fmt.Errorf("parse config err: %w ", err)
-	}
-	l.Info("parsed server config: ", fmt.Sprintf("%+v", cfg))
-
-	componentsErrs := make(chan error, 1)
-	wg := &sync.WaitGroup{}
-	defer func() {
-		wg.Wait()
-	}()
-
-	// GS logger.
+	// graceful shutdown logger
 	wg.Add(1)
 	go func(errs chan<- error) {
 		defer wg.Done()
 		<-ctx.Done()
-
-		if err := l.Interrupt(); err != nil {
-			errs <- fmt.Errorf("cannot flush buffered log entries err: %w", err)
+		if err := sl.Sync(); err != nil {
+			if runtime.GOOS == "darwin" {
+				errs <- nil
+			} else {
+				errs <- fmt.Errorf("cannot flush buffered log entries err: %w", err)
+			}
 		}
 	}(componentsErrs)
 
+	// parse config
+	cfg, err := configuration.Parse()
+	if err != nil {
+		return fmt.Errorf("parse config err: %w ", err)
+	}
+	sl.Info("parsed server config: ", fmt.Sprintf("%+v", cfg))
+
+	// init storage
 	stg, err := storage.InitStorage(ctx, cfg, sl)
 	if err != nil {
 		return fmt.Errorf("storage init err: %w ", err)
 	}
 
-	// GS storage.
+	// graceful shutdown storage
 	wg.Add(1)
 	go func(errs chan<- error) {
 		defer wg.Done()
@@ -97,33 +94,24 @@ func run() error {
 		}
 	}(componentsErrs)
 
-	l.Info("attempt to launch at address: ", cfg.Address)
-	s, err := metcoll.NewServer(cfg, sl)
+	// init server
+	sl.Info("attempt to launch server at address: ", cfg.Address)
+	s, err := metcoll.InitServer(ctx, stg, cfg, sl)
 	if err != nil {
-		componentsErrs <- fmt.Errorf("cannot init metcollserver, err: %w", err)
+		return fmt.Errorf("cannot init metcollserver, err: %w", err)
 	}
-	s.Handler = handlers.NewRouter(ctx,
-		handlers.NewHandler(stg, l.SugaredLogger),
-		l.RequestLogger,
-		s.RequestHashChecker,
-		s.ResponceHashSetter,
-		compress.CompressMiddleware,
-		s.CryptoDecrypter)
 
-	// GS server.
 	go func(errs chan<- error) {
 		if err := s.ListenAndServe(); err != nil {
-			if !errors.Is(err, http.ErrServerClosed) {
-				errs <- fmt.Errorf("listen and serve err: %w", err)
-			}
+			errs <- fmt.Errorf("listen and serve err: %w", err)
 		}
 	}(componentsErrs)
+	sl.Info("server running at address: ", cfg.Address)
 
-	l.Info("server running at address: ", cfg.Address)
-
+	// graceful shutdown server
 	wg.Add(1)
 	go func(errs chan<- error) {
-		defer l.Info("server has been shutdown")
+		defer sl.Info("server has been shutdown")
 		defer wg.Done()
 		<-ctx.Done()
 
@@ -135,10 +123,11 @@ func run() error {
 		}
 	}(componentsErrs)
 
+	// check errors
 	select {
 	case <-ctx.Done():
 	case err := <-componentsErrs:
-		l.Error(err)
+		sl.Error(err)
 		cancelCtx()
 	}
 
@@ -147,7 +136,7 @@ func run() error {
 		defer cancelCtx()
 
 		<-ctx.Done()
-		l.Fatal("gracefull shutdown was failed")
+		sl.Fatal("gracefull shutdown was failed")
 	}()
 
 	return nil

@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package metcoll;
+
+option go_package = "github.com/ArtemShalinFe/metcoll/internal/metcoll";
+
+// Metric - an indicator that reflects a particular characteristic.
+message Metric {
+  // id - is the unique name of the metric. Example: "Alloc".
+  string id = 1;
+
+  // type - is the metric type. Should be COUNTER or GAUGE.
+  MetricType type = 2; 
+
+  // delta - is the metric value for metric with type COUNTER.
+  int64 delta = 3; 
+  
+  // value - is the metric value for metric with type GAUGE.
+  double value = 4;
+
+  enum MetricType {
+    UNKNOWN = 0; // for backward compatibility
+    COUNTER = 1;
+    GAUGE = 2;
+  }
+}
+
+// UpdateRequest - a request that updates a single metric value.
+message UpdateRequest {
+  Metric metric = 1;
+}
+
+// UpdateResponse - a response to an update of a single metric value that returns the updated metric value.
+message UpdateResponse {
+  Metric metric = 1;
+  string error = 2;
+}
+
+// BatchUpdateRequest - a request that updates a package of metric values.
+message BatchUpdateRequest {
+  repeated Metric metrics = 1;
+}
+
+// BatchUpdateResponse - a response to the update of metric package.
+message BatchUpdateResponse {
+  string error = 1;
+}
+
+// ReadMetricRequest - a request that reads a single metric value.
+message ReadMetricRequest {
+  Metric metric = 1;
+}
+
+// ReadMetricResponse - a response that returns the metric value.
+message ReadMetricResponse {
+  Metric metric = 1;
+  string error = 2;
+}
+
+// ReadMetricRequest - a request that reads a package of metric values.
+message MetricListRequest {
+}
+
+// MetricListResponse - a response that returns the html page with metrics.
+message MetricListResponse {
+  string htmlpage = 1;
+  string error = 2;
+}
+
+// Metcoll - the service allows you to read and update metrics. 
+// Both single-value and batch updates are supported.
+service Metcoll {
+  rpc MetricList(MetricListRequest) returns (MetricListResponse);
+  rpc ReadMetric(ReadMetricRequest) returns (ReadMetricResponse);
+  rpc Updates(BatchUpdateRequest) returns (BatchUpdateResponse);
+  rpc Update(UpdateRequest) returns (UpdateResponse);
+}

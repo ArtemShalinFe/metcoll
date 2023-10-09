@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/ArtemShalinFe/metcoll/internal/build"
 	"github.com/ArtemShalinFe/metcoll/internal/configuration"
-	"github.com/ArtemShalinFe/metcoll/internal/logger"
 	"github.com/ArtemShalinFe/metcoll/internal/metcoll"
 	"github.com/ArtemShalinFe/metcoll/internal/metrics"
 	"github.com/ArtemShalinFe/metcoll/internal/stats"
@@ -44,16 +44,11 @@ func run() error {
 
 	sl.Info(build.NewBuild())
 
-	l, err := logger.NewMiddlewareLogger(sl)
-	if err != nil {
-		return fmt.Errorf("cannot init middleware logger err: %w", err)
-	}
-
 	cfg, err := configuration.ParseAgent()
 	if err != nil {
 		return fmt.Errorf("cannot parse server config file err: %w", err)
 	}
-	l.Infof("parsed agent config: %+v", cfg)
+	sl.Infof("parsed agent config: %+v", cfg)
 
 	componentsErrs := make(chan error, 1)
 	wg := &sync.WaitGroup{}
@@ -61,22 +56,21 @@ func run() error {
 		wg.Wait()
 	}()
 
+	// graceful shutdown logger
 	wg.Add(1)
 	go func(errs chan<- error) {
 		defer wg.Done()
 		<-ctx.Done()
-
-		if err := l.Interrupt(); err != nil {
-			errs <- fmt.Errorf("cannot flush buffered log entries err: %w", err)
+		if err := sl.Sync(); err != nil {
+			if runtime.GOOS == "darwin" {
+				errs <- nil
+			} else {
+				errs <- fmt.Errorf("cannot flush buffered log entries err: %w", err)
+			}
 		}
 	}(componentsErrs)
 
-	rl, err := logger.NewRLLogger(sl)
-	if err != nil {
-		return fmt.Errorf("cannot init retry logger err: %w", err)
-	}
-
-	client, err := metcoll.NewClient(cfg, rl)
+	client, err := metcoll.InitClient(ctx, cfg, sl)
 	if err != nil {
 		return fmt.Errorf("cannot init metcoll client err: %w", err)
 	}
@@ -96,19 +90,19 @@ func run() error {
 
 		for err := range errs {
 			if err != nil {
-				l.Errorf("batch update metrics failed err: %w", err)
+				sl.Errorf("batch update metrics failed err: %w", err)
 			} else {
 				stats.ClearPollCount()
 			}
 		}
 	}()
 
-	l.Info("metcoll client starting")
+	sl.Info("metcoll client starting")
 
 	select {
 	case <-ctx.Done():
 	case err := <-componentsErrs:
-		l.Error(err)
+		sl.Error(err)
 		cancelCtx()
 	}
 
@@ -117,7 +111,7 @@ func run() error {
 		defer cancelCtx()
 
 		<-ctx.Done()
-		l.Fatal("gracefull shutdown was failed")
+		sl.Fatal("gracefull shutdown was failed")
 	}()
 
 	return nil

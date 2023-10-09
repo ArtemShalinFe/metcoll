@@ -28,10 +28,17 @@ type Storage interface {
 
 // Metrics - an indicator that reflects a particular characteristic.
 type Metrics struct {
-	Delta *int64   `json:"delta,omitempty"`
+	// Delta - is the metric value for metric with type COUNTER.
+	Delta *int64 `json:"delta,omitempty"`
+
+	// Value - is the metric value for metric with type GAUGE.
 	Value *float64 `json:"value,omitempty"`
-	ID    string   `json:"id"`
-	MType string   `json:"type"`
+
+	// ID - is the unique name of the metric. Example: "Alloc".
+	ID string `json:"id"`
+
+	// MType - is the metric type. Should be COUNTER or GAUGE.
+	MType string `json:"type"`
 }
 
 // errUnknowMetricType - error occurs when a metric other than gauge or counter is passed.

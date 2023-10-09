@@ -33,6 +33,9 @@ const (
 
 	cryptoKeyFlagName    = "crypto-key"
 	defaultCryptoKeyPath = ""
+
+	certFileFlagName    = "s"
+	defaultCertFilePath = ""
 )
 
 // ConfigAgent contains configuration for agent.
@@ -41,9 +44,11 @@ type ConfigAgent struct {
 	Path            string `env:"CONFIG"`
 	PublicCryptoKey string `env:"CRYPTO_KEY" json:"crypto_key"`
 	Key             []byte
-	PollInterval    int `env:"POLL_INTERVAL" json:"poll_interval,omitempty"`
-	ReportInterval  int `env:"REPORT_INTERVAL" json:"report_interval,omitempty"`
-	Limit           int `env:"RATE_LIMIT"`
+	PollInterval    int    `env:"POLL_INTERVAL" json:"poll_interval,omitempty"`
+	ReportInterval  int    `env:"REPORT_INTERVAL" json:"report_interval,omitempty"`
+	Limit           int    `env:"RATE_LIMIT"`
+	UseProtobuff    bool   `env:"USE_PROTOBUFF" json:"use_protobuff"`
+	CertFilePath    string `env:"CERTIFICATE" json:"certificate"`
 }
 
 func newConfigAgent() *ConfigAgent {
@@ -98,6 +103,14 @@ func (c *ConfigAgent) setFromConfigs(configCL, configENV, configFile *ConfigAgen
 	c.PublicCryptoKey = getConfigVar(
 		configCL.PublicCryptoKey, configENV.PublicCryptoKey, configFile.PublicCryptoKey, defaultCryptoKeyPath, "")
 
+	c.UseProtobuff = getConfigVar(
+		configCL.UseProtobuff, configENV.UseProtobuff, configFile.UseProtobuff, defaultUseProtobuff, false)
+
+	c.Key = getConfigByteVar(configCL.Key, configENV.Key, configFile.Key)
+
+	c.CertFilePath = getConfigVar(
+		configCL.CertFilePath, configENV.CertFilePath, configFile.CertFilePath, defaultCryptoKeyPath, "")
+
 	c.Path = path
 }
 
@@ -107,6 +120,9 @@ func (c *ConfigAgent) UnmarshalJSON(data []byte) error {
 		Server         string `json:"address,omitempty"`
 		PollInterval   string `json:"poll_interval,omitempty"`
 		ReportInterval string `json:"report_interval,omitempty"`
+		UseProtobuff   bool   `json:"use_protobuff"`
+		HashKey        string `json:"hashkey"`
+		CertFilePath   string `json:"certificate"`
 	}
 
 	var v ConfigAgentJSON
@@ -126,6 +142,9 @@ func (c *ConfigAgent) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("cannot parse report interval duration err: %w", err)
 	}
 	c.ReportInterval = int(ri.Seconds())
+	c.UseProtobuff = v.UseProtobuff
+	c.Key = []byte(v.HashKey)
+	c.CertFilePath = v.CertFilePath
 
 	return nil
 }
@@ -165,6 +184,8 @@ func readConfigAgentFromCL() *ConfigAgent {
 	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key for setting up request hash")
 	flag.IntVar(&c.Limit, limitFlagName, defaultLimit, "worker limit")
 	flag.StringVar(&c.PublicCryptoKey, cryptoKeyFlagName, defaultCryptoKeyPath, "path to publickey.pem")
+	flag.BoolVar(&c.UseProtobuff, useProtobuffFlagName, defaultUseProtobuff, "use protobuf instead of http protocol")
+	flag.StringVar(&c.CertFilePath, certFileFlagName, defaultCertFilePath, "absolute path to certificate (x509)")
 
 	flag.Parse()
 
@@ -227,6 +248,29 @@ func getConfigVar[val comparable](varCL, varENV, varFile, def, empty val) val {
 
 	if varENV != empty && varENV != def {
 		v = varENV
+	}
+
+	return v
+}
+
+// getConfigByteVar - check len bytes variables received from
+// the application command line, environment variable, and configuration file.
+//
+// Environment variables have higher priority over command line variables and config file.
+// Command line variables have higher priority over variables from config file.
+func getConfigByteVar(varCL, varENV, varFile []byte) []byte {
+	var v []byte
+
+	if len(varENV) != 0 {
+		return varENV
+	}
+
+	if len(varCL) != 0 {
+		return varCL
+	}
+
+	if len(varFile) != 0 {
+		return varFile
 	}
 
 	return v

@@ -270,7 +270,7 @@ func (db *DB) BatchSetFloat64Value(ctx context.Context,
 			return nil, errs, fmt.Errorf("batch float64 update err: %w", err)
 		}
 
-		return updated, errs, fmt.Errorf("batch update err: %w", err)
+		return updated, errs, nil
 	}()
 
 	if err != nil {

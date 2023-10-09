@@ -21,6 +21,12 @@ const (
 	defaultPrivateCryptoKeyPath = ""
 
 	envHashKey = "KEY"
+
+	trustedSubnetFlagName = "t"
+	defaultTrustedSubnet  = ""
+
+	useProtobuffFlagName = "pb"
+	defaultUseProtobuff  = false
 )
 
 func newConfig() *Config {
@@ -37,11 +43,14 @@ type Config struct {
 	Address          string `env:"ADDRESS" json:"address"`
 	FileStoragePath  string `env:"FILE_STORAGE_PATH"  json:"store_file"`
 	Database         string `env:"DATABASE_DSN" json:"database_dsn"`
-	Path             string `env:"CONFIG"`
+	ConfigFile       string `env:"CONFIG"`
 	PrivateCryptoKey string `env:"CRYPTO_KEY" json:"crypto_key"`
 	Key              []byte
-	StoreInterval    int  `env:"STORE_INTERVAL" json:"store_interval"`
-	Restore          bool `env:"RESTORE" json:"restore"`
+	StoreInterval    int    `env:"STORE_INTERVAL" json:"store_interval"`
+	Restore          bool   `env:"RESTORE" json:"restore"`
+	TrustedSubnet    string `env:"TRUSTED_SUBNET" json:"trusted_subnet"`
+	UseProtobuff     bool   `env:"USE_PROTOBUFF" json:"use_protobuff"`
+	CertFilePath     string `env:"CERTIFICATE" json:"certificate"`
 }
 
 // Parse - return parsed config.
@@ -56,7 +65,7 @@ func Parse() (*Config, error) {
 		return nil, fmt.Errorf("an error occurred when reading the srv configuration env var, err: %w", err)
 	}
 
-	path := getConfigVar(configCL.Path, configENV.Path, "", "", "")
+	path := getConfigVar(configCL.ConfigFile, configENV.ConfigFile, "", "", "")
 	configFile, err := readConfigFromFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("an error occurred when reading the srv configuration file, err: %w", err)
@@ -75,8 +84,11 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		FileStoragePath string `json:"store_file"`
 		Database        string `json:"database_dsn"`
 		StoreInterval   string `json:"store_interval"`
-		Key             []byte
-		Restore         bool `json:"restore"`
+		HashKey         string `json:"hashkey"`
+		Restore         bool   `json:"restore"`
+		TrustedSubnet   string `json:"trusted_subnet"`
+		UseProtobuff    bool   `json:"use_protobuff"`
+		CertFilePath    string `json:"certificate"`
 	}
 
 	var v ConfigJSON
@@ -88,6 +100,10 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 	c.FileStoragePath = v.FileStoragePath
 	c.Restore = v.Restore
 	c.Database = v.Database
+	c.UseProtobuff = v.UseProtobuff
+	c.TrustedSubnet = v.TrustedSubnet
+	c.Key = []byte(v.HashKey)
+	c.CertFilePath = v.CertFilePath
 
 	si, err := time.ParseDuration(v.StoreInterval)
 	if err != nil {
@@ -99,8 +115,8 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 }
 
 func (c *Config) String() string {
-	return fmt.Sprintf("Addres: %s, StoreInterval: %d, Restore: %t, DSN: %s, FS path: %s, Path: %s",
-		c.Address, c.StoreInterval, c.Restore, c.Database, c.FileStoragePath, c.Path)
+	return fmt.Sprintf("Addres: %s, StoreInterval: %d, Restore: %t, DSN: %s, FS path: %s, Config: %s, Protobuff: %t",
+		c.Address, c.StoreInterval, c.Restore, c.Database, c.FileStoragePath, c.ConfigFile, c.UseProtobuff)
 }
 
 // setFromConfigs -  sets configuration values from instances obtained
@@ -124,7 +140,17 @@ func (c *Config) setFromConfigs(configCL, configENV, configFile *Config, path st
 	c.PrivateCryptoKey = getConfigVar(
 		configCL.PrivateCryptoKey, configENV.PrivateCryptoKey, configFile.PrivateCryptoKey, defaultPrivateCryptoKeyPath, "")
 
-	c.Path = path
+	c.TrustedSubnet = getConfigVar(
+		configCL.TrustedSubnet, configENV.TrustedSubnet, configFile.TrustedSubnet, defaultTrustedSubnet, "")
+
+	c.UseProtobuff = getConfigVar(
+		configCL.UseProtobuff, configENV.UseProtobuff, configFile.UseProtobuff, defaultUseProtobuff, false)
+
+	c.Key = getConfigByteVar(configCL.Key, configENV.Key, configFile.Key)
+
+	c.CertFilePath = getConfigVar(configCL.CertFilePath, configENV.CertFilePath, configFile.CertFilePath, "", "")
+
+	c.ConfigFile = path
 }
 
 // readConfigFromENV - reading env vars and returned config.
@@ -157,8 +183,13 @@ func readConfigFromCL() *Config {
 	flag.StringVar(&c.Database, "d", "", "database connection")
 	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key for check agent request hash")
 	flag.StringVar(&c.PrivateCryptoKey, cryptoKeyFlagName, defaultCryptoKeyPath, "path to privatekey.pem")
+	flag.StringVar(&c.TrustedSubnet, trustedSubnetFlagName, defaultTrustedSubnet, "trusted subnet, example 192.168.31.1")
+	flag.BoolVar(&c.UseProtobuff, useProtobuffFlagName, defaultUseProtobuff, "use protobuf instead of http protocol")
+	flag.StringVar(&c.CertFilePath, certFileFlagName, defaultCertFilePath, "absolute path to certificate (x509)")
 
 	flag.Parse()
+
+	c.Key = []byte(hashkey)
 
 	return c
 }

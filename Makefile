@@ -33,8 +33,15 @@ build-staticlint:
 .PHONY: go-tests
 go-tests:
 	go vet ./...
-	go test ./... -v -race -count=1 -coverpkg=./... -coverprofile=coverage.out 
+	go test ./... -v -race -count=1 -coverpkg=./... -coverprofile=coverage.out
 	go tool cover -html=coverage.out -o ./coverage.html
+
+.PHONY: go-tests-with-tags
+go-tests-with-tags:
+	go vet ./...
+	go test ./... --tags=usetempdir -v -race -count=1 -coverpkg=./... -coverprofile=coverage.out -covermode=atomic 
+	go tool cover -html=coverage.out -o ./coverage.html
+
 
 .PHONY: unit-tests
 unit-tests:
@@ -65,10 +72,10 @@ ya-tests:
 	rm /tmp/test-db.json
 
 .PHONY: mocks
-mocks:
+mocks: protoc
 	mockgen -source=internal/metrics/metrics.go -destination=internal/metrics/mock_metrics.go -package metrics
-	mockgen -source=internal/handlers/handlers.go -destination=internal/handlers/mock_handlers.go -package handlers
-
+	mockgen -source=internal/metcoll/handlers.go -destination=internal/metcoll/mock_handlers.go -package metcoll
+	mockgen -source=internal/metcoll/metcoll_grpc.pb.go -destination=internal/metcoll/mock_grpc_pb.go -package metcoll
 
 .PHONY: lint
 lint:
@@ -89,3 +96,10 @@ cryptokeys:
 	mv $(ROOT_DIR)/rsagen/cmd/rsagen $(ROOT_DIR)/keys
 	$(ROOT_DIR)/keys/rsagen -o "$(ROOT_DIR)/keys" -b "10000"
 	rm -f $(ROOT_DIR)/keys/rsagen
+
+.PHONY: protoc
+protoc:
+	protoc proto/v1/*.proto  --proto_path=proto/v1 \
+	--go_out=internal/metcoll --go_opt=module=github.com/ArtemShalinFe/metcoll/internal/metcoll \
+	--go-grpc_out=internal/metcoll --go-grpc_opt=module=github.com/ArtemShalinFe/metcoll/internal/metcoll
+	
