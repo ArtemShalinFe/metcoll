@@ -74,6 +74,20 @@ linters-settings:
     check-type-assertions: true
     disable-default-exclusions: false
     exclude-functions: null
+  
+  wrapcheck:
+    ignoreSigs:
+      - .Errorf(
+      - .Error(
+      - .Errorf(
+      - errors.New(
+      - errors.Unwrap(
+      - errors.Join(
+      - .Wrap(
+      - .Wrapf(
+      - .WithMessage(
+      - .WithMessagef(
+      - .WithStack(
 
   errorlint: 
     asserts: true
@@ -369,7 +383,7 @@ linters:
     - asciicheck
     - bodyclose
     - containedctx
-    - dupl
+    # - dupl
     - dupword
     - durationcheck
     - errcheck

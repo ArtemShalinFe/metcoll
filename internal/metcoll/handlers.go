@@ -18,6 +18,7 @@ const (
 	contentType     = "Content-Type"
 	textPlain       = "text/plain; charset=utf-8"
 	applicationJSON = "application/json"
+	realIP          = "X-Real-IP"
 )
 
 type Handler struct {
@@ -79,6 +80,8 @@ func templateMetricList() string {
 	</html>`
 }
 
+var mt = `<p>%s</p>`
+
 func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) {
 	ms, err := h.storage.GetDataList(ctx)
 	if err != nil {
@@ -88,7 +91,7 @@ func (h *Handler) CollectMetricList(ctx context.Context, w http.ResponseWriter) 
 
 	list := ""
 	for _, v := range ms {
-		list += fmt.Sprintf(`<p>%s</p>`, v)
+		list += fmt.Sprintf(mt, v)
 	}
 
 	resp := []byte(fmt.Sprintf(templateMetricList(), list))
@@ -194,7 +197,7 @@ func (h *Handler) BatchUpdate(ctx context.Context, w http.ResponseWriter, body i
 	for _, m := range ms {
 		if m.MType != metrics.CounterMetric && m.MType != metrics.GaugeMetric {
 			w.WriteHeader(http.StatusBadRequest)
-			h.logger.Infof("metric %s has unknow type: %s", m.ID, m.MType)
+			h.logger.Infof("metric (%s) has unknow type: %s", m.ID, m.MType)
 			return
 		}
 
@@ -215,7 +218,7 @@ func (h *Handler) BatchUpdate(ctx context.Context, w http.ResponseWriter, body i
 	}
 
 	for _, um := range ums {
-		h.logger.Infof("Metric %s was updated. New value: %s", um.ID, um.String())
+		h.logger.Debugf("Metric (%s) was updated. New value: %s", um.ID, um.String())
 	}
 
 	b, err = json.Marshal(&errs)

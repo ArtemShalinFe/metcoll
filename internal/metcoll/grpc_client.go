@@ -105,8 +105,8 @@ func (c *GRPCClient) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metric
 	mc := NewMetcollClient(c.cc)
 
 	headers := map[string]string{
-		"X-Real-IP": c.clientIP,
-		HashSHA256:  "",
+		realIP:     c.clientIP,
+		HashSHA256: "",
 	}
 
 	for m := range mcs {

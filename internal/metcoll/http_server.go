@@ -28,7 +28,12 @@ type HTTPServer struct {
 }
 
 // NewHTTPServer - Object Constructor.
-func NewHTTPServer(ctx context.Context, stg Storage, cfg *configuration.Config, sl *zap.SugaredLogger) (*HTTPServer, error) {
+func NewHTTPServer(
+	ctx context.Context,
+	stg Storage,
+	cfg *configuration.Config,
+	sl *zap.SugaredLogger,
+) (*HTTPServer, error) {
 	var privateKey []byte
 	if cfg.PrivateCryptoKey != "" {
 		privateCryptoKey, err := crypto.GetKeyBytes(cfg.PrivateCryptoKey)

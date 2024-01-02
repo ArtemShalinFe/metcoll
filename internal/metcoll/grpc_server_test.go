@@ -75,8 +75,8 @@ func headersForRequest(t *testing.T, b []byte) map[string]string {
 	}
 
 	headers := map[string]string{
-		"X-Real-IP": clientIP,
-		HashSHA256:  "",
+		realIP:     clientIP,
+		HashSHA256: "",
 	}
 	if len(hashKey) != 0 && len(b) > 0 {
 		h := hmac.New(sha256.New, hashKey)

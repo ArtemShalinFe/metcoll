@@ -4,6 +4,7 @@ package stats
 import (
 	"context"
 	"fmt"
+	"log"
 	"runtime"
 	"sync"
 	"time"
@@ -128,14 +129,18 @@ func (s *Stats) GetReportData(ctx context.Context) map[string]map[string]*metric
 	gm := make(map[string]*metrics.Metrics)
 	for _, id := range gaugeMetrics() {
 		m := metrics.NewGaugeMetric(id, 0)
-		m.Get(ctx, s)
+		if err := m.Get(ctx, s); err != nil {
+			log.Printf("an error occured while get gauge report data, err: %v", err)
+		}
 		gm[id] = m
 	}
 
 	cm := make(map[string]*metrics.Metrics)
 	for _, mid := range counterMetrics() {
 		m := metrics.NewCounterMetric(mid, 0)
-		m.Get(ctx, s)
+		if err := m.Get(ctx, s); err != nil {
+			log.Printf("an error occured while get counter report data, err: %v", err)
+		}
 		cm[mid] = m
 	}
 

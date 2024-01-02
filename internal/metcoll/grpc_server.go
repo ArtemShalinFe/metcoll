@@ -59,13 +59,13 @@ func (ms *MetricService) Updates(ctx context.Context, request *BatchUpdateReques
 
 	ums, errs, err := metrics.BatchUpdate(ctx, mtrs, ms.storage)
 	if err != nil {
-		ms.log.Errorf("BatchUpdate update error: %w", err)
+		ms.log.Errorf("BatchUpdate update was failed, err: %w", err)
 		response.Error = "batch update metric was failed"
 		return &response, fmt.Errorf("an error occured while convert pb batch metric, err: %w", err)
 	}
 	if len(errs) > 0 {
 		for _, err := range errs {
-			ms.log.Errorf("BatchUpdate update error: %w", err)
+			ms.log.Errorf("BatchUpdate update, err: %w", err)
 		}
 
 		response.Error = "not all metrics have been updated"
@@ -85,10 +85,10 @@ func (ms *MetricService) Update(ctx context.Context, request *UpdateRequest) (*U
 	mtr, err := convertMetric(request.GetMetric())
 	if err != nil {
 		response.Error = err.Error()
-		return &response, nil
+		return &response, fmt.Errorf("an error occured while convert metric, err: %w", err)
 	}
 
-	ms.log.Infof("Trying update %s metric %s with value: %s", mtr.MType, mtr.ID, mtr.String())
+	ms.log.Infof("Trying update (%s) metric %s with value: %s", mtr.MType, mtr.ID, mtr.String())
 
 	if err := mtr.Update(ctx, ms.storage); err != nil {
 		if !errors.Is(err, storage.ErrNoRows) {
@@ -110,14 +110,14 @@ func (ms *MetricService) ReadMetric(ctx context.Context, request *ReadMetricRequ
 	mtr, err := convertMetric(request.GetMetric())
 	if err != nil {
 		response.Error = err.Error()
-		return &response, nil
+		return &response, fmt.Errorf("an error occured while convert metric in reading, err: %w", err)
 	}
 
 	if err := mtr.Get(ctx, ms.storage); err != nil {
 		if !errors.Is(err, storage.ErrNoRows) {
 			ms.log.Errorf("an error occurred while reading the metric, err: %w", err)
 			response.Error = "an error occurred while reading the metric"
-			return &response, nil
+			return &response, fmt.Errorf("an error occurred while recieve the metric, err: %w", err)
 		}
 	}
 
@@ -134,12 +134,12 @@ func (ms *MetricService) MetricList(ctx context.Context, request *MetricListRequ
 	if err != nil {
 		ms.log.Errorf("an error occurred while getting metric list, err: %w", err)
 		response.Error = "an error occurred while getting metric list"
-		return &response, nil
+		return &response, fmt.Errorf("an error occurred while recieve metric list, err: %w", err)
 	}
 
 	list := ""
 	for _, v := range mts {
-		list += fmt.Sprintf(`<p>%s</p>`, v)
+		list += fmt.Sprintf(mt, v)
 	}
 
 	response.Htmlpage = fmt.Sprintf(templateMetricList(), list)
@@ -196,7 +196,7 @@ func (s *GRPCServer) RegisterService(desc *grpc.ServiceDesc, impl any) {
 
 func (s *GRPCServer) Serve(lis net.Listener) error {
 	if err := s.grpcServer.Serve(lis); err != nil {
-		return fmt.Errorf("an occured error when server serve request, err: %v", err)
+		return fmt.Errorf("an occured error when server serve request, err: %w", err)
 	}
 	return nil
 }
@@ -221,7 +221,12 @@ func (s *GRPCServer) Shutdown(ctx context.Context) error {
 }
 
 func (s *GRPCServer) requestLogger() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(
+		ctx context.Context,
+		req interface{},
+		info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (interface{}, error) {
 		start := time.Now()
 		resp, err := handler(ctx, req)
 		duration := time.Since(start)
@@ -243,38 +248,39 @@ func (s *GRPCServer) requestLogger() grpc.UnaryServerInterceptor {
 }
 
 func (s *GRPCServer) resolverIP() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(
+		ctx context.Context,
+		req interface{},
+		info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (interface{}, error) {
 		if s.trustedSubnet == nil {
 			resp, err := handler(ctx, req)
 			if err != nil {
 				return nil, status.Errorf(codes.Unknown,
-					"handler in resolver ip interceptor was failed, err: %v", err)
+					"interruptor in resolver ip interceptor was failed, err: %v", err)
 			}
 			return resp, nil
 		}
 
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
-			return nil, status.Error(codes.Aborted,
-				"'X-Real-IP' header is required")
+			return nil, status.Error(codes.Aborted, "'X-Real-IP' header is required")
 		}
 
-		ips := md.Get("X-Real-IP")
+		ips := md.Get(realIP)
 		if len(ips) == 0 {
-			return nil, status.Error(codes.Aborted,
-				"'X-Real-IP' header not contain elemets")
+			return nil, status.Error(codes.Aborted, "'X-Real-IP' header not contain elemets")
 		}
 
 		ipStr := strings.TrimSpace(ips[0])
 		if strings.TrimSpace(ipStr) == "" {
-			return nil, status.Error(codes.Aborted,
-				"first element in 'X-Real-IP' header is empty")
+			return nil, status.Error(codes.Aborted, "first element in 'X-Real-IP' header is empty")
 		}
 
 		ip := net.ParseIP(ipStr)
 		if ip == nil {
-			return nil, status.Error(codes.Aborted,
-				"first element in 'X-Real-IP' header is not IP")
+			return nil, status.Error(codes.Aborted, "first element in 'X-Real-IP' header is not IP")
 		}
 
 		if !s.trustedSubnet.Contains(ip) {
@@ -292,7 +298,12 @@ func (s *GRPCServer) resolverIP() grpc.UnaryServerInterceptor {
 }
 
 func (s *GRPCServer) hashChecker() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(
+		ctx context.Context,
+		req interface{},
+		info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (interface{}, error) {
 		if len(s.hashkey) == 0 {
 			resp, err := handler(ctx, req)
 			if err != nil {
@@ -327,7 +338,7 @@ func (s *GRPCServer) hashChecker() grpc.UnaryServerInterceptor {
 		}
 
 		if correctHash != hash {
-			return nil, status.Error(codes.Aborted, "incorrect hash")
+			return nil, status.Error(codes.Aborted, "hash is incorrect")
 		}
 
 		resp, err := handler(ctx, req)
@@ -353,19 +364,19 @@ func (s *GRPCServer) correctRequestHash(req any) (string, error) {
 	case *BatchUpdateRequest:
 		correctHash, err := s.messageHash(r.GetMetrics())
 		if err != nil {
-			return "", fmt.Errorf("batch update - bad request, err: %v", err)
+			return "", fmt.Errorf("batch update - bad request, err: %w", err)
 		}
 		return correctHash, nil
 	case *UpdateRequest:
 		correctHash, err := s.messageHash(r.GetMetric())
 		if err != nil {
-			return "", fmt.Errorf("update - bad request, err: %v", err)
+			return "", fmt.Errorf("update - bad request, err: %w", err)
 		}
 		return correctHash, nil
 	case *ReadMetricRequest:
 		correctHash, err := s.messageHash(r.GetMetric())
 		if err != nil {
-			return "", fmt.Errorf("read - bad request, err: %v", err)
+			return "", fmt.Errorf("read - bad request, err: %w", err)
 		}
 		return correctHash, nil
 	default:
@@ -380,7 +391,7 @@ func getServerCreds(cfg *configuration.Config) (credentials.TransportCredentials
 			cfg.PrivateCryptoKey,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("an occured error when loading TLS keys: %s", err)
+			return nil, fmt.Errorf("an occured error when loading TLS keys, err: %w", err)
 		}
 		return creds, nil
 	} else {
