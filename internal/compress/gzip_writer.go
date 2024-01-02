@@ -21,7 +21,11 @@ func NewGzipWriter(w http.ResponseWriter) *gzipWriter {
 }
 
 func (c *gzipWriter) Write(p []byte) (int, error) {
-	return c.zipW.Write(p)
+	n, err := c.zipW.Write(p)
+	if err != nil {
+		return 0, fmt.Errorf("an error occured while zipR writing, err: %w", err)
+	}
+	return n, nil
 }
 
 func (c *gzipWriter) WriteHeader(statusCode int) {

@@ -18,9 +18,9 @@ func TestInitClient(t *testing.T) {
 		t.Errorf("init http client, err: %v", err)
 	}
 	tests := []struct {
-		name    string
-		cfg     *configuration.ConfigAgent
 		want    MetricUpdater
+		cfg     *configuration.ConfigAgent
+		name    string
 		wantErr bool
 	}{
 		{

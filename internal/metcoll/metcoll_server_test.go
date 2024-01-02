@@ -26,9 +26,9 @@ func TestInitServer(t *testing.T) {
 		t.Errorf("init grpc server, err: %v", err)
 	}
 	tests := []struct {
-		name    string
-		cfg     *configuration.Config
 		want    MetricServer
+		cfg     *configuration.Config
+		name    string
 		wantErr bool
 	}{
 		{

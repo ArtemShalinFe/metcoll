@@ -155,7 +155,7 @@ func BatchUpdate(ctx context.Context, ms []*Metrics, storage Storage) ([]*Metric
 		}
 	}
 
-	var ums []*Metrics
+	var ums []*Metrics //nolint // in order not to complicate the filling of the array.
 	var errs []error
 	updatedGauges, uerrs, err := storage.BatchSetFloat64Value(ctx, gauges)
 	if err != nil {

@@ -24,10 +24,8 @@ type GRPCClient struct {
 	sl       *zap.SugaredLogger
 	host     string
 	clientIP string
-	hashkey  []byte
-
-	// certpath - absolute path to cert.crt file
 	certPath string
+	hashkey  []byte
 }
 
 func NewGRPCClient(ctx context.Context, cfg *configuration.ConfigAgent, sl *zap.SugaredLogger) (*GRPCClient, error) {
@@ -57,8 +55,7 @@ func getClientCreds(certFilePath string) (credentials.TransportCredentials, erro
 		certFilePath,
 		"")
 	if err != nil {
-		return nil, fmt.Errorf("failed to load credentials: %v", err)
-
+		return nil, fmt.Errorf("failed to load credentials: %w", err)
 	}
 	return creds, nil
 }
@@ -68,15 +65,13 @@ func (c *GRPCClient) setupConn(ctx context.Context) error {
 
 	creds, err := getClientCreds(c.certPath)
 	if err != nil {
-		return fmt.Errorf("an occured error when getting client credentials: %v", err)
-
+		return fmt.Errorf("an occured error when getting client credentials: %w", err)
 	}
 
 	opts = append(opts, grpc.WithTransportCredentials(creds))
 	conn, err := grpc.DialContext(ctx, c.host, opts...)
 	if err != nil {
 		return fmt.Errorf("server is not available at %s, err: %w", c.host, err)
-
 	}
 
 	c.cc = conn
@@ -84,13 +79,16 @@ func (c *GRPCClient) setupConn(ctx context.Context) error {
 	return nil
 }
 
+const defaultBackoffLinear = 2
+const defaultMaxAttempt = 3
+
 func (c *GRPCClient) getDialOpts() []grpc.DialOption {
 	var opts []grpc.DialOption
 
 	retryopts := []grpc_retry.CallOption{
-		grpc_retry.WithBackoff(grpc_retry.BackoffLinear(2 * time.Second)),
+		grpc_retry.WithBackoff(grpc_retry.BackoffLinear(defaultBackoffLinear * time.Second)),
 		grpc_retry.WithCodes(grpc_retry.DefaultRetriableCodes...),
-		grpc_retry.WithMax(3),
+		grpc_retry.WithMax(defaultMaxAttempt),
 	}
 
 	chain := grpc.WithChainUnaryInterceptor(
@@ -107,8 +105,8 @@ func (c *GRPCClient) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metric
 	mc := NewMetcollClient(c.cc)
 
 	headers := map[string]string{
-		"X-Real-IP": c.clientIP,
-		HashSHA256:  "",
+		realIP:     c.clientIP,
+		HashSHA256: "",
 	}
 
 	for m := range mcs {
@@ -122,7 +120,7 @@ func (c *GRPCClient) BatchUpdateMetric(ctx context.Context, mcs <-chan []*metric
 		if len(c.hashkey) != 0 {
 			b, err := convertToBytes(request.Metrics)
 			if err != nil {
-				result <- fmt.Errorf("unable to convert metrics to bytes, err: %w", err)
+				result <- fmt.Errorf("unable to convert batch metrics to bytes, err: %w", err)
 				return
 			}
 			h := hmac.New(sha256.New, c.hashkey)

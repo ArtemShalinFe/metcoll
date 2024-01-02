@@ -51,7 +51,7 @@ import (
 )
 
 func main() {
-	var checks []*analysis.Analyzer
+	var checks []*analysis.Analyzer //nolint // For the convenience of adding new analyzers, a slice is used.
 
 	for _, v := range staticcheck.Analyzers {
 		checks = append(checks, v.Analyzer)

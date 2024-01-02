@@ -436,7 +436,7 @@ func (db *DB) getAllDataFloat64(ctx context.Context) (map[string]float64, error)
 }
 
 func (db *DB) GetDataList(ctx context.Context) ([]string, error) {
-	var list []string
+	var list []string //nolint // in order not to complicate things
 	const metricTemplate = "%s %s"
 
 	AllDataFloat64, err := db.getAllDataFloat64(ctx)

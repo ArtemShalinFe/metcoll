@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -133,9 +134,9 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 		return nil, fmt.Errorf("cannot create request err: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(contentType, "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
-	req.Header.Set("X-Real-IP", c.clientIP)
+	req.Header.Set(realIP, c.clientIP)
 
 	if len(c.hashkey) != 0 {
 		data, err := req.BodyBytes()
@@ -153,13 +154,17 @@ func (c *Client) prepareRequest(ctx context.Context, body []byte, url string) (*
 	return req, nil
 }
 
-// localIP returns preferred outbound ip of this machine
+// localIP returns preferred outbound ip of this machine.
 func localIP() (string, error) {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
 		return "", fmt.Errorf("an occured erorr while getting local IP, err: %w", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Printf("an error occured while close conn, err: %v", err)
+		}
+	}()
 
 	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
 	if !ok {
@@ -182,7 +187,7 @@ func (c *Client) batchUpdate(ctx context.Context, metrics []*metrics.Metrics) er
 		}
 	}
 
-	url, err := url.JoinPath("http://", c.host, "/updates/")
+	url, err := url.JoinPath("http://", c.host, updates)
 	if err != nil {
 		return fmt.Errorf("cannot join elements in path err: %w", err)
 	}

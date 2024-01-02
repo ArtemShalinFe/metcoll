@@ -75,8 +75,8 @@ func headersForRequest(t *testing.T, b []byte) map[string]string {
 	}
 
 	headers := map[string]string{
-		"X-Real-IP": clientIP,
-		HashSHA256:  "",
+		realIP:     clientIP,
+		HashSHA256: "",
 	}
 	if len(hashKey) != 0 && len(b) > 0 {
 		h := hmac.New(sha256.New, hashKey)
@@ -114,10 +114,10 @@ func TestMetricService_ReadMetric(t *testing.T) {
 		metric *metrics.Metrics
 	}
 	tests := []struct {
-		name         string
 		args         args
 		want         *ReadMetricResponse
 		wantPBMetric *Metric
+		name         string
 		wantErr      bool
 	}{
 		{
@@ -221,10 +221,10 @@ func TestMetricService_Update(t *testing.T) {
 		metric *metrics.Metrics
 	}
 	tests := []struct {
-		name         string
 		args         args
 		want         *UpdateResponse
 		wantPBMetric *Metric
+		name         string
 		wantErr      bool
 	}{
 		{
@@ -360,9 +360,9 @@ func TestMetricService_Updates(t *testing.T) {
 		metrics []*metrics.Metrics
 	}
 	tests := []struct {
+		want    *UpdateResponse
 		name    string
 		args    args
-		want    *UpdateResponse
 		wantErr bool
 	}{
 		{
@@ -439,9 +439,9 @@ func TestMetricService_MetricList(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
 		req     *MetricListRequest
 		want    *MetricListResponse
+		name    string
 		wantErr bool
 	}{
 		{

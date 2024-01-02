@@ -14,6 +14,7 @@ const (
 	metricNameParam  = "metricName"
 	metricTypeParam  = "metricType"
 	metricValueParam = "metricValue"
+	updates          = "/updates/"
 )
 
 func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.Handler) http.Handler) *chi.Mux {
@@ -64,7 +65,7 @@ func NewRouter(ctx context.Context, handlers *Handler, middlewares ...func(http.
 			handlers.Ping(r.Context(), w)
 		})
 
-		r.Post("/updates/", func(w http.ResponseWriter, r *http.Request) {
+		r.Post(updates, func(w http.ResponseWriter, r *http.Request) {
 			handlers.BatchUpdate(r.Context(), w, r.Body)
 		})
 	})

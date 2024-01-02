@@ -71,14 +71,14 @@ func (ms *MemStorage) SetFloat64Value(_ context.Context, key string, value float
 	return value, nil
 }
 
-func (ms *MemStorage) getAllDataInt64(_ context.Context) (map[string]int64, error) {
+func (ms *MemStorage) getAllDataInt64(_ context.Context) (map[string]int64, error) { //nolint // for compatibility with the interface
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 
 	return ms.dataInt64, nil
 }
 
-func (ms *MemStorage) getAllDataFloat64(_ context.Context) (map[string]float64, error) {
+func (ms *MemStorage) getAllDataFloat64(_ context.Context) (map[string]float64, error) { //nolint // for compatibility with the interface
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 

@@ -72,17 +72,12 @@ func (Metric_MetricType) EnumDescriptor() ([]byte, []int) {
 // Metric - an indicator that reflects a particular characteristic.
 type Metric struct {
 	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
-
-	// id - is the unique name of the metric. Example: "Alloc".
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// type - is the metric type. Should be COUNTER or GAUGE.
-	Type Metric_MetricType `protobuf:"varint,2,opt,name=type,proto3,enum=metcoll.Metric_MetricType" json:"type,omitempty"`
-	// delta - is the metric value for metric with type COUNTER.
-	Delta int64 `protobuf:"varint,3,opt,name=delta,proto3" json:"delta,omitempty"`
-	// value - is the metric value for metric with type GAUGE.
-	Value float64 `protobuf:"fixed64,4,opt,name=value,proto3" json:"value,omitempty"`
+	Delta         int64   `protobuf:"varint,3,opt,name=delta,proto3" json:"delta,omitempty"`
+	Value         float64 `protobuf:"fixed64,4,opt,name=value,proto3" json:"value,omitempty"`
+	sizeCache     protoimpl.SizeCache
+	Type          Metric_MetricType `protobuf:"varint,2,opt,name=type,proto3,enum=metcoll.Metric_MetricType" json:"type,omitempty"`
 }
 
 func (x *Metric) Reset() {
@@ -148,10 +143,9 @@ func (x *Metric) GetValue() float64 {
 // UpdateRequest - a request that updates a single metric value.
 type UpdateRequest struct {
 	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
+	Metric        *Metric `protobuf:"bytes,1,opt,name=metric,proto3" json:"metric,omitempty"`
 	unknownFields protoimpl.UnknownFields
-
-	Metric *Metric `protobuf:"bytes,1,opt,name=metric,proto3" json:"metric,omitempty"`
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateRequest) Reset() {
@@ -196,11 +190,10 @@ func (x *UpdateRequest) GetMetric() *Metric {
 // UpdateResponse - a response to an update of a single metric value that returns the updated metric value.
 type UpdateResponse struct {
 	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
+	Metric        *Metric `protobuf:"bytes,1,opt,name=metric,proto3" json:"metric,omitempty"`
+	Error         string  `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 	unknownFields protoimpl.UnknownFields
-
-	Metric *Metric `protobuf:"bytes,1,opt,name=metric,proto3" json:"metric,omitempty"`
-	Error  string  `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateResponse) Reset() {
@@ -252,10 +245,9 @@ func (x *UpdateResponse) GetError() string {
 // BatchUpdateRequest - a request that updates a package of metric values.
 type BatchUpdateRequest struct {
 	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
-
-	Metrics []*Metric `protobuf:"bytes,1,rep,name=metrics,proto3" json:"metrics,omitempty"`
+	Metrics       []*Metric `protobuf:"bytes,1,rep,name=metrics,proto3" json:"metrics,omitempty"`
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BatchUpdateRequest) Reset() {
@@ -300,10 +292,9 @@ func (x *BatchUpdateRequest) GetMetrics() []*Metric {
 // BatchUpdateResponse - a response to the update of metric package.
 type BatchUpdateResponse struct {
 	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
+	Error         string `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
 	unknownFields protoimpl.UnknownFields
-
-	Error string `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BatchUpdateResponse) Reset() {
@@ -348,10 +339,9 @@ func (x *BatchUpdateResponse) GetError() string {
 // ReadMetricRequest - a request that reads a single metric value.
 type ReadMetricRequest struct {
 	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
+	Metric        *Metric `protobuf:"bytes,1,opt,name=metric,proto3" json:"metric,omitempty"`
 	unknownFields protoimpl.UnknownFields
-
-	Metric *Metric `protobuf:"bytes,1,opt,name=metric,proto3" json:"metric,omitempty"`
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ReadMetricRequest) Reset() {
@@ -396,11 +386,10 @@ func (x *ReadMetricRequest) GetMetric() *Metric {
 // ReadMetricResponse - a response that returns the metric value.
 type ReadMetricResponse struct {
 	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
+	Metric        *Metric `protobuf:"bytes,1,opt,name=metric,proto3" json:"metric,omitempty"`
+	Error         string  `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 	unknownFields protoimpl.UnknownFields
-
-	Metric *Metric `protobuf:"bytes,1,opt,name=metric,proto3" json:"metric,omitempty"`
-	Error  string  `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ReadMetricResponse) Reset() {
@@ -452,8 +441,8 @@ func (x *ReadMetricResponse) GetError() string {
 // ReadMetricRequest - a request that reads a package of metric values.
 type MetricListRequest struct {
 	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *MetricListRequest) Reset() {
@@ -491,11 +480,10 @@ func (*MetricListRequest) Descriptor() ([]byte, []int) {
 // MetricListResponse - a response that returns the html page with metrics.
 type MetricListResponse struct {
 	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
+	Htmlpage      string `protobuf:"bytes,1,opt,name=htmlpage,proto3" json:"htmlpage,omitempty"`
+	Error         string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 	unknownFields protoimpl.UnknownFields
-
-	Htmlpage string `protobuf:"bytes,1,opt,name=htmlpage,proto3" json:"htmlpage,omitempty"`
-	Error    string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *MetricListResponse) Reset() {
