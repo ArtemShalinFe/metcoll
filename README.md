@@ -4,7 +4,6 @@
 - [![codecov](https://codecov.io/gh/ArtemShalinFe/metcoll/branch/main/graph/badge.svg?token=1H84IB1DO1)](https://codecov.io/gh/ArtemShalinFe/metcoll)
 - [![Go Report Card](https://goreportcard.com/badge/github.com/ArtemShalinFe/metcoll)](https://goreportcard.com/report/github.com/ArtemShalinFe/metcoll)
 - [![codebeat badge](https://codebeat.co/badges/43f20fd4-6625-41d5-b9be-56d75b5bfee6)](https://codebeat.co/projects/github-com-artemshalinfe-metcoll-main)
-- [![codecov](https://codecov.io/gh/ArtemShalinFe/metcoll/graph/badge.svg?token=M8NIRVOOPT)](https://codecov.io/gh/ArtemShalinFe/metcoll)
 
 Инкрементальный проекта курса «Go-разработчик» трека "Сервис сбора метрик"
 
