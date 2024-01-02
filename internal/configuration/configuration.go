@@ -45,12 +45,12 @@ type Config struct {
 	Database         string `env:"DATABASE_DSN" json:"database_dsn"`
 	ConfigFile       string `env:"CONFIG"`
 	PrivateCryptoKey string `env:"CRYPTO_KEY" json:"crypto_key"`
-	Key              []byte
-	StoreInterval    int    `env:"STORE_INTERVAL" json:"store_interval"`
-	Restore          bool   `env:"RESTORE" json:"restore"`
 	TrustedSubnet    string `env:"TRUSTED_SUBNET" json:"trusted_subnet"`
-	UseProtobuff     bool   `env:"USE_PROTOBUFF" json:"use_protobuff"`
 	CertFilePath     string `env:"CERTIFICATE" json:"certificate"`
+	Key              []byte
+	StoreInterval    int  `env:"STORE_INTERVAL" json:"store_interval"`
+	Restore          bool `env:"RESTORE" json:"restore"`
+	UseProtobuff     bool `env:"USE_PROTOBUFF" json:"use_protobuff"`
 }
 
 // Parse - return parsed config.
@@ -85,10 +85,10 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		Database        string `json:"database_dsn"`
 		StoreInterval   string `json:"store_interval"`
 		HashKey         string `json:"hashkey"`
-		Restore         bool   `json:"restore"`
 		TrustedSubnet   string `json:"trusted_subnet"`
-		UseProtobuff    bool   `json:"use_protobuff"`
 		CertFilePath    string `json:"certificate"`
+		Restore         bool   `json:"restore"`
+		UseProtobuff    bool   `json:"use_protobuff"`
 	}
 
 	var v ConfigJSON
@@ -184,8 +184,8 @@ func readConfigFromCL() *Config {
 	flag.StringVar(&hashkey, hashKeyFlagName, defaultHashKey, "hash key for check agent request hash")
 	flag.StringVar(&c.PrivateCryptoKey, cryptoKeyFlagName, defaultCryptoKeyPath, "path to privatekey.pem")
 	flag.StringVar(&c.TrustedSubnet, trustedSubnetFlagName, defaultTrustedSubnet, "trusted subnet, example 192.168.31.1")
-	flag.BoolVar(&c.UseProtobuff, useProtobuffFlagName, defaultUseProtobuff, "use protobuf instead of http protocol")
-	flag.StringVar(&c.CertFilePath, certFileFlagName, defaultCertFilePath, "absolute path to certificate (x509)")
+	flag.BoolVar(&c.UseProtobuff, useProtobuffFlagName, defaultUseProtobuff, "use grpc instead of http protocol")
+	flag.StringVar(&c.CertFilePath, certFileFlagName, defaultCertFilePath, "absolute path to cert (x509)")
 
 	flag.Parse()
 

@@ -114,10 +114,10 @@ func TestMetricService_ReadMetric(t *testing.T) {
 		metric *metrics.Metrics
 	}
 	tests := []struct {
-		name         string
 		args         args
 		want         *ReadMetricResponse
 		wantPBMetric *Metric
+		name         string
 		wantErr      bool
 	}{
 		{
@@ -221,10 +221,10 @@ func TestMetricService_Update(t *testing.T) {
 		metric *metrics.Metrics
 	}
 	tests := []struct {
-		name         string
 		args         args
 		want         *UpdateResponse
 		wantPBMetric *Metric
+		name         string
 		wantErr      bool
 	}{
 		{
@@ -360,9 +360,9 @@ func TestMetricService_Updates(t *testing.T) {
 		metrics []*metrics.Metrics
 	}
 	tests := []struct {
+		want    *UpdateResponse
 		name    string
 		args    args
-		want    *UpdateResponse
 		wantErr bool
 	}{
 		{
@@ -439,9 +439,9 @@ func TestMetricService_MetricList(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
 		req     *MetricListRequest
 		want    *MetricListResponse
+		name    string
 		wantErr bool
 	}{
 		{

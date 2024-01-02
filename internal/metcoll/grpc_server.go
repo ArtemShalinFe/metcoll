@@ -51,7 +51,7 @@ func (ms *MetricService) Updates(ctx context.Context, request *BatchUpdateReques
 		mtr, err := convertMetric(m)
 		if err != nil {
 			response.Error = err.Error()
-			return &response, nil
+			return &response, fmt.Errorf("an error occured while convert pb metric, err: %w", err)
 		}
 
 		mtrs[i] = mtr
@@ -61,7 +61,7 @@ func (ms *MetricService) Updates(ctx context.Context, request *BatchUpdateReques
 	if err != nil {
 		ms.log.Errorf("BatchUpdate update error: %w", err)
 		response.Error = "batch update metric was failed"
-		return &response, nil
+		return &response, fmt.Errorf("an error occured while convert pb batch metric, err: %w", err)
 	}
 	if len(errs) > 0 {
 		for _, err := range errs {
@@ -69,7 +69,7 @@ func (ms *MetricService) Updates(ctx context.Context, request *BatchUpdateReques
 		}
 
 		response.Error = "not all metrics have been updated"
-		return &response, nil
+		return &response, fmt.Errorf("an error occured while update metrics, err: %w", err)
 	}
 
 	for _, um := range ums {
@@ -296,7 +296,7 @@ func (s *GRPCServer) hashChecker() grpc.UnaryServerInterceptor {
 		if len(s.hashkey) == 0 {
 			resp, err := handler(ctx, req)
 			if err != nil {
-				return nil, fmt.Errorf("unable to convert metrics to bytes, err: %w", err)
+				return nil, fmt.Errorf("unable to check hash, err: %w", err)
 			}
 			return resp, nil
 		}

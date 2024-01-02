@@ -43,12 +43,12 @@ type ConfigAgent struct {
 	Server          string `env:"ADDRESS" json:"address,omitempty"`
 	Path            string `env:"CONFIG"`
 	PublicCryptoKey string `env:"CRYPTO_KEY" json:"crypto_key"`
-	Key             []byte
-	PollInterval    int    `env:"POLL_INTERVAL" json:"poll_interval,omitempty"`
-	ReportInterval  int    `env:"REPORT_INTERVAL" json:"report_interval,omitempty"`
-	Limit           int    `env:"RATE_LIMIT"`
-	UseProtobuff    bool   `env:"USE_PROTOBUFF" json:"use_protobuff"`
 	CertFilePath    string `env:"CERTIFICATE" json:"certificate"`
+	Key             []byte
+	PollInterval    int  `env:"POLL_INTERVAL" json:"poll_interval,omitempty"`
+	ReportInterval  int  `env:"REPORT_INTERVAL" json:"report_interval,omitempty"`
+	Limit           int  `env:"RATE_LIMIT"`
+	UseProtobuff    bool `env:"USE_PROTOBUFF" json:"use_protobuff"`
 }
 
 func newConfigAgent() *ConfigAgent {
@@ -120,9 +120,9 @@ func (c *ConfigAgent) UnmarshalJSON(data []byte) error {
 		Server         string `json:"address,omitempty"`
 		PollInterval   string `json:"poll_interval,omitempty"`
 		ReportInterval string `json:"report_interval,omitempty"`
-		UseProtobuff   bool   `json:"use_protobuff"`
 		HashKey        string `json:"hashkey"`
 		CertFilePath   string `json:"certificate"`
+		UseProtobuff   bool   `json:"use_protobuff"`
 	}
 
 	var v ConfigAgentJSON
