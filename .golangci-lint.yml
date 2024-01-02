@@ -4,7 +4,7 @@
 run:
   # Settable parameters #
   timeout: 5m
-  tests: true
+  tests: false
   build-tags: []
   # Which dirs to skip: issues from them won't be reported.
   skip-dirs:

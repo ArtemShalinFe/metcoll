@@ -25,8 +25,12 @@ func NewGzipReader(r io.ReadCloser) (*gzipReader, error) {
 	}, nil
 }
 
-func (c gzipReader) Read(p []byte) (n int, err error) {
-	return c.zipR.Read(p)
+func (c gzipReader) Read(p []byte) (int, error) {
+	n, err := c.zipR.Read(p)
+	if err != nil {
+		return 0, fmt.Errorf("an error occured while rzipR reading, err: %w", err)
+	}
+	return n, nil
 }
 
 func (c *gzipReader) Close() error {
